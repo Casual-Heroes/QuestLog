@@ -282,6 +282,8 @@
 const groupId = {{ group_id }};
 const isLoggedIn = {{ web_user|yesno:"true,false" }};
 const currentUserId = {{ web_user.id|default:"null" }};
+const isSiteAdmin = {{ web_user.is_admin|yesno:"true,false" }};
+const isSiteMod = {{ web_user.is_mod|yesno:"true,false" }};
 
 let groupData = null;
 let joinUpdateMode = 'join';
@@ -383,20 +385,34 @@ function renderActions() {
   const el = document.getElementById('actionsRow');
   el.innerHTML = '';
 
+  const isCancelled = g.status === 'cancelled';
   if (g.viewer_is_creator) {
-    el.innerHTML = `
-      <button onclick="openUpdateModal()" class="bg-indigo-600/60 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-        <i class="fas fa-pencil-alt mr-2"></i>Edit Class
-      </button>
-      <button onclick="openEditModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-        <i class="fas fa-edit mr-2"></i>Edit Group
-      </button>
-      <button onclick="confirmDelete()" class="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-        <i class="fas fa-trash mr-2"></i>Delete Group
-      </button>`;
-    document.getElementById('coLeaderBtn').classList.remove('hidden');
+    if (isCancelled) {
+      el.innerHTML = `
+        <span class="bg-neutral-800 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed opacity-50">
+          <i class="fas fa-pencil-alt mr-2"></i>Edit Class
+        </span>
+        <span class="bg-neutral-800 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed opacity-50">
+          <i class="fas fa-edit mr-2"></i>Edit Group
+        </span>
+        <button onclick="confirmDelete()" class="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-trash mr-2"></i>Delete Group
+        </button>`;
+    } else {
+      el.innerHTML = `
+        <button onclick="openUpdateModal()" class="bg-indigo-600/60 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-pencil-alt mr-2"></i>Edit Class
+        </button>
+        <button onclick="openEditModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-edit mr-2"></i>Edit Group
+        </button>
+        <button onclick="confirmDelete()" class="bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          <i class="fas fa-trash mr-2"></i>Delete Group
+        </button>`;
+      document.getElementById('coLeaderBtn').classList.remove('hidden');
+    }
   } else if (g.viewer_is_member) {
-    el.innerHTML = `
+    el.innerHTML = isCancelled ? '' : `
       <button onclick="openUpdateModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
         <i class="fas fa-pencil-alt mr-2"></i>Edit Class
       </button>
@@ -1625,7 +1641,7 @@ function buildLfgPostEl(p, depth) {
 
 function initLfgDiscussion() {
   const g = groupData;
-  lfgCanPost = isLoggedIn && (g.viewer_is_creator || g.viewer_is_member);
+  lfgCanPost = isLoggedIn; // any logged-in user can post in group discussions
 
   if (lfgCanPost) {
     document.getElementById('lfgComposer').classList.remove('hidden');

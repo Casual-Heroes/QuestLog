@@ -2166,6 +2166,7 @@ def api_admin_users(request):
             'is_admin': u.is_admin,
             'is_mod': bool(u.is_mod),
             'is_vip': bool(u.is_vip),
+            'is_founder': bool(u.is_founder),
             'is_ffxiv_member': bool(u.is_ffxiv_member),
             'is_eso_member': bool(u.is_eso_member),
             'is_contributor': bool(u.is_contributor),
@@ -2293,6 +2294,28 @@ def api_admin_user_action(request, user_id):
         elif action == 'revoke_vip':
             user.is_vip = False
             # Leave the flair in their collection — it's a reward they earned
+
+        elif action == 'grant_founder':
+            user.is_founder = True
+            # Auto-grant the Founding Member flair
+            founder_flair = db.query(WebFlair).filter_by(name='Founding Member').first()
+            if founder_flair:
+                existing_uf = db.query(WebUserFlair).filter_by(
+                    user_id=user_id, flair_id=founder_flair.id
+                ).first()
+                if not existing_uf:
+                    db.add(WebUserFlair(
+                        user_id=user_id,
+                        flair_id=founder_flair.id,
+                        is_equipped=False,
+                        purchased_at=now,
+                    ))
+                if not user.active_flair_id:
+                    user.active_flair_id = founder_flair.id
+
+        elif action == 'revoke_founder':
+            user.is_founder = False
+            # Leave the flair — it's earned, not revoked
 
         elif action == 'grant_ffxiv':
             user.is_ffxiv_member = True

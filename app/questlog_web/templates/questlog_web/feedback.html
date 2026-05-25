@@ -59,33 +59,103 @@
       <div>
         <label class="block text-xs font-medium text-gray-400 mb-1.5">Details <span class="text-red-500">*</span></label>
         <textarea id="fbBody" rows="6" maxlength="2000" placeholder="Describe your feedback in detail..."
-                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition resize-y"></textarea>
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition resize-y"
+                  oninput="document.getElementById('bodyCount').textContent=this.value.length"
+                  onpaste="fbHandlePaste(event)"></textarea>
         <p class="text-xs text-gray-600 mt-1"><span id="bodyCount">0</span>/2000</p>
       </div>
 
+      <!-- Media preview -->
+      <div id="fbMediaPreview" class="hidden">
+        <div class="relative inline-block">
+          <img id="fbMediaImg" src="" class="max-h-48 rounded-xl object-contain bg-neutral-800" alt="">
+          <button onclick="fbClearMedia()" type="button"
+                  class="absolute top-1 right-1 w-5 h-5 bg-black/70 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs transition">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Emoji picker -->
+      <div id="fbEmojiPicker" class="hidden bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+        <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+          <button onclick="fbShowEmojiCat('gaming')" class="fb-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+          <button onclick="fbShowEmojiCat('smileys')" class="fb-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>
+          <button onclick="fbShowEmojiCat('hands')" class="fb-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
+          <button onclick="fbShowEmojiCat('hearts')" class="fb-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
+          <button onclick="fbShowEmojiCat('objects')" class="fb-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+          <button onclick="fbShowEmojiCat('custom')" id="fbCustomEmojiTabBtn" class="fb-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700 flex items-center gap-1"><span id="fbCustomEmojiTabIcon">✨</span> Custom</button>
+        </div>
+        <div id="fbEmojiGrid" class="grid grid-cols-10 gap-0.5"></div>
+        <div id="fbCustomEmojiGrid" class="hidden grid grid-cols-8 gap-1"></div>
+      </div>
+
+      <!-- GIF picker -->
+      <div id="fbGifPicker" class="hidden bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
+        <div class="p-2 border-b border-neutral-700">
+          <input id="fbGifSearch" type="text" placeholder="Search GIFs…" oninput="fbSearchGifs(this.value)"
+                 class="w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500">
+        </div>
+        <div id="fbGifGrid" class="grid grid-cols-3 gap-1 p-2 max-h-64 overflow-y-auto">
+          <p class="col-span-3 text-gray-500 text-xs text-center py-4">Search or browse trending GIFs</p>
+        </div>
+        <div class="px-2 py-1 border-t border-neutral-700 text-right">
+          <span class="text-gray-600 text-xs">Powered by GIPHY</span>
+        </div>
+      </div>
+
       <div id="successMsg" class="hidden p-3 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm">
-        <i class="fas fa-check-circle mr-2"></i>Thanks for your feedback! We'll review it soon.
+        <i class="fas fa-check-circle mr-2"></i>Thanks for your feedback! We'll review it soon. You can track the status in your <a href="{% url 'questlog_web_profile' %}" class="underline hover:text-green-300">profile</a>.
       </div>
       <div id="errorMsg" class="hidden p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm"></div>
     </div>
 
-    <div class="flex items-center justify-between px-5 py-4 border-t border-neutral-800">
-      <p class="text-xs text-gray-600">
-        {% if web_user %}
-        Submitting as <span class="text-gray-400">{{ web_user.display_name|default:web_user.username }}</span>
-        {% else %}
-        Submitting anonymously - <a href="/login/?next=/feedback/" class="text-indigo-400 hover:underline">log in</a> to identify yourself
-        {% endif %}
-      </p>
-      <button id="fbSubmitBtn" onclick="submitFeedback()"
-              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition">
-        Send Feedback
-      </button>
+    <!-- Toolbar -->
+    <div class="flex items-center justify-between px-5 py-3 border-t border-neutral-800">
+      <div class="flex items-center gap-0.5">
+        <button type="button" onmousedown="event.preventDefault();fbFmt('bold')" title="Bold" class="px-2 py-1 text-xs font-bold text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">B</button>
+        <button type="button" onmousedown="event.preventDefault();fbFmt('italic')" title="Italic" class="px-2 py-1 text-xs italic text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">I</button>
+        <button type="button" onmousedown="event.preventDefault();fbFmt('underline')" title="Underline" class="px-2 py-1 text-xs underline text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition">U</button>
+        <div class="w-px h-4 bg-neutral-700 mx-1"></div>
+        <label class="cursor-pointer text-gray-500 hover:text-green-400 px-2 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition" title="Attach image">
+          <i class="fas fa-image"></i>
+          <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="fbHandleImageUpload(this)">
+        </label>
+        <button type="button" onclick="fbToggleGif()" title="GIF" class="text-gray-500 hover:text-purple-400 px-2 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-bold transition">GIF</button>
+        <button type="button" onclick="fbToggleEmoji()" title="Emoji" class="text-gray-500 hover:text-yellow-400 px-2 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition"><i class="fas fa-smile"></i></button>
+      </div>
+      <div class="flex items-center gap-3">
+        <p class="text-xs text-gray-600">
+          {% if web_user %}
+          Submitting as <span class="text-gray-400">{{ web_user.display_name|default:web_user.username }}</span>
+          {% else %}
+          <a href="/ql/login/?next=/ql/feedback/" class="text-indigo-400 hover:underline">Log in</a> to track your submissions
+          {% endif %}
+        </p>
+        <button id="fbSubmitBtn" onclick="submitFeedback()"
+                class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition">
+          Send Feedback
+        </button>
+      </div>
     </div>
   </div>
 
-</div>
+  {% if web_user %}
+  <!-- My Submissions -->
+  <div class="mt-10">
+    <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+      <i class="fas fa-inbox text-indigo-400 text-sm"></i> My Submissions
+    </h2>
+    <div id="myFeedbackList" class="space-y-3">
+      <p class="text-gray-500 text-sm" id="myFeedbackLoading">Loading...</p>
+    </div>
+  </div>
+  {% endif %}
 
+</div>
+{% endblock %}
+
+{% block extra_js %}
 <script>
 const CAT_COLORS = {
   bug: 'border-red-500/30 bg-red-500/5',
@@ -94,10 +164,7 @@ const CAT_COLORS = {
   general: 'border-neutral-700 bg-neutral-800/30',
 };
 const CAT_TEXT_COLORS = {
-  bug: 'text-red-300',
-  feature: 'text-indigo-200',
-  suggestion: 'text-yellow-200',
-  general: 'text-gray-300',
+  bug: 'text-red-300', feature: 'text-indigo-200', suggestion: 'text-yellow-200', general: 'text-gray-300',
 };
 const CAT_BTN_ACTIVE = {
   bug: 'bg-red-500/20 border-red-500/50 text-red-300',
@@ -111,8 +178,17 @@ const CAT_DESCS = {
   suggestion: "An improvement or tweak to something that already exists. What would make it better?",
   general: "Anything else on your mind - questions, compliments, concerns.",
 };
+const FB_EMOJIS = {
+  gaming:  ['🎮','🕹️','🎯','🏆','⚔️','🛡️','🎲','👾','🤖','💀','🔥','⭐','💎','🗡️','🏹','🧙','🐉','💣','🎪','🧩','🎰','🃏','♟️','🏅','🥇','🎖️','🏴‍☠️','👑','💪','🦾'],
+  smileys: ['😀','😂','🤣','😍','🥰','😎','🤔','😤','😭','🥺','😱','🤯','😈','👀','🫡','😴','🤮','🥶','🥵','😏','🤩','😇','🙄','😬','🤪','😵','🫠','🤡','💩','👻'],
+  hands:   ['👍','👎','✌️','🤞','👊','✊','🫡','👋','🖐️','🤙','🫶','👏','🙌','🤝','🙏','🫰','🤘','🤟','🖖','✋','👆','👇','👈','👉','💪','🦾','🫵','✍️','🤳','💅'],
+  hearts:  ['❤️','💜','💙','💚','🧡','💛','🖤','🤍','💔','❤️‍🔥','💯','✅','❌','⭕','💢','💥','✨','🌟','💫','🎉','🎊','🏳️‍🌈','🫂','💤','💭','💬','👁️‍🗨️','🔔','📢','🚀'],
+  objects: ['⚡','🔫','💰','🍕','🍺','🎵','🎧','📱','💻','🖥️','⌨️','🖱️','🕐','📸','🎬','📺','🔧','⚙️','🧪','🗺️','🌍','🌙','☀️','🌈','❄️','🔑','🏠','🚗','✈️','🛸'],
+};
 
 let _selectedCategory = 'general';
+let _fbMedia = null; // {url, type}
+let _fbGif = null;
 
 function setCategory(cat) {
   _selectedCategory = cat;
@@ -128,14 +204,175 @@ function setCategory(cat) {
   descText.textContent = CAT_DESCS[cat];
 }
 
+function fbFmt(type) {
+  const ta = document.getElementById('fbBody');
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  const map = {bold:['**','**'], italic:['*','*'], underline:['<u>','</u>']};
+  const [pre, post] = map[type];
+  const ins = sel || type;
+  ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+  ta.selectionStart = s + pre.length; ta.selectionEnd = s + pre.length + ins.length;
+  ta.focus();
+}
+
+function fbSetMedia(url, type) {
+  _fbMedia = {url, type};
+  _fbGif = type === 'gif' ? {url} : null;
+  document.getElementById('fbMediaImg').src = url;
+  document.getElementById('fbMediaPreview').classList.remove('hidden');
+}
+function fbClearMedia() {
+  _fbMedia = null; _fbGif = null;
+  document.getElementById('fbMediaPreview').classList.add('hidden');
+  document.getElementById('fbMediaImg').src = '';
+}
+
+function fbHandleImageUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const fd = new FormData(); fd.append('image', file);
+  csrfFetch('/api/upload/image/', {method:'POST', body:fd})
+    .then(r => r.json()).then(d => { if (d.image_url) fbSetMedia(d.image_url, 'image'); })
+    .catch(() => {});
+  input.value = '';
+}
+
+function fbHandlePaste(e) {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      e.preventDefault();
+      const file = items[i].getAsFile();
+      const fd = new FormData(); fd.append('image', file);
+      csrfFetch('/api/upload/image/', {method:'POST', body:fd})
+        .then(r => r.json()).then(d => { if (d.image_url) fbSetMedia(d.image_url, 'image'); })
+        .catch(() => {});
+      return;
+    }
+  }
+}
+
+function fbToggleGif() {
+  const p = document.getElementById('fbGifPicker');
+  const isHidden = p.classList.contains('hidden');
+  document.getElementById('fbEmojiPicker').classList.add('hidden');
+  p.classList.toggle('hidden', !isHidden);
+  if (isHidden) { fbLoadTrendingGifs(); document.getElementById('fbGifSearch').focus(); }
+}
+let _fbCustomEmojiCache = null;
+fetch('/api/emoji/').then(r => r.json()).then(data => {
+  _fbCustomEmojiCache = data.emoji || [];
+  const lolUrl = (_fbCustomEmojiCache.find(e => e.shortcode === 'lol') || {}).image_url;
+  const iconEl = document.getElementById('fbCustomEmojiTabIcon');
+  if (lolUrl && iconEl) {
+    iconEl.innerHTML = `<img src="${lolUrl}" class="w-4 h-4 object-contain inline-block" alt=":lol:" style="vertical-align:-2px">`;
+  }
+}).catch(() => {});
+
+function fbToggleEmoji() {
+  const p = document.getElementById('fbEmojiPicker');
+  const isHidden = p.classList.contains('hidden');
+  document.getElementById('fbGifPicker').classList.add('hidden');
+  p.classList.toggle('hidden', !isHidden);
+  if (isHidden) fbShowEmojiCat('gaming');
+}
+function fbShowEmojiCat(cat) {
+  document.querySelectorAll('.fb-emoji-cat').forEach(b => b.className = 'fb-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700');
+  event.target.closest('.fb-emoji-cat').className = 'fb-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white';
+  const grid = document.getElementById('fbEmojiGrid');
+  const customGrid = document.getElementById('fbCustomEmojiGrid');
+  if (cat === 'custom') {
+    grid.classList.add('hidden');
+    customGrid.classList.remove('hidden');
+    if (_fbCustomEmojiCache) {
+      fbRenderCustomEmoji(_fbCustomEmojiCache);
+    } else {
+      customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">Loading...</p>';
+      fetch('/api/emoji/').then(r => r.json()).then(data => {
+        _fbCustomEmojiCache = data.emoji || [];
+        fbRenderCustomEmoji(_fbCustomEmojiCache);
+      });
+    }
+  } else {
+    grid.classList.remove('hidden');
+    customGrid.classList.add('hidden');
+    grid.innerHTML = (FB_EMOJIS[cat] || []).map(em =>
+      `<button type="button" onclick="fbInsertEmoji('${em}')" class="text-xl hover:bg-neutral-700 rounded p-1 transition cursor-pointer">${em}</button>`
+    ).join('');
+  }
+}
+function fbRenderCustomEmoji(items) {
+  const customGrid = document.getElementById('fbCustomEmojiGrid');
+  if (!items.length) {
+    customGrid.innerHTML = '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>';
+    return;
+  }
+  customGrid.innerHTML = items.filter(e => !e.is_sticker).map(e =>
+    `<button type="button" onclick="fbInsertEmoji(':${e.shortcode}:')" title=":${e.shortcode}:"
+             class="flex items-center justify-center hover:bg-neutral-700 rounded p-1 transition cursor-pointer">
+       <img src="${e.image_url}" alt=":${e.shortcode}:" class="w-7 h-7 object-contain">
+     </button>`
+  ).join('');
+}
+function fbInsertEmoji(em) {
+  const ta = document.getElementById('fbBody');
+  const s = ta.selectionStart;
+  ta.value = ta.value.substring(0, s) + em + ta.value.substring(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = s + em.length;
+  ta.focus();
+  document.getElementById('fbEmojiPicker').classList.add('hidden');
+}
+
+let _fbGifTimeout = null;
+async function fbLoadTrendingGifs() {
+  const grid = document.getElementById('fbGifGrid');
+  grid.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading trending…</p>';
+  try {
+    const r = await fetch('/api/gifs/trending/');
+    const d = await r.json();
+    fbRenderGifs(d.results || []);
+  } catch(e) {
+    grid.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">GIFs unavailable</p>';
+  }
+}
+function fbSearchGifs(q) {
+  clearTimeout(_fbGifTimeout);
+  if (!q || q.length < 2) { fbLoadTrendingGifs(); return; }
+  _fbGifTimeout = setTimeout(async () => {
+    const grid = document.getElementById('fbGifGrid');
+    grid.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Searching…</p>';
+    try {
+      const r = await fetch('/api/gifs/search/?q=' + encodeURIComponent(q));
+      const d = await r.json();
+      fbRenderGifs(d.results || []);
+    } catch(e) {
+      grid.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Search failed</p>';
+    }
+  }, 400);
+}
+function fbRenderGifs(gifs) {
+  const grid = document.getElementById('fbGifGrid');
+  if (!gifs.length) { grid.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">No GIFs found</p>'; return; }
+  grid.innerHTML = gifs.map(g =>
+    `<button type="button" onclick="fbSelectGif('${escapeHtml(g.url)}','${escapeHtml(g.preview)}')" class="overflow-hidden rounded hover:ring-2 hover:ring-purple-500 transition cursor-pointer">
+      <img src="${escapeHtml(g.preview)}" alt="GIF" class="w-full h-24 object-cover" loading="lazy">
+    </button>`
+  ).join('');
+}
+function fbSelectGif(url, preview) {
+  fbSetMedia(url, 'gif');
+  document.getElementById('fbMediaImg').src = preview;
+  document.getElementById('fbGifPicker').classList.add('hidden');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   setCategory('general');
   document.getElementById('fbSubject').addEventListener('input', function() {
     document.getElementById('subjectCount').textContent = this.value.length;
   });
-  document.getElementById('fbBody').addEventListener('input', function() {
-    document.getElementById('bodyCount').textContent = this.value.length;
-  });
+  {% if web_user %}loadMyFeedback();{% endif %}
 });
 
 async function submitFeedback() {
@@ -144,14 +381,19 @@ async function submitFeedback() {
   const errEl = document.getElementById('errorMsg');
   errEl.classList.add('hidden');
   if (!subject) { errEl.textContent = 'Please enter a subject.'; errEl.classList.remove('hidden'); return; }
-  if (!body) { errEl.textContent = 'Please describe your feedback.'; errEl.classList.remove('hidden'); return; }
+  if (!body && !_fbMedia) { errEl.textContent = 'Please describe your feedback.'; errEl.classList.remove('hidden'); return; }
   const btn = document.getElementById('fbSubmitBtn');
   btn.disabled = true;
+  const payload = { category: _selectedCategory, subject, body };
+  if (_fbMedia) {
+    if (_fbMedia.type === 'gif') payload.gif_url = _fbMedia.url;
+    else payload.image_url = _fbMedia.url;
+  }
   try {
     const r = await csrfFetch('/api/feedback/', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ category: _selectedCategory, subject, body }),
+      body: JSON.stringify(payload),
     });
     if (r.ok) {
       document.getElementById('successMsg').classList.remove('hidden');
@@ -159,7 +401,9 @@ async function submitFeedback() {
       document.getElementById('fbBody').value = '';
       document.getElementById('subjectCount').textContent = '0';
       document.getElementById('bodyCount').textContent = '0';
+      fbClearMedia();
       btn.disabled = false;
+      {% if web_user %}loadMyFeedback();{% endif %}
     } else {
       const d = await r.json();
       errEl.textContent = d.error || 'Something went wrong. Please try again.';
@@ -172,5 +416,48 @@ async function submitFeedback() {
     btn.disabled = false;
   }
 }
+
+{% if web_user %}
+const STATUS_LABELS = {
+  new:          {label:'Received',     color:'text-blue-400',   bg:'bg-blue-500/10 border-blue-500/30'},
+  in_review:    {label:'In Review',    color:'text-yellow-400', bg:'bg-yellow-500/10 border-yellow-500/30'},
+  implementing: {label:'Implementing', color:'text-purple-400', bg:'bg-purple-500/10 border-purple-500/30'},
+  completed:    {label:'Done',         color:'text-green-400',  bg:'bg-green-500/10 border-green-500/30'},
+  dismissed:    {label:'Dismissed',    color:'text-gray-500',   bg:'bg-neutral-800 border-neutral-700'},
+};
+const CAT_ICONS = {bug:'fa-bug text-red-400', feature:'fa-lightbulb text-indigo-400', suggestion:'fa-star text-yellow-400', general:'fa-comment text-gray-400'};
+
+async function loadMyFeedback() {
+  try {
+    const r = await fetch('/api/my-feedback/');
+    const d = await r.json();
+    const el = document.getElementById('myFeedbackList');
+    document.getElementById('myFeedbackLoading') && document.getElementById('myFeedbackLoading').remove();
+    if (!d.feedback.length) {
+      el.innerHTML = '<p class="text-gray-600 text-sm">No submissions yet.</p>';
+      return;
+    }
+    el.innerHTML = d.feedback.map(function(f) {
+      const st = STATUS_LABELS[f.status] || STATUS_LABELS.new;
+      const date = new Date(f.created_at * 1000).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+      const icon = CAT_ICONS[f.category] || CAT_ICONS.general;
+      const note = f.admin_note ? `<div class="mt-2 p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-xs text-indigo-200"><i class="fas fa-comment-alt mr-1"></i>${escapeHtml(f.admin_note)}</div>` : '';
+      return `<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-2 min-w-0">
+            <i class="fas ${icon} text-xs mt-0.5 flex-shrink-0"></i>
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-white truncate">${escapeHtml(f.subject)}</p>
+              <p class="text-xs text-gray-500 mt-0.5">${date}</p>
+            </div>
+          </div>
+          <span class="flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.bg} ${st.color}">${st.label}</span>
+        </div>
+        ${note}
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+{% endif %}
 </script>
 {% endblock %}
