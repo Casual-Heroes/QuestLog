@@ -1279,11 +1279,14 @@ def api_community_wall(request, community_id):
         is_owner = bool(user_id and community.owner_id == user_id)
         is_member = bool(user_id and db.query(WebCommunityMember).filter_by(
             community_id=community_id, user_id=user_id).first())
+        is_site_admin = bool(user_id and request.web_user and
+                             (getattr(request.web_user, 'is_admin', False) or
+                              getattr(request.web_user, 'is_mod', False)))
 
         if request.method == 'POST':
             if not user_id:
                 return JsonResponse({'error': 'Login required'}, status=401)
-            if not (is_owner or is_member):
+            if not (is_owner or is_member or is_site_admin):
                 return JsonResponse({'error': 'You must be a member to post'}, status=403)
             try:
                 data = json.loads(request.body)
@@ -1423,17 +1426,6 @@ def api_community_wall(request, community_id):
             ).all()
             rsvp_map = {r.event_id: r.status for r in rsvp_rows}
 
-        # Build igdb_url map for game tags
-        all_posts_for_igdb = list(all_top) + list(replies_raw)
-        comm_game_tag_ids = list({p.game_tag_id for p in all_posts_for_igdb if p.game_tag_id})
-        comm_igdb_url_map = {}
-        if comm_game_tag_ids:
-            from app.questlog_web.models import WebFoundGame
-            comm_games = db.query(WebFoundGame.id, WebFoundGame.igdb_url).filter(
-                WebFoundGame.id.in_(comm_game_tag_ids)
-            ).all()
-            comm_igdb_url_map = {g.id: (g.igdb_url or '') for g in comm_games}
-
         def serialize(p, is_reply=False):
             a = p.author
             ev = event_map.get(p.event_id) if p.event_id else None
@@ -1455,7 +1447,6 @@ def api_community_wall(request, community_id):
                     'is_cancelled': ev.is_cancelled,
                     'recurrence': ev.recurrence or 'none',
                 }
-            igdb_url = comm_igdb_url_map.get(p.game_tag_id, '') if p.game_tag_id else ''
             return {
                 'id': p.id,
                 'parent_id': p.parent_id,
@@ -1466,7 +1457,7 @@ def api_community_wall(request, community_id):
                 'media_type': p.media_type or '',
                 'game_tag_name': p.game_tag_name or '',
                 'game_tag_steam_id': p.game_tag_steam_id or 0,
-                'game_tag_igdb_url': igdb_url,
+                'game_tag_igdb_url': '',
                 'is_pinned': p.is_pinned,
                 'reply_count': p.reply_count or 0,
                 'like_count': p.like_count,
@@ -1477,7 +1468,7 @@ def api_community_wall(request, community_id):
                 'author_display_name': (a.display_name or a.username) if a else '',
                 'author_avatar': a.avatar_url or '' if a else '',
                 'is_mine': p.author_id == user_id,
-                'can_delete': p.author_id == user_id or is_owner,
+                'can_delete': p.author_id == user_id or is_owner or is_site_admin,
                 'can_pin': is_owner and not is_reply,
                 'replies': [],
             }
@@ -1495,7 +1486,7 @@ def api_community_wall(request, community_id):
         return JsonResponse({
             'posts': [serialize_with_replies(p) for p in all_top],
             'has_more': len(regular) == limit,
-            'can_post': bool(is_owner or is_member),
+            'can_post': bool(is_owner or is_member or is_site_admin),
             'is_owner': is_owner,
         })
 
@@ -1573,14 +1564,15 @@ def api_lfg_group_wall(request, group_id):
         is_creator = bool(user_id and group.creator_id == user_id)
         is_member = bool(user_id and db.query(WebLFGMember).filter_by(
             group_id=group_id, user_id=user_id, status='joined').first())
-        can_post = is_creator or is_member
-        can_manage = is_creator
+        is_site_admin = bool(user_id and request.web_user and
+                             (getattr(request.web_user, 'is_admin', False) or
+                              getattr(request.web_user, 'is_mod', False)))
+        can_post = bool(user_id)  # any logged-in user can post in group discussions
+        can_manage = is_creator or is_site_admin
 
         if request.method == 'POST':
             if not user_id:
                 return JsonResponse({'error': 'Login required'}, status=401)
-            if not can_post:
-                return JsonResponse({'error': 'You must be in the group to post'}, status=403)
             try:
                 data = json.loads(request.body)
             except (json.JSONDecodeError, ValueError):
@@ -1692,19 +1684,8 @@ def api_lfg_group_wall(request, group_id):
             ).all()
             liked_ids = {r[0] for r in likes}
 
-        game_tag_ids = list({p.game_tag_id for p in top_posts if p.game_tag_id}
-                            | {r.game_tag_id for r in all_descendants if r.game_tag_id})
-        igdb_url_map = {}
-        if game_tag_ids:
-            from app.questlog_web.models import WebFoundGame
-            games = db.query(WebFoundGame.id, WebFoundGame.igdb_url).filter(
-                WebFoundGame.id.in_(set(game_tag_ids))
-            ).all()
-            igdb_url_map = {g.id: (g.igdb_url or '') for g in games}
-
         def serialize(p):
             a = p.author
-            igdb_url = igdb_url_map.get(p.game_tag_id, '') if p.game_tag_id else ''
             return {
                 'id': p.id,
                 'parent_id': p.parent_id,
@@ -1713,7 +1694,7 @@ def api_lfg_group_wall(request, group_id):
                 'media_type': p.media_type or '',
                 'game_tag_name': p.game_tag_name or '',
                 'game_tag_steam_id': p.game_tag_steam_id or 0,
-                'game_tag_igdb_url': igdb_url,
+                'game_tag_igdb_url': '',
                 'is_pinned': p.is_pinned,
                 'reply_count': p.reply_count or 0,
                 'like_count': p.like_count,
@@ -1724,7 +1705,7 @@ def api_lfg_group_wall(request, group_id):
                 'author_display_name': (a.display_name or a.username) if a else '',
                 'author_avatar': a.avatar_url or '' if a else '',
                 'is_mine': p.author_id == user_id,
-                'can_delete': p.author_id == user_id or can_manage,
+                'can_delete': p.author_id == user_id or can_manage or is_site_admin,
                 'can_pin': False,
                 'replies': [],
             }
@@ -1884,16 +1865,8 @@ def api_community_membership(request, community_id):
 
         action = data.get('action')
         if action == 'join':
-            if existing:
-                return JsonResponse({'ok': True, 'is_member': True})
-            if community.owner_id == user_id:
-                return JsonResponse({'error': 'You own this community'}, status=400)
-            db.add(WebCommunityMember(
-                community_id=community_id, user_id=user_id,
-                role='member', joined_at=int(time.time())
-            ))
-            db.commit()
-            return JsonResponse({'ok': True, 'is_member': True})
+            # Membership is granted via Discord/Fluxer server sync only - not self-service
+            return JsonResponse({'error': 'Join via Discord or Fluxer - membership is synced from your server'}, status=403)
 
         if action == 'leave':
             if community.owner_id == user_id:

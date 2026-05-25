@@ -188,6 +188,7 @@ class WebUser(Base):
 
     # Admin flags
     is_vip = Column(Boolean, default=False)             # Early tester / VIP status
+    is_founder = Column(Boolean, default=False)         # Founding member
     is_admin = Column(Boolean, default=False)            # Site admin
     is_mod = Column(Boolean, default=False)              # Site moderator - limited admin access
     is_ffxiv_member = Column(Boolean, default=False)     # CH FFXIV crew - can write to FC progression
@@ -3991,7 +3992,10 @@ class WebSiteFeedback(Base):
     category    = Column(String(30), nullable=False, default='general')  # bug, feature, suggestion, general
     subject     = Column(String(200), nullable=False)
     body        = Column(Text, nullable=False)
+    media_url   = Column(String(500), nullable=True)
+    media_type  = Column(String(20), nullable=True)  # 'image', 'gif'
     status      = Column(String(20), nullable=False, default='new')  # new, reviewed, done, dismissed
+    admin_note  = Column(Text, nullable=True)  # Admin reply/note shown to user
     created_at  = Column(BigInteger, nullable=False)
 
     user = relationship('WebUser', foreign_keys=[user_id], lazy='select')

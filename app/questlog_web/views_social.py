@@ -1383,10 +1383,10 @@ def _get_recent_activity(request):
                 'event_title': event.title,
             })
 
-        # Site announcements (last 7 days) - show as platform news in ticker
+        # Site announcements (last 1 day) - show as platform news in ticker
         from .models import WebSiteAnnouncement
         recent_announcements = db.query(WebSiteAnnouncement).filter(
-            WebSiteAnnouncement.created_at >= week_ago,
+            WebSiteAnnouncement.created_at >= day_ago,
         ).order_by(WebSiteAnnouncement.created_at.desc()).limit(3).all()
         for ann in recent_announcements:
             ann_author = db.query(WebUser).filter_by(id=ann.author_id).first()

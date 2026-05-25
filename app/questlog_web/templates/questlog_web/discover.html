@@ -533,70 +533,29 @@
         {% endif %}
       </section>
 
-      <!-- 3. ACTIVE GAMES + LIVE STREAMERS side by side -->
-      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <!-- 3. CREATORS - Live Now + Previously Live -->
+      {% if live_streamers or recently_streamed %}
+      <section>
+        <div class="section-header">
+          <h2 class="section-title">
+            <span class="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center">
+              <i class="fas fa-broadcast-tower text-red-400 text-xs"></i>
+            </span>
+            Creators
+          </h2>
+          <a href="{% url 'questlog_web_creators' %}" class="view-all">
+            All Creators <i class="fas fa-arrow-right text-[10px]"></i>
+          </a>
+        </div>
 
-        {% if active_games %}
-        <section class="{% if live_streamers or recently_streamed %}lg:col-span-3{% else %}lg:col-span-5{% endif %}">
-          <div class="section-header">
-            <h2 class="section-title">
-              <span class="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center">
-                <i class="fas fa-fire text-indigo-400 text-xs"></i>
-              </span>
-              Active Games
-            </h2>
-          </div>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {% for g in active_games %}
-            <a href="{% url 'questlog_web_lfg_browse' %}?game={{ g.game_name|urlencode }}"
-               class="game-tile discover-card group" style="border-radius:0.75rem;overflow:hidden;transform:translateZ(0);display:block">
-              <div class="relative bg-neutral-800" style="height:110px;overflow:hidden;border-radius:0.75rem 0.75rem 0 0">
-                {% if g.game_image_url %}
-                <img src="{{ g.game_image_url }}"
-                     style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top"
-                     class="game-tile-img group-hover:scale-105 transition duration-300"
-                     alt="{{ g.game_name }}">
-                {% else %}
-                <div class="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-900 flex items-center justify-center">
-                  <i class="fas fa-gamepad text-xl text-neutral-700"></i>
-                </div>
-                {% endif %}
-                {% if g.live_count %}
-                <span class="absolute top-2 right-2 text-[10px] font-bold text-red-400 bg-black/70 px-1.5 py-0.5 rounded-full">&#9679; {{ g.live_count }} live</span>
-                {% endif %}
-              </div>
-              <div class="p-2.5">
-                <p class="text-xs font-semibold text-white truncate group-hover:text-indigo-300 transition">{{ g.game_name }}</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">{{ g.group_count }} group{{ g.group_count|pluralize }}</p>
-              </div>
-            </a>
-            {% endfor %}
-          </div>
-        </section>
-        {% endif %}
-
-        <!-- 3. CREATORS WORTH FINDING - recency sorted, small creators surface here -->
-        {% if live_streamers or recently_streamed %}
-        <section class="{% if active_games %}lg:col-span-2{% else %}lg:col-span-5{% endif %}">
-          <div class="section-header">
-            <h2 class="section-title">
-              <span class="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center">
-                <i class="fas fa-broadcast-tower text-red-400 text-xs"></i>
-              </span>
-              Creators Worth Finding
-            </h2>
-            <a href="{% url 'questlog_web_creators' %}" class="view-all">
-              All Creators <i class="fas fa-arrow-right text-[10px]"></i>
-            </a>
-          </div>
-
-          {% if live_streamers %}
-          <p class="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full bg-red-500 live-pulse inline-block"></span> Live Now
-          </p>
+        {% if live_streamers %}
+        <p class="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-red-500 live-pulse inline-block"></span> Live Now
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
           {% for s in live_streamers %}
           <a href="/u/{{ s.username }}/"
-             class="discover-card rounded-xl p-3 flex items-center gap-3 group mb-2 block">
+             class="discover-card rounded-xl p-3 flex items-center gap-3 group">
             <div class="relative flex-shrink-0">
               {% if s.avatar_url %}
               <img src="{{ s.avatar_url }}" class="w-10 h-10 rounded-full object-cover ring-2 ring-red-500/70" alt="{{ s.display_name }}">
@@ -613,7 +572,7 @@
                 {% if s.is_cotm %}<span class="text-[9px] bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-crown text-[8px]"></i> COTM</span>
                 {% elif s.is_cotw %}<span class="text-[9px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-star text-[8px]"></i> COTW</span>{% endif %}
               </div>
-              <p id="creator-game-{{ s.username }}" class="text-[11px] text-gray-500 truncate{% if not s.current_game %} hidden{% endif %}">{{ s.current_game }}</p>
+              <p class="text-[11px] text-gray-500 truncate{% if not s.current_game %} hidden{% endif %}">{{ s.current_game }}</p>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
               <span class="text-[10px] text-red-400 font-semibold">LIVE</span>
@@ -623,13 +582,15 @@
             </div>
           </a>
           {% endfor %}
-          {% endif %}
+        </div>
+        {% endif %}
 
-          {% if recently_streamed %}
-          <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5 {% if live_streamers %}mt-3{% endif %}">Recently Streamed</p>
+        {% if recently_streamed %}
+        <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 {% if live_streamers %}mt-1{% endif %}">Previously Live</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {% for s in recently_streamed %}
           <a href="/u/{{ s.username }}/"
-             class="discover-card rounded-xl p-3 flex items-center gap-3 group mb-2 block">
+             class="discover-card rounded-xl p-3 flex items-center gap-3 group">
             <div class="relative flex-shrink-0">
               {% if s.avatar_url %}
               <img src="{{ s.avatar_url }}" class="w-10 h-10 rounded-full object-cover opacity-70" alt="{{ s.display_name }}">
@@ -645,7 +606,7 @@
                 {% if s.is_cotm %}<span class="text-[9px] bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-crown text-[8px]"></i> COTM</span>
                 {% elif s.is_cotw %}<span class="text-[9px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-1 py-0.5 rounded-full font-bold whitespace-nowrap"><i class="fas fa-star text-[8px]"></i> COTW</span>{% endif %}
               </div>
-              <p id="creator-game-{{ s.username }}" class="text-[11px] text-gray-600 truncate{% if not s.current_game %} hidden{% endif %}">{{ s.current_game }}</p>
+              <p class="text-[11px] text-gray-600 truncate{% if not s.current_game %} hidden{% endif %}">{{ s.current_game }}</p>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0 text-gray-600 text-xs">
               {% if s.platform == 'twitch' %}<i class="fab fa-twitch"></i>
@@ -654,12 +615,11 @@
             </div>
           </a>
           {% endfor %}
-          {% endif %}
-
-        </section>
+        </div>
         {% endif %}
 
-      </div>
+      </section>
+      {% endif %}
 
       <!-- Bottom CTA: federation pitch (logged out only) -->
       {% if not web_user %}

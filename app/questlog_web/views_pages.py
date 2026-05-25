@@ -4647,6 +4647,18 @@ def api_submit_feedback(request):
     if not subject or not body:
         return JsonResponse({'error': 'Subject and body required'}, status=400)
 
+    from .helpers import _is_valid_giphy_url
+    gif_url = (data.get('gif_url') or '').strip()[:500]
+    image_url = (data.get('image_url') or '').strip()[:500]
+    media_url = None
+    media_type = None
+    if gif_url and _is_valid_giphy_url(gif_url):
+        media_url = gif_url
+        media_type = 'gif'
+    elif image_url and image_url.startswith('/media/uploads/'):
+        media_url = image_url
+        media_type = 'image'
+
     now = int(time.time())
     user_id = request.web_user.id if request.web_user else None
 
@@ -4663,6 +4675,8 @@ def api_submit_feedback(request):
             category=category,
             subject=subject,
             body=body,
+            media_url=media_url,
+            media_type=media_type,
             status='new',
             created_at=now,
         )
@@ -4718,6 +4732,32 @@ def api_submit_feedback(request):
 
 
 @require_http_methods(['GET'])
+@web_login_required
+@add_web_user_context
+def api_my_feedback(request):
+    """Logged-in user: list their own feedback submissions."""
+    from .models import WebSiteFeedback
+    with get_db_session() as db:
+        items = db.query(WebSiteFeedback).filter_by(
+            user_id=request.web_user.id
+        ).order_by(WebSiteFeedback.created_at.desc()).limit(50).all()
+        return JsonResponse({'feedback': [
+            {
+                'id': f.id,
+                'category': f.category,
+                'subject': f.subject,
+                'body': f.body,
+                'media_url': f.media_url or '',
+                'media_type': f.media_type or '',
+                'status': f.status,
+                'admin_note': f.admin_note or '',
+                'created_at': f.created_at,
+            }
+            for f in items
+        ]})
+
+
+@require_http_methods(['GET'])
 @add_web_user_context
 def api_admin_feedback(request):
     """Admin: list feedback submissions."""
@@ -4748,7 +4788,7 @@ def api_admin_feedback(request):
 @require_http_methods(['PUT'])
 @add_web_user_context
 def api_admin_feedback_detail(request, feedback_id):
-    """Admin: update feedback status."""
+    """Admin: update feedback status and/or admin note. Notifies user on completed/dismissed."""
     from .models import WebSiteFeedback
     if not (request.web_user and request.web_user.is_admin):
         return JsonResponse({'error': 'Forbidden'}, status=403)
@@ -4760,9 +4800,25 @@ def api_admin_feedback_detail(request, feedback_id):
         fb = db.query(WebSiteFeedback).filter_by(id=feedback_id).first()
         if not fb:
             return JsonResponse({'error': 'Not found'}, status=404)
-        if 'status' in data and data['status'] in ('new', 'in_review', 'implementing', 'completed', 'dismissed'):
-            fb.status = data['status']
+        old_status = fb.status
+        valid_statuses = ('new', 'in_review', 'implementing', 'completed', 'dismissed')
+        new_status = data.get('status')
+        if new_status and new_status in valid_statuses:
+            fb.status = new_status
+        if 'admin_note' in data:
+            fb.admin_note = (data['admin_note'] or '').strip()[:1000] or None
         db.commit()
+        # Send notification when status changes to completed or dismissed
+        if fb.user_id and new_status and new_status != old_status and new_status in ('completed', 'dismissed'):
+            label = 'implemented' if new_status == 'completed' else 'reviewed'
+            note_text = fb.admin_note or ''
+            msg = f'Your feedback "{fb.subject[:60]}" has been {label}.'
+            if note_text:
+                msg += f' Note: {note_text[:200]}'
+            create_notification(db, fb.user_id, request.web_user.id,
+                                'feedback_update', target_type='feedback',
+                                target_id=fb.id, message=msg, skip_self=False)
+            db.commit()
     return JsonResponse({'ok': True})
 
 
