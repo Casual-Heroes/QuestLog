@@ -31,6 +31,68 @@ from .fluxer_webhooks import notify_lfg_post as _fluxer_lfg_post, build_lfg_embe
 
 logger = logging.getLogger(__name__)
 
+
+def _calc_activity_level(db, community):
+    """
+    Auto-calculate activity tier. Sources, highest to lowest weight:
+      1. Platform signals (messages, voice_mins, reactions, media) from WebUnifiedLeaderboard
+         - requires community.platform_id (guild linked to bot)
+      2. Wall posts (lowest weight - supplementary only)
+    Tiers: unknown < dormant < squire < champion < legendary < mythic
+    """
+    score = 0
+
+    # --- Platform signals (bot must be in the guild) ---
+    if community.platform_id:
+        row = db.execute(
+            text("""
+                SELECT
+                    COALESCE(SUM(messages), 0)    AS msgs,
+                    COALESCE(SUM(voice_mins), 0)  AS voice,
+                    COALESCE(SUM(reactions), 0)   AS reacts,
+                    COALESCE(SUM(media_count), 0) AS media
+                FROM web_unified_leaderboard
+                WHERE guild_id = :gid
+            """),
+            {'gid': community.platform_id}
+        ).fetchone()
+
+        if row:
+            msgs   = row[0] or 0
+            voice  = row[1] or 0
+            reacts = row[2] or 0
+            media  = row[3] or 0
+            # Weights: messages=1pt per 10, voice=1pt per 30min,
+            #          reactions=1pt per 20, media=1pt per 5
+            score += msgs   // 10
+            score += voice  // 30
+            score += reacts // 20
+            score += media  // 5
+
+    # --- Wall posts (last 30 days, lowest weight) ---
+    cutoff = int(time.time()) - 30 * 86400
+    wall_posts = db.query(WebCommunityPost).filter(
+        WebCommunityPost.community_id == community.id,
+        WebCommunityPost.is_deleted == False,
+        WebCommunityPost.created_at >= cutoff,
+        WebCommunityPost.parent_id == None,
+    ).count()
+    score += wall_posts  # 1pt each - lowest weight
+
+    # Tiers
+    if score >= 500:
+        return 'mythic'
+    if score >= 150:
+        return 'legendary'
+    if score >= 40:
+        return 'champion'
+    if score >= 10:
+        return 'squire'
+    if score >= 1:
+        return 'dormant'
+    return 'unknown'
+
+
 _VOICE_LINK_SCHEMES = ('https://',)
 _VOICE_LINK_MAX = 500
 
@@ -1640,9 +1702,8 @@ def api_community_detail(request, community_id):
             raw_games = data.get('games') or []
             community.games = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
-            VALID_ACTIVITY = {'unknown', 'dormant', 'squire', 'champion', 'legendary', 'mythic'}
-            if data.get('activity_level') in VALID_ACTIVITY:
-                community.activity_level = data['activity_level']
+            # Auto-calculate activity level - not owner-settable
+            community.activity_level = _calc_activity_level(db, community)
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
             community.allow_joins = bool(data.get('allow_joins', community.allow_joins))
             # In-game guild fields
