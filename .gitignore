@@ -74,6 +74,12 @@ app/test_auth_decorators.py
 app/test_sec002_003.py
 app/test_security_fixes.py
 
+# One-time DB migration scripts (already executed, no need in repo)
+/add_*.py
+/backfill_*.py
+/create_*.py
+/fix_*.py
+
 # Project SYNAPSE - trade secret, never commit
 7dtd-mods/
 app/questlog_web/views_7dtd.py
