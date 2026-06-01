@@ -486,13 +486,6 @@ async function openEditModal(communityId) {
   document.getElementById('editMemberCount').value = c.member_count || 0;
   document.getElementById('editAllowDiscovery').checked = !!c.allow_discovery;
   document.getElementById('editAllowJoins').checked = !!c.allow_joins;
-  const xpRow = document.getElementById('editUnifiedXpRow');
-  if (c.site_xp_to_guild) {
-    xpRow.style.display = '';
-    document.getElementById('editSiteXpToGuild').checked = true;
-  } else {
-    xpRow.style.display = 'none';
-  }
   document.getElementById('editPlatform').value = c.platform || 'discord';
   // Hide the old unified XP row - handled per-platform now
   const xpRow = document.getElementById('editUnifiedXpRow');
@@ -755,7 +748,6 @@ async function saveEditCommunity() {
       member_count: parseInt(document.getElementById('editMemberCount').value) || 0,
       allow_discovery: document.getElementById('editAllowDiscovery').checked,
       allow_joins: document.getElementById('editAllowJoins').checked,
-      site_xp_to_guild: document.getElementById('editSiteXpToGuild').checked,
       tags: [...editSelectedTags],
       guild_game: _editGuildGameSel ? (Array.isArray(_editGuildGameSel.getValue()) ? _editGuildGameSel.getValue() : (_editGuildGameSel.getValue() ? [_editGuildGameSel.getValue()] : [])) : [],
       guild_game_name: document.getElementById('editGuildGameName').value.trim() || null,

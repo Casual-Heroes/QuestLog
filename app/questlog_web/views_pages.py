@@ -535,20 +535,26 @@ def discover(request):
             ).limit(20).all()
 
             for cp, u in creator_rows:
-                platform = None
-                stream_url = None
+                # All connected platforms (used for LIVE display - show all active streams)
+                all_platforms = []
                 if cp.twitch_url:
-                    platform = 'twitch'
-                    stream_url = cp.twitch_url
-                elif cp.youtube_url:
-                    platform = 'youtube'
-                    stream_url = cp.youtube_url
-                elif cp.kick_url:
-                    platform = 'kick'
-                    stream_url = cp.kick_url
+                    all_platforms.append({'platform': 'twitch', 'url': cp.twitch_url})
+                if cp.youtube_url:
+                    all_platforms.append({'platform': 'youtube', 'url': cp.youtube_url})
+                if cp.kick_url:
+                    all_platforms.append({'platform': 'kick', 'url': cp.kick_url})
+
+                # For "Previously Live": only the platform actually detected live last session
+                last_platform = cp.latest_stream_platform if cp.latest_stream_platform else None
+                url_map = {'twitch': cp.twitch_url, 'youtube': cp.youtube_url, 'kick': cp.kick_url}
+                prev_platforms = [{'platform': last_platform, 'url': url_map.get(last_platform)}] if last_platform and url_map.get(last_platform) else []
+
+                # Primary platform = first connected (for backwards compat)
+                platform = all_platforms[0]['platform'] if all_platforms else None
+                stream_url = all_platforms[0]['url'] if all_platforms else None
 
                 resolved_avatar = _valid_avatar(cp.avatar_url) or _valid_avatar(u.avatar_url)
-                entry = {
+                base_entry = {
                     'username': u.username,
                     'display_name': cp.display_name or u.username,
                     'avatar_url': resolved_avatar,
@@ -561,13 +567,13 @@ def discover(request):
                 }
 
                 if u.is_live and len(live_streamers) < 4:
-                    live_streamers.append(entry)
+                    live_streamers.append({**base_entry, 'platforms': all_platforms})
                 elif not u.is_live and platform and len(recently_streamed) < 4:
                     # Only show in "Recently Streamed" if they have a stream platform
                     # and have an actual stream history within the last 30 days
                     last_streamed = getattr(cp, 'latest_stream_ended_at', None) or 0
                     if last_streamed >= thirty_days_ago:
-                        recently_streamed.append(entry)
+                        recently_streamed.append({**base_entry, 'platforms': prev_platforms})
 
             # --- LFG groups (6 most recent open groups) with urgency tags ---
             groups = db.query(WebLFGGroup).filter(
@@ -685,40 +691,7 @@ def discover(request):
     except Exception as e:
         logger.error('discover view error: %s', e)
 
-    # --- Game server strip (non-blocking, best effort) ---
-    try:
-        from app.models import SiteActivityGame
-        from app.views import fetch_instance_data
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        with get_db_session() as db:
-            db_games = db.query(SiteActivityGame).filter(
-                SiteActivityGame.is_active == True,
-                SiteActivityGame.game_type.in_(['amp', 'both']),
-                SiteActivityGame.show_on_discover_strip == True,
-            ).order_by(SiteActivityGame.sort_order).all()
-
-            amp_names = [g.amp_instance_id for g in db_games if g.amp_instance_id]
-            amp_map = {}
-            if amp_names:
-                results = loop.run_until_complete(asyncio.gather(
-                    *(fetch_instance_data(n) for n in amp_names),
-                    return_exceptions=True
-                ))
-                amp_map = {r.get('id'): r for r in results if isinstance(r, dict)}
-
-            for db_game in db_games:
-                amp = amp_map.get(db_game.amp_instance_id)
-                game_servers.append({
-                    'name': db_game.display_name,
-                    'online': amp.get('online', '-') if amp else '-',
-                    'max': amp.get('max', '-') if amp else '-',
-                    'live_now': amp.get('live_now', False) if amp else False,
-                })
-        loop.close()
-    except Exception as e:
-        logger.error('discover game server strip error: %s', e)
+    # Game server strip is loaded client-side via JS after page load to avoid blocking LCP
 
     # --- Community Steam widgets ---
     # Raw pool data (expensive Steam API calls) cached 15 min - shared across workers.
@@ -792,6 +765,7 @@ def discover(request):
                     _WebUser.steam_id != '',
                     _WebUser.is_banned == False,
                     _WebUser.is_disabled == False,
+                    _WebUser.is_hidden == False,
                 ).limit(50).all()
                 adult_rows = db.execute(
                     text("""SELECT DISTINCT app_id FROM web_steam_app_tags

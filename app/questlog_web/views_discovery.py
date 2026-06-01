@@ -34,42 +34,34 @@ logger = logging.getLogger(__name__)
 
 def _calc_activity_level(db, community):
     """
-    Auto-calculate activity tier. Sources, highest to lowest weight:
-      1. Platform signals (messages, voice_mins, reactions, media) from WebUnifiedLeaderboard
-         - requires community.platform_id (guild linked to bot)
-      2. Wall posts (lowest weight - supplementary only)
+    Auto-calculate activity tier from the community's own platform data.
+    Fluxer: fluxer_member_xp. Discord/other: web_unified_leaderboard.
     Tiers: unknown < dormant < squire < champion < legendary < mythic
     """
     score = 0
+    pval = community.platform.value if hasattr(community.platform, 'value') else str(community.platform)
 
-    # --- Platform signals (bot must be in the guild) ---
     if community.platform_id:
-        row = db.execute(
-            text("""
-                SELECT
-                    COALESCE(SUM(messages), 0)    AS msgs,
-                    COALESCE(SUM(voice_mins), 0)  AS voice,
-                    COALESCE(SUM(reactions), 0)   AS reacts,
-                    COALESCE(SUM(media_count), 0) AS media
-                FROM web_unified_leaderboard
-                WHERE guild_id = :gid
-            """),
-            {'gid': community.platform_id}
-        ).fetchone()
+        if pval == 'fluxer':
+            row = db.execute(text("""
+                SELECT COALESCE(SUM(message_count),0), COALESCE(SUM(voice_minutes),0),
+                       COALESCE(SUM(reaction_count),0), COALESCE(SUM(media_count),0)
+                FROM fluxer_member_xp WHERE guild_id=CAST(:gid AS UNSIGNED)
+            """), {'gid': community.platform_id}).fetchone()
+        else:
+            row = db.execute(text("""
+                SELECT COALESCE(SUM(messages),0), COALESCE(SUM(voice_mins),0),
+                       COALESCE(SUM(reactions),0), COALESCE(SUM(media_count),0)
+                FROM web_unified_leaderboard WHERE guild_id=:gid
+            """), {'gid': community.platform_id}).fetchone()
 
         if row:
-            msgs   = row[0] or 0
-            voice  = row[1] or 0
-            reacts = row[2] or 0
-            media  = row[3] or 0
-            # Weights: messages=1pt per 10, voice=1pt per 30min,
-            #          reactions=1pt per 20, media=1pt per 5
-            score += msgs   // 10
-            score += voice  // 30
-            score += reacts // 20
-            score += media  // 5
+            score += (row[0] or 0) // 10   # messages: 1pt per 10
+            score += (row[1] or 0) // 30   # voice mins: 1pt per 30
+            score += (row[2] or 0) // 20   # reactions: 1pt per 20
+            score += (row[3] or 0) // 5    # media: 1pt per 5
 
-    # --- Wall posts (last 30 days, lowest weight) ---
+    # Wall posts last 30 days
     cutoff = int(time.time()) - 30 * 86400
     wall_posts = db.query(WebCommunityPost).filter(
         WebCommunityPost.community_id == community.id,
@@ -77,20 +69,21 @@ def _calc_activity_level(db, community):
         WebCommunityPost.created_at >= cutoff,
         WebCommunityPost.parent_id == None,
     ).count()
-    score += wall_posts  # 1pt each - lowest weight
+    score += wall_posts
 
-    # Tiers
-    if score >= 500:
+    if score >= 2000:
         return 'mythic'
-    if score >= 150:
+    if score >= 800:
         return 'legendary'
-    if score >= 40:
+    if score >= 250:
         return 'champion'
-    if score >= 10:
+    if score >= 50:
         return 'squire'
-    if score >= 1:
+    if score >= 5:
         return 'dormant'
     return 'unknown'
+
+
 
 
 _VOICE_LINK_SCHEMES = ('https://',)
@@ -120,7 +113,12 @@ _SOCIAL_URL_DOMAINS = {
 }
 
 # Valid in-game guild slugs - single source of truth
-VALID_GUILD_GAMES = frozenset({'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor', 'other'})
+VALID_GUILD_GAMES = frozenset({
+    'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor',
+    'division2', 'helldivers2', 'destiny2', 'warframe', 'dayz',
+    'rust', 'ark', 'sevendays', 'palworld', 'valheim',
+    'other',
+})
 
 # ── Survival game sub-choices (mirrors lfg_browse.html GAME_TEMPLATES) ───────
 _SURVIVAL_SUB_CHOICES = {
@@ -256,6 +254,7 @@ def _notify_lfg_game_owners(group_id, game_name, creator_id, now):
             WebUser.notify_lfg_game_owned == True,
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
             WebUser.id != creator_id,
         ).all()
 
@@ -1702,8 +1701,6 @@ def api_community_detail(request, community_id):
             raw_games = data.get('games') or []
             community.games = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
-            # Auto-calculate activity level - not owner-settable
-            community.activity_level = _calc_activity_level(db, community)
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
             community.allow_joins = bool(data.get('allow_joins', community.allow_joins))
             # In-game guild fields
