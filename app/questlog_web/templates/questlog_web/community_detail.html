@@ -145,11 +145,11 @@
             </div>
             <div>
               <label class="block text-xs text-gray-400 mb-1">Invite URL</label>
-              <input type="url" id="editInviteUrl" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition">
+              <p id="editInviteUrl" class="w-full bg-neutral-800/50 border border-neutral-700 rounded-xl px-3 py-2 text-gray-300 text-sm truncate">-</p>
             </div>
             <div>
               <label class="block text-xs text-gray-400 mb-1">Website URL</label>
-              <input type="url" id="editWebsiteUrl" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500 transition">
+              <p id="editWebsiteUrl" class="w-full bg-neutral-800/50 border border-neutral-700 rounded-xl px-3 py-2 text-gray-300 text-sm truncate">-</p>
             </div>
           </div>
           <div class="flex items-center gap-3 mt-4">
@@ -409,7 +409,7 @@
       </div>
       <div id="memberGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3"></div>
       <div id="membersEmpty" class="hidden text-center py-10">
-        <p class="text-gray-500 text-sm">No QuestLog members yet.</p>
+        <p class="text-gray-500 text-sm">No members found.</p>
       </div>
       <div id="membersLoadMore" class="hidden text-center mt-4">
         <button onclick="loadMembers(true)" class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-gray-300 text-sm rounded-xl transition">Load more</button>
@@ -573,7 +573,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       // Wall join notice - show invite link if available
       if (c.invite_url) {
-        document.getElementById('wallJoinBtnWrap').innerHTML = '<a href="' + escapeHtml(c.invite_url) + '" target="_blank" rel="noopener" class="inline-block px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-semibold rounded-xl transition">Join on Discord / Fluxer</a>';
+        const platLabel = c.platform === 'fluxer' ? 'Fluxer' : c.platform === 'discord' ? 'Discord' : 'Community';
+        document.getElementById('wallJoinBtnWrap').innerHTML = '<a href="' + escapeHtml(c.invite_url) + '" target="_blank" rel="noopener" class="inline-block px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-semibold rounded-xl transition">Join on ' + platLabel + '</a>';
       }
 
       // Social links
@@ -625,8 +626,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (_actEl) { _actEl.textContent = _actTier.label; _actEl.className = 'text-sm font-medium ' + _actTier.color; }
         document.getElementById('editShortDesc').value = c.short_description || '';
         document.getElementById('editDescription').value = c.description || '';
-        document.getElementById('editInviteUrl').value = c.invite_url || '';
-        document.getElementById('editWebsiteUrl').value = c.website_url || '';
+        document.getElementById('editInviteUrl').textContent = c.invite_url || '-';
+        document.getElementById('editWebsiteUrl').textContent = c.website_url || '-';
         if (c.platform === 'fluxer' || c.platform === 'discord') {
           document.getElementById('memberCountRow').classList.add('hidden');
           document.getElementById('platformSyncHint').classList.remove('hidden');
@@ -1436,7 +1437,7 @@ document.addEventListener('DOMContentLoaded', function() {
   window.loadLFG = async function() {
     document.getElementById('lfgLoading').classList.remove('hidden');
     try {
-      const r = await csrfFetch('/api/lfg/browse/?community_id=' + communityId + '&limit=20');
+      const r = await csrfFetch('/api/lfg/?community_id=' + communityId + '&limit=20');
       document.getElementById('lfgLoading').classList.add('hidden');
       if (!r.ok) { document.getElementById('lfgEmpty').classList.remove('hidden'); return; }
       const d = await r.json();
@@ -2036,8 +2037,6 @@ document.addEventListener('DOMContentLoaded', function() {
           member_count: parseInt(document.getElementById('editMemberCount').value) || 0,
           short_description: document.getElementById('editShortDesc').value.trim(),
           description: document.getElementById('editDescription').value.trim(),
-          invite_url: document.getElementById('editInviteUrl').value.trim(),
-          website_url: document.getElementById('editWebsiteUrl').value.trim(),
         }),
       });
       if (resp.ok) {

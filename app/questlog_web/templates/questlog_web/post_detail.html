@@ -51,6 +51,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ block.super }}
 {% if post_json %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {

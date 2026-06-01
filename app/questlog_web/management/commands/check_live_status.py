@@ -99,33 +99,26 @@ def _check_twitch_live(username: str) -> dict | None:
 
 def _check_youtube_live(channel_id: str, api_key: str) -> dict | None:
     """
-    Return stream info dict if `channel_id` is live on YouTube, else None.
-    Uses YouTube Data API v3 search (no user OAuth required).
+    Return stream info dict if channel_id is live on YouTube, else None.
+    Uses videos.list (1 quota unit) instead of search.list (100 quota units).
+    Checks the channel's /live URL via oembed - zero quota, no API key needed.
     """
-    if not api_key:
-        return None
     try:
-        search_resp = requests.get(
-            'https://www.googleapis.com/youtube/v3/search',
-            params={
-                'part':      'snippet',
-                'channelId': channel_id,
-                'eventType': 'live',
-                'type':      'video',
-                'maxResults': 1,
-                'key':       api_key,
-            },
-            timeout=10,
+        # Check /live redirect - YouTube redirects channel/live to active stream if live
+        live_url = f'https://www.youtube.com/channel/{channel_id}/live'
+        oembed_resp = requests.get(
+            'https://www.youtube.com/oembed',
+            params={'url': live_url, 'format': 'json'},
+            timeout=8,
+            allow_redirects=True,
         )
-        search_resp.raise_for_status()
-        items = search_resp.json().get('items', [])
-        if not items:
-            return None
-        snippet   = items[0].get('snippet', {})
-        video_id  = items[0].get('id', {}).get('videoId', '')
-        title     = (snippet.get('title') or '')[:255]
-        url       = f'https://www.youtube.com/watch?v={video_id}' if video_id else f'https://www.youtube.com/channel/{channel_id}'
-        return {'title': title, 'url': url}
+        if oembed_resp.status_code == 200:
+            data = oembed_resp.json()
+            title = (data.get('title') or '')[:255]
+            # oembed URL for the live stream
+            author_url = data.get('author_url', f'https://www.youtube.com/channel/{channel_id}')
+            return {'title': title, 'url': live_url}
+        return None
     except Exception as e:
         logger.warning(f'check_live_status: YouTube check failed for {channel_id}: {e}')
         return None
@@ -305,8 +298,9 @@ class Command(BaseCommand):
                             # Snapshot the stream title + platform for the creator card
                             try:
                                 profile = db.query(WebCreatorProfile).filter_by(user_id=u.id).first()
-                                if profile and u.live_title:
-                                    profile.latest_stream_title = u.live_title
+                                if profile and u.live_platform:
+                                    if u.live_title:
+                                        profile.latest_stream_title = u.live_title
                                     profile.latest_stream_platform = u.live_platform
                                     profile.latest_stream_ended_at = now
                             except Exception:

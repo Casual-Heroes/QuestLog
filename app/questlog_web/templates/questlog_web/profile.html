@@ -4,7 +4,7 @@
 {% block title %}My Profile - QuestLog{% endblock %}
 
 {% block web_content %}
-<div x-data="{ tab: window.location.hash === '#library' ? 'library' : window.location.hash === '#connected' ? 'connected' : window.location.hash === '#edit' ? 'edit' : window.location.hash === '#achievements' ? 'achievements' : 'overview' }" class="max-w-4xl mx-auto px-4 pb-10">
+<div x-data="{ tab: window.location.hash === '#library' ? 'library' : window.location.hash === '#connected' ? 'connected' : window.location.hash === '#edit' ? 'edit' : window.location.hash === '#achievements' ? 'achievements' : window.location.hash === '#dev' ? 'dev' : 'overview' }" class="max-w-4xl mx-auto px-4 pb-10">
 
   <!-- ── Profile Header ─────────────────────────────────────────── -->
   <!-- Banner -->
@@ -92,6 +92,12 @@
             :class="tab==='achievements' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'"
             class="flex-1 py-2 rounded-lg text-sm font-semibold transition">
       <i class="fas fa-trophy mr-1.5"></i>Achievements</button>
+    {% if indie_games or indie_pending %}
+    <button @click="tab='dev'; history.replaceState(null,'',location.pathname+'#dev')"
+            :class="tab==='dev' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'"
+            class="flex-1 py-2 rounded-lg text-sm font-semibold transition">
+      <i class="fas fa-rocket mr-1.5"></i>Dev</button>
+    {% endif %}
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════ -->
@@ -161,16 +167,12 @@
     <!-- Active Flair -->
     <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2"><i class="fas fa-gem text-purple-400"></i>Active Flair</h3>
+        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2"><i class="fas fa-gem text-purple-400"></i>Flairs</h3>
         <a href="{% url 'questlog_web_shop' %}" class="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition"><i class="fas fa-store mr-1"></i>Hero Shop</a>
       </div>
       <div id="flair-loading" class="text-gray-500 text-sm"><i class="fas fa-spinner fa-spin mr-1"></i>Loading…</div>
-      <div id="flair-equipped" class="hidden flex items-center gap-4 p-3 bg-yellow-900/20 border border-yellow-700/40 rounded-lg">
-        <span id="flair-emoji-display" class="text-3xl"></span>
-        <div><p id="flair-name-display" class="text-white font-semibold"></p><p id="flair-desc-display" class="text-xs text-gray-400"></p></div>
-        <button onclick="unequipFlair()" class="ml-auto text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition">Unequip</button>
-      </div>
-      <p id="flair-none" class="hidden text-gray-500 text-sm">No flair equipped. <a href="{% url 'questlog_web_shop' %}" class="text-purple-400 hover:underline">Visit the Hero Shop</a></p>
+      <div id="flair-owned-list" class="hidden space-y-2"></div>
+      <p id="flair-none" class="hidden text-gray-500 text-sm">No flairs yet. <a href="{% url 'questlog_web_shop' %}" class="text-purple-400 hover:underline">Visit the Hero Shop</a></p>
       <div id="flair-feedback" class="mt-3 hidden"></div>
     </div>
 
@@ -1020,6 +1022,164 @@
 
   </div><!-- /achievements -->
 
+  {% if indie_games or indie_pending %}
+  <!-- DEV TAB -->
+  <div x-show="tab==='dev'" class="space-y-5">
+
+    <!-- Live games -->
+    {% for game in indie_games %}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+      <div class="flex items-center gap-4 p-5 border-b border-neutral-800">
+        {% if game.cover_url %}
+        <img src="{{ game.cover_url }}" alt="{{ game.name }}" class="w-14 rounded-xl object-cover flex-shrink-0" style="height:4.5rem">
+        {% else %}
+        <div class="w-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0" style="height:4.5rem">
+          <i class="fas fa-gamepad text-gray-600 text-xl"></i>
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-0.5">
+            <span class="text-white font-bold text-base">{{ game.name }}</span>
+            {% if game.status == 'featured' %}<span class="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-full">Featured</span>{% endif %}
+            {% if game.status == 'spotlight' %}<span class="text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full">Spotlight</span>{% endif %}
+            {% if game.status == 'new' %}<span class="text-[10px] font-bold text-green-300 bg-green-500/20 border border-green-500/30 px-2 py-0.5 rounded-full">New</span>{% endif %}
+          </div>
+          <p class="text-xs text-amber-400/80 font-semibold"><i class="fas fa-rocket mr-1"></i>Indie Heroes</p>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <a href="/ql/indie-heroes/{{ game.slug }}/" class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 hover:text-white text-xs font-semibold rounded-lg transition">
+            <i class="fas fa-external-link-alt mr-1"></i>View Page
+          </a>
+          <a href="/ql/indie-heroes/{{ game.slug }}/#manage" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition">
+            <i class="fas fa-pen mr-1"></i>Edit Dev Profile
+          </a>
+        </div>
+      </div>
+      <div class="p-5 space-y-4">
+        {% if game.dev_bio %}
+        <div>
+          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Dev Bio</p>
+          <p class="text-sm text-gray-300 leading-relaxed">{{ game.dev_bio }}</p>
+        </div>
+        {% else %}
+        <div class="text-center py-5 border border-dashed border-neutral-700 rounded-xl">
+          <p class="text-xs text-gray-600 mb-2">No dev bio yet - tell the community about yourself and your game</p>
+          <a href="/ql/indie-heroes/{{ game.slug }}/#manage" class="text-xs text-indigo-400 hover:text-indigo-300 transition font-semibold">Fill out your dev profile &rarr;</a>
+        </div>
+        {% endif %}
+        {% if game.dev_devlog %}
+        <div>
+          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Devlog Preview</p>
+          <p class="text-sm text-gray-400 leading-relaxed line-clamp-3 whitespace-pre-line">{{ game.dev_devlog }}</p>
+        </div>
+        {% endif %}
+        {% with g=game %}
+        {% if g.dev_website or g.dev_twitter or g.dev_bsky_url or g.dev_tiktok_url or g.dev_instagram_url or g.dev_youtube_url or g.dev_twitch_url or g.dev_kick_url or g.dev_discord_url or g.dev_fluxer_url or g.dev_itch_url or g.dev_steam_url %}
+        <div class="flex flex-wrap gap-2">
+          {% if g.dev_website %}<a href="{{ g.dev_website }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-globe"></i>Website</a>{% endif %}
+          {% if g.dev_twitter %}<a href="{% if g.dev_twitter|slice:':4' == 'http' %}{{ g.dev_twitter }}{% else %}https://twitter.com/{{ g.dev_twitter|cut:'@' }}{% endif %}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-sky-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-twitter"></i>Twitter / X</a>{% endif %}
+          {% if g.dev_bsky_url %}<a href="{{ g.dev_bsky_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-sky-300 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-cloud"></i>Bluesky</a>{% endif %}
+          {% if g.dev_tiktok_url %}<a href="{{ g.dev_tiktok_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-pink-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-tiktok"></i>TikTok</a>{% endif %}
+          {% if g.dev_instagram_url %}<a href="{{ g.dev_instagram_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-pink-500 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-instagram"></i>Instagram</a>{% endif %}
+          {% if g.dev_youtube_url %}<a href="{{ g.dev_youtube_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-youtube"></i>YouTube</a>{% endif %}
+          {% if g.dev_twitch_url %}<a href="{{ g.dev_twitch_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-purple-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-twitch"></i>Twitch</a>{% endif %}
+          {% if g.dev_kick_url %}<a href="{{ g.dev_kick_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-green-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-bolt"></i>Kick</a>{% endif %}
+          {% if g.dev_discord_url %}<a href="{{ g.dev_discord_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-discord"></i>Discord</a>{% endif %}
+          {% if g.dev_fluxer_url %}<a href="{{ g.dev_fluxer_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-server"></i>Fluxer</a>{% endif %}
+          {% if g.dev_itch_url %}<a href="{{ g.dev_itch_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-rose-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-gamepad"></i>itch.io</a>{% endif %}
+          {% if g.dev_steam_url %}<a href="{{ g.dev_steam_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-steam"></i>Steam</a>{% endif %}
+        </div>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- Pending/rejected submissions -->
+    {% for sub in indie_pending %}
+    <div class="bg-neutral-900 border {% if sub.submission_status == 'rejected' %}border-red-800/60{% else %}border-amber-700/40{% endif %} rounded-2xl overflow-hidden">
+      <div class="flex items-center gap-3 px-5 py-4">
+        <div class="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-gamepad text-gray-600"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-white font-semibold text-sm">{{ sub.name }}</p>
+          {% if sub.submission_status == 'pending' %}
+          <span class="text-[11px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full"><i class="fas fa-clock mr-1"></i>Pending Review</span>
+          {% elif sub.submission_status == 'resubmitted' %}
+          <span class="text-[11px] font-bold text-blue-300 bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 rounded-full"><i class="fas fa-redo mr-1"></i>Resubmitted</span>
+          {% elif sub.submission_status == 'rejected' %}
+          <span class="text-[11px] font-bold text-red-300 bg-red-500/20 border border-red-500/30 px-2 py-0.5 rounded-full"><i class="fas fa-times mr-1"></i>Rejected</span>
+          {% endif %}
+        </div>
+      </div>
+      {% if sub.submission_status == 'rejected' %}
+      <div class="px-5 pb-5 space-y-3">
+        {% if sub.submission_note %}
+        <div class="rounded-lg bg-red-900/20 border border-red-800/40 p-3">
+          <p class="text-xs font-bold text-red-400 mb-1"><i class="fas fa-comment-alt mr-1"></i>Admin Note</p>
+          <p class="text-sm text-red-200">{{ sub.submission_note }}</p>
+        </div>
+        {% endif %}
+        <div class="space-y-2">
+          <p class="text-xs text-gray-500">Update your pitch and link, then resubmit for review.</p>
+          <textarea id="resubPitch_{{ sub.slug }}" rows="3" class="w-full bg-neutral-800 border border-neutral-700 text-gray-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 resize-none" placeholder="Updated pitch (what is your game about?)">{{ sub.submission_pitch }}</textarea>
+          <input id="resubLink_{{ sub.slug }}" type="url" value="{{ sub.submission_link }}" class="w-full bg-neutral-800 border border-neutral-700 text-gray-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="Steam or itch.io URL">
+          <button onclick="submitResubmit('{{ sub.slug }}')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition">
+            <i class="fas fa-redo mr-1"></i>Resubmit for Review
+          </button>
+          <span id="resubMsg_{{ sub.slug }}" class="text-xs ml-2 hidden"></span>
+        </div>
+      </div>
+      {% else %}
+      <div class="px-5 pb-4">
+        <p class="text-xs text-gray-500">Your submission is in the queue. We'll review it shortly.</p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <!-- Submit another project -->
+    <div class="text-center pt-2">
+      <button onclick="document.getElementById('devSubmitModal').classList.remove('hidden')"
+              class="inline-flex items-center gap-2 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-indigo-500 text-gray-300 hover:text-white text-sm font-semibold rounded-xl transition">
+        <i class="fas fa-plus-circle text-indigo-400"></i>Submit Another Project
+      </button>
+    </div>
+  </div><!-- /dev -->
+
+  <!-- Dev Submit Modal -->
+  <div id="devSubmitModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70" onclick="document.getElementById('devSubmitModal').classList.add('hidden')"></div>
+    <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between mb-1">
+        <h3 class="text-lg font-bold text-white"><i class="fas fa-rocket text-indigo-400 mr-2"></i>Submit a Project</h3>
+        <button onclick="document.getElementById('devSubmitModal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
+      </div>
+      <p class="text-xs text-gray-400">We review all submissions to make sure they're a good fit for our community. No adult content, no spam.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">Game Name <span class="text-red-400">*</span></label>
+          <input id="devSubmitName" type="text" maxlength="200" class="w-full bg-neutral-800 border border-neutral-700 text-gray-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="Your game's name">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">Short Pitch <span class="text-red-400">*</span></label>
+          <textarea id="devSubmitPitch" rows="3" maxlength="1000" class="w-full bg-neutral-800 border border-neutral-700 text-gray-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 resize-none" placeholder="Tell us about your game in a few sentences. What makes it special?"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">Steam or itch.io Link <span class="text-red-400">*</span></label>
+          <input id="devSubmitLink" type="url" class="w-full bg-neutral-800 border border-neutral-700 text-gray-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500" placeholder="https://store.steampowered.com/... or https://itch.io/...">
+        </div>
+      </div>
+      <div id="devSubmitError" class="hidden text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2"></div>
+      <div class="flex gap-3 pt-1">
+        <button onclick="document.getElementById('devSubmitModal').classList.add('hidden')" class="flex-1 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 text-sm font-semibold rounded-xl transition">Cancel</button>
+        <button onclick="submitDevProject()" id="devSubmitBtn" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition">Submit for Review</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </div><!-- /x-data -->
 
 <!-- Delete modal -->
@@ -1079,22 +1239,41 @@
   const rankEntry = RANK_MILESTONES.find(([l]) => currentLvl >= l);
   if (rankEntry) document.getElementById('profile-rank-title').textContent = rankEntry[1];
 
-  // ── Active flair ──────────────────────────────────────────────
+  // ── Flair picker ──────────────────────────────────────────────
   async function loadActiveFlair() {
     try {
       const res  = await csrfFetch('/api/flairs/');
       const data = await res.json();
       document.getElementById('flair-loading').classList.add('hidden');
-      const eq   = data.flairs && data.flairs.find(f => f.equipped);
-      if (eq) {
-        document.getElementById('flair-emoji-display').textContent  = eq.emoji || '';
-        document.getElementById('flair-name-display').textContent   = eq.name;
-        document.getElementById('flair-desc-display').textContent   = eq.description || '';
-        document.getElementById('flair-equipped').classList.remove('hidden');
-        document.getElementById('profile-flair-badge').textContent  = (eq.emoji ? eq.emoji + ' ' : '') + eq.name;
-      } else {
+      const owned = (data.flairs || []).filter(f => f.owned && f.equippable);
+      if (!owned.length) {
         document.getElementById('flair-none').classList.remove('hidden');
+        return;
       }
+      const list = document.getElementById('flair-owned-list');
+      list.classList.remove('hidden');
+      // Update header badge from currently equipped flair
+      const eq = owned.find(f => f.equipped);
+      if (eq) {
+        document.getElementById('profile-flair-badge').textContent = (eq.emoji ? eq.emoji + ' ' : '') + eq.name;
+      }
+      list.innerHTML = owned.map(f => {
+        const isEquipped = f.equipped;
+        const badge = f.admin_only
+          ? `<span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-600/30 px-1.5 py-0.5 rounded-full ml-1">Admin</span>`
+          : '';
+        return `<div class="flex items-center gap-3 p-3 rounded-lg border ${isEquipped ? 'border-yellow-600/50 bg-yellow-900/20' : 'border-neutral-700 bg-neutral-800/40'} transition" id="flair-row-${f.id}">
+          <span class="text-2xl w-8 text-center flex-shrink-0">${escapeHtml(f.emoji) || '🎖️'}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-white leading-tight">${escapeHtml(f.name)}${badge}</p>
+            ${f.description ? `<p class="text-xs text-gray-500 truncate">${escapeHtml(f.description)}</p>` : ''}
+          </div>
+          ${isEquipped
+            ? `<button onclick="doUnequipFlair(${f.id})" class="text-xs bg-neutral-700 hover:bg-neutral-600 text-gray-300 px-3 py-1.5 rounded-lg transition flex-shrink-0">Unequip</button>`
+            : `<button onclick="doEquipFlair(${f.id})" class="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex-shrink-0">Equip</button>`
+          }
+        </div>`;
+      }).join('');
     } catch(e) {
       document.getElementById('flair-loading').textContent = '';
       document.getElementById('flair-none').classList.remove('hidden');
@@ -1102,18 +1281,30 @@
   }
   loadActiveFlair();
 
-  window.unequipFlair = async function() {
+  window.doEquipFlair = async function(flairId) {
+    try {
+      const res = await csrfFetch(`/api/flairs/${flairId}/equip/`, { method: 'POST' });
+      const d   = await res.json();
+      if (d.success) { showFlairFeedback('Flair equipped!', true); loadActiveFlair(); }
+      else showFlairFeedback(d.error || 'Failed to equip.', false);
+    } catch(e) { showFlairFeedback('Error equipping flair.', false); }
+  };
+
+  window.doUnequipFlair = async function(flairId) {
     try {
       const res  = await csrfFetch('/api/flairs/unequip/', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
+      const d    = await res.json();
+      if (d.success) {
         document.getElementById('profile-flair-badge').textContent = '';
-        document.getElementById('flair-equipped').classList.add('hidden');
-        document.getElementById('flair-none').classList.remove('hidden');
         showFlairFeedback('Flair removed.', true);
-      }
+        loadActiveFlair();
+      } else showFlairFeedback(d.error || 'Failed.', false);
     } catch(e) { showFlairFeedback('Error removing flair.', false); }
   };
+
+  // Legacy alias kept in case other code calls it
+  window.unequipFlair = window.doUnequipFlair;
+
   function showFlairFeedback(msg, ok) {
     const el = document.getElementById('flair-feedback');
     el.className = `mt-3 p-3 rounded text-sm ${ok ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}`;
@@ -1714,5 +1905,63 @@ function showAchToast(msg, type) {
       });
     }).catch(function() {});
 })();
+
+function submitDevProject() {
+  var name  = (document.getElementById('devSubmitName').value || '').trim();
+  var pitch = (document.getElementById('devSubmitPitch').value || '').trim();
+  var link  = (document.getElementById('devSubmitLink').value || '').trim();
+  var errEl = document.getElementById('devSubmitError');
+  var btn   = document.getElementById('devSubmitBtn');
+  errEl.classList.add('hidden');
+  if (!name)  { errEl.textContent = 'Game name is required.'; errEl.classList.remove('hidden'); return; }
+  if (!pitch) { errEl.textContent = 'A short pitch is required.'; errEl.classList.remove('hidden'); return; }
+  if (!link)  { errEl.textContent = 'A Steam or itch.io link is required.'; errEl.classList.remove('hidden'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  csrfFetch('/ql/api/indie-heroes/submit/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name, pitch: pitch, link: link}),
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.ok) {
+      document.getElementById('devSubmitModal').classList.add('hidden');
+      window.location.reload();
+    } else {
+      errEl.textContent = data.error || 'Submission failed.';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Submit for Review';
+    }
+  }).catch(function() {
+    errEl.textContent = 'Network error, please try again.';
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Submit for Review';
+  });
+}
+
+function submitResubmit(slug) {
+  var pitch = (document.getElementById('resubPitch_' + slug).value || '').trim();
+  var link  = (document.getElementById('resubLink_' + slug).value || '').trim();
+  var msgEl = document.getElementById('resubMsg_' + slug);
+  msgEl.classList.remove('hidden');
+  msgEl.className = 'text-xs ml-2 text-gray-400';
+  msgEl.textContent = 'Submitting...';
+  csrfFetch('/ql/api/indie-heroes/' + slug + '/resubmit/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pitch: pitch, link: link}),
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      msgEl.className = 'text-xs ml-2 text-red-400';
+      msgEl.textContent = data.error || 'Failed.';
+    }
+  }).catch(function() {
+    msgEl.className = 'text-xs ml-2 text-red-400';
+    msgEl.textContent = 'Network error.';
+  });
+}
 </script>
 {% endblock %}

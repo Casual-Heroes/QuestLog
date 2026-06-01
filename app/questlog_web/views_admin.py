@@ -1322,7 +1322,7 @@ def api_admin_lfg_game_detail(request, game_id):
 def api_admin_communities(request):
     """API: List all communities for admin."""
     with get_db_session() as db:
-        communities = db.query(WebCommunity).order_by(WebCommunity.created_at.desc()).all()
+        communities = db.query(WebCommunity).order_by(WebCommunity.name).all()
         data = [{
             'id': c.id,
             'name': c.name,
@@ -1487,7 +1487,7 @@ def api_admin_community_action(request, community_id):
 def api_admin_creators(request):
     """API: List all creators for admin."""
     with get_db_session() as db:
-        creators = db.query(WebCreatorProfile).order_by(WebCreatorProfile.created_at.desc()).all()
+        creators = db.query(WebCreatorProfile).order_by(WebCreatorProfile.display_name).all()
         data = [{
             'id': c.id,
             'user_id': c.user_id,
@@ -1791,7 +1791,7 @@ def api_admin_run_steam_search(request, search_id):
 def api_admin_found_games(request):
     """API: List/manage found games."""
     with get_db_session() as db:
-        games = db.query(WebFoundGame).order_by(WebFoundGame.found_at.desc()).limit(100).all()
+        games = db.query(WebFoundGame).order_by(WebFoundGame.name).limit(100).all()
         data = [{
             'id': g.id,
             'steam_app_id': g.steam_app_id,
@@ -2035,7 +2035,7 @@ def api_admin_rss_feeds(request):
     """API: CRUD for RSS feeds."""
     if request.method == 'GET':
         with get_db_session() as db:
-            feeds = db.query(WebRSSFeed).order_by(WebRSSFeed.created_at.desc()).all()
+            feeds = db.query(WebRSSFeed).order_by(WebRSSFeed.name).all()
             data = [_serialize_rss_feed(f, db.query(WebRSSArticle).filter_by(feed_id=f.id).count()) for f in feeds]
         return JsonResponse({'feeds': data})
 
@@ -2151,12 +2151,28 @@ def api_admin_users(request):
     """API: List users for admin."""
     q = request.GET.get('q', '').strip()
     with get_db_session() as db:
-        query = db.query(WebUser).order_by(WebUser.created_at.desc())
+        query = db.query(WebUser).order_by(WebUser.username)
         if q:
             query = query.filter(
                 or_(WebUser.username.ilike(f'%{q}%'), WebUser.display_name.ilike(f'%{q}%'))
             )
         users = query.limit(200).all()
+        # Fetch all admin-only flairs once for grant/revoke UI
+        admin_flairs = db.query(WebFlair).filter(
+            WebFlair.admin_only == 1, WebFlair.enabled == True
+        ).order_by(WebFlair.display_order, WebFlair.id).all()
+        admin_flair_list = [{'id': f.id, 'name': f.name, 'emoji': f.emoji or ''} for f in admin_flairs]
+        # Build per-user owned-admin-flair set
+        user_ids = [u.id for u in users]
+        admin_flair_ids = {f.id for f in admin_flairs}
+        owned_rows = db.query(WebUserFlair).filter(
+            WebUserFlair.user_id.in_(user_ids),
+            WebUserFlair.flair_id.in_(admin_flair_ids),
+        ).all() if admin_flair_ids else []
+        owned_map: dict = {}
+        for row in owned_rows:
+            owned_map.setdefault(row.user_id, set()).add(row.flair_id)
+
         data = [{
             'id': u.id,
             'username': u.username,
@@ -2170,9 +2186,12 @@ def api_admin_users(request):
             'is_ffxiv_member': bool(u.is_ffxiv_member),
             'is_eso_member': bool(u.is_eso_member),
             'is_contributor': bool(u.is_contributor),
+            'is_indie_dev': bool(u.is_indie_dev),
+            'indie_dev_pending': bool(u.indie_dev_pending),
             'is_banned': u.is_banned,
             'ban_reason': u.ban_reason,
             'is_disabled': u.is_disabled,
+            'is_hidden': bool(u.is_hidden),
             'posting_timeout_until': u.posting_timeout_until,
             'post_count': u.post_count,
             'web_xp': u.web_xp,
@@ -2181,8 +2200,9 @@ def api_admin_users(request):
             'created_at': u.created_at,
             'last_login_at': u.last_login_at,
             'email_verified': bool(u.email_verified),
+            'owned_admin_flair_ids': list(owned_map.get(u.id, set())),
         } for u in users]
-    return JsonResponse({'users': data})
+    return JsonResponse({'users': data, 'admin_flairs': admin_flair_list})
 
 
 @web_mod_required
@@ -2204,7 +2224,11 @@ def api_admin_user_action(request, user_id):
                    'grant_ffxiv', 'revoke_ffxiv',
                    'grant_eso', 'revoke_eso',
                    'grant_contributor', 'revoke_contributor',
-                   'verify_email')
+                   'grant_founder', 'revoke_founder',
+                   'verify_email',
+                   'grant_flair', 'revoke_flair',
+                   'hide_user', 'unhide_user',
+                   'approve_dev', 'reject_dev')
     # Actions mods are allowed to perform
     mod_allowed_actions = ('timeout', 'clear_timeout', 'disable', 'enable', 'delete_posts')
 
@@ -2335,8 +2359,62 @@ def api_admin_user_action(request, user_id):
         elif action == 'revoke_contributor':
             user.is_contributor = False
 
+        elif action == 'grant_indie_dev':
+            user.is_indie_dev = True
+
+        elif action == 'revoke_indie_dev':
+            user.is_indie_dev = False
+
+        elif action == 'hide_user':
+            user.is_hidden = True
+
+        elif action == 'unhide_user':
+            user.is_hidden = False
+
+        elif action == 'approve_dev':
+            user.is_indie_dev = True
+            user.indie_dev_pending = False
+
+        elif action == 'reject_dev':
+            user.is_indie_dev = False
+            user.indie_dev_pending = False
+
         elif action == 'verify_email':
             user.email_verified = True
+
+        elif action == 'grant_flair':
+            flair_id = safe_int(body.get('flair_id'), 0)
+            flair = db.query(WebFlair).filter_by(id=flair_id).first()
+            if not flair:
+                return JsonResponse({'error': 'Flair not found'}, status=404)
+            existing = db.query(WebUserFlair).filter_by(user_id=user_id, flair_id=flair_id).first()
+            if not existing:
+                db.add(WebUserFlair(user_id=user_id, flair_id=flair_id, is_equipped=False,
+                                    purchased_at=now))
+            db.commit()
+            log_admin_action(request, 'grant_flair', 'user', user_id, {
+                'action': 'grant_flair', 'flair_id': flair_id, 'flair_name': flair.name,
+                'target_username': user.username,
+            })
+            return JsonResponse({'success': True})
+
+        elif action == 'revoke_flair':
+            flair_id = safe_int(body.get('flair_id'), 0)
+            flair = db.query(WebFlair).filter_by(id=flair_id).first()
+            if not flair:
+                return JsonResponse({'error': 'Flair not found'}, status=404)
+            db.query(WebUserFlair).filter_by(user_id=user_id, flair_id=flair_id).delete()
+            # If user had this flair equipped, clear it
+            if user.active_flair_id == flair_id:
+                user.active_flair_id = None
+            if getattr(user, 'active_flair2_id', None) == flair_id:
+                user.active_flair2_id = None
+            db.commit()
+            log_admin_action(request, 'revoke_flair', 'user', user_id, {
+                'action': 'revoke_flair', 'flair_id': flair_id, 'flair_name': flair.name,
+                'target_username': user.username,
+            })
+            return JsonResponse({'success': True})
 
         elif action == 'award_most_helpful':
             # Manual fallback: admin awards Most Helpful to a user for a given month+category
@@ -2985,6 +3063,7 @@ def api_admin_flairs(request):
                 'hp_cost': f.hp_cost,
                 'equippable': bool(getattr(f, 'equippable', 1)),
                 'enabled': f.enabled,
+                'admin_only': bool(getattr(f, 'admin_only', 0)),
                 'display_order': f.display_order,
                 'created_at': f.created_at,
                 'owner_count': db.query(WebUserFlair).filter_by(flair_id=f.id).count(),
@@ -3009,6 +3088,7 @@ def api_admin_flairs(request):
             hp_cost=safe_int(body.get('hp_cost', 0), default=0, min_val=0),
             equippable=1 if body.get('equippable', True) else 0,
             enabled=bool(body.get('enabled', True)),
+            admin_only=1 if body.get('admin_only', False) else 0,
             display_order=safe_int(body.get('display_order', 0), default=0),
             created_at=now,
             updated_at=now,
@@ -3053,6 +3133,8 @@ def api_admin_flair_detail(request, flair_id):
             flair.equippable = 1 if body['equippable'] else 0
         if 'enabled' in body:
             flair.enabled = bool(body['enabled'])
+        if 'admin_only' in body:
+            flair.admin_only = 1 if body['admin_only'] else 0
         if 'display_order' in body:
             flair.display_order = int(body['display_order'])
         flair.updated_at = int(time.time())
@@ -4939,3 +5021,27 @@ def _serialize_testimonial(t):
         'is_active':   bool(t.is_active),
         'created_at':  t.created_at,
     }
+
+
+@add_web_user_context
+@require_http_methods(['GET'])
+def api_user_lookup(request):
+    """Admin-only: look up a user by username for dev assignment."""
+    if not (request.web_user and request.web_user.is_admin):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    username = (request.GET.get('username') or '').strip()
+    if not username:
+        return JsonResponse({'user': None})
+    with get_db_session() as db:
+        user = db.query(WebUser).filter(
+            WebUser.username == username,
+            WebUser.is_banned == False,
+        ).first()
+        if not user:
+            return JsonResponse({'user': None})
+        return JsonResponse({'user': {
+            'id': user.id,
+            'username': user.username,
+            'display_name': user.display_name or user.username,
+            'avatar_url': user.avatar_url or '',
+        }})

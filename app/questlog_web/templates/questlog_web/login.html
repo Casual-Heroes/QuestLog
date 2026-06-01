@@ -192,7 +192,7 @@
     {% if pending_verification %}
     <div style="background: rgba(79, 70, 229, 0.08); border: 1px solid rgba(79, 70, 229, 0.25); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
       <p style="color: #c4b5fd; font-size: 0.85rem; margin: 0 0 10px 0;">
-        We sent a verification link to <strong style="color: #a78bfa;">{{ pending_verification }}</strong>
+        We sent a verification link to <strong style="color: #a78bfa;">{{ pending_verification }}</strong>. Check your inbox and your <strong style="color: #a78bfa;">spam folder</strong> if you don't see it.
       </p>
       <form method="post" action="{% url 'site_resend_verification' %}" style="margin: 0;">
         {% csrf_token %}

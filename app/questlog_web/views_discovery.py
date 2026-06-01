@@ -34,42 +34,34 @@ logger = logging.getLogger(__name__)
 
 def _calc_activity_level(db, community):
     """
-    Auto-calculate activity tier. Sources, highest to lowest weight:
-      1. Platform signals (messages, voice_mins, reactions, media) from WebUnifiedLeaderboard
-         - requires community.platform_id (guild linked to bot)
-      2. Wall posts (lowest weight - supplementary only)
+    Auto-calculate activity tier from the community's own platform data.
+    Fluxer: fluxer_member_xp. Discord/other: web_unified_leaderboard.
     Tiers: unknown < dormant < squire < champion < legendary < mythic
     """
     score = 0
+    pval = community.platform.value if hasattr(community.platform, 'value') else str(community.platform)
 
-    # --- Platform signals (bot must be in the guild) ---
     if community.platform_id:
-        row = db.execute(
-            text("""
-                SELECT
-                    COALESCE(SUM(messages), 0)    AS msgs,
-                    COALESCE(SUM(voice_mins), 0)  AS voice,
-                    COALESCE(SUM(reactions), 0)   AS reacts,
-                    COALESCE(SUM(media_count), 0) AS media
-                FROM web_unified_leaderboard
-                WHERE guild_id = :gid
-            """),
-            {'gid': community.platform_id}
-        ).fetchone()
+        if pval == 'fluxer':
+            row = db.execute(text("""
+                SELECT COALESCE(SUM(message_count),0), COALESCE(SUM(voice_minutes),0),
+                       COALESCE(SUM(reaction_count),0), COALESCE(SUM(media_count),0)
+                FROM fluxer_member_xp WHERE guild_id=CAST(:gid AS UNSIGNED)
+            """), {'gid': community.platform_id}).fetchone()
+        else:
+            row = db.execute(text("""
+                SELECT COALESCE(SUM(messages),0), COALESCE(SUM(voice_mins),0),
+                       COALESCE(SUM(reactions),0), COALESCE(SUM(media_count),0)
+                FROM web_unified_leaderboard WHERE guild_id=:gid
+            """), {'gid': community.platform_id}).fetchone()
 
         if row:
-            msgs   = row[0] or 0
-            voice  = row[1] or 0
-            reacts = row[2] or 0
-            media  = row[3] or 0
-            # Weights: messages=1pt per 10, voice=1pt per 30min,
-            #          reactions=1pt per 20, media=1pt per 5
-            score += msgs   // 10
-            score += voice  // 30
-            score += reacts // 20
-            score += media  // 5
+            score += (row[0] or 0) // 10   # messages: 1pt per 10
+            score += (row[1] or 0) // 30   # voice mins: 1pt per 30
+            score += (row[2] or 0) // 20   # reactions: 1pt per 20
+            score += (row[3] or 0) // 5    # media: 1pt per 5
 
-    # --- Wall posts (last 30 days, lowest weight) ---
+    # Wall posts last 30 days
     cutoff = int(time.time()) - 30 * 86400
     wall_posts = db.query(WebCommunityPost).filter(
         WebCommunityPost.community_id == community.id,
@@ -77,20 +69,21 @@ def _calc_activity_level(db, community):
         WebCommunityPost.created_at >= cutoff,
         WebCommunityPost.parent_id == None,
     ).count()
-    score += wall_posts  # 1pt each - lowest weight
+    score += wall_posts
 
-    # Tiers
-    if score >= 500:
+    if score >= 2000:
         return 'mythic'
-    if score >= 150:
+    if score >= 800:
         return 'legendary'
-    if score >= 40:
+    if score >= 250:
         return 'champion'
-    if score >= 10:
+    if score >= 50:
         return 'squire'
-    if score >= 1:
+    if score >= 5:
         return 'dormant'
     return 'unknown'
+
+
 
 
 _VOICE_LINK_SCHEMES = ('https://',)
@@ -120,7 +113,12 @@ _SOCIAL_URL_DOMAINS = {
 }
 
 # Valid in-game guild slugs - single source of truth
-VALID_GUILD_GAMES = frozenset({'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor', 'other'})
+VALID_GUILD_GAMES = frozenset({
+    'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor',
+    'division2', 'helldivers2', 'destiny2', 'warframe', 'dayz',
+    'rust', 'ark', 'sevendays', 'palworld', 'valheim',
+    'other',
+})
 
 # ── Survival game sub-choices (mirrors lfg_browse.html GAME_TEMPLATES) ───────
 _SURVIVAL_SUB_CHOICES = {
@@ -256,6 +254,7 @@ def _notify_lfg_game_owners(group_id, game_name, creator_id, now):
             WebUser.notify_lfg_game_owned == True,
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
             WebUser.id != creator_id,
         ).all()
 
@@ -293,6 +292,114 @@ def _validate_voice_link(url):
     if not url.startswith('https://'):
         return None
     return url or None
+
+
+def _community_add_platform(request, db, community, data):
+    """Add a new platform row to an existing community group. Called from api_community_detail PUT."""
+    ptype_str = (data.get('platform') or '').lower()
+    pid = (data.get('platform_id') or '').strip()[:500]
+    if not ptype_str or not pid:
+        return JsonResponse({'error': 'Platform and platform_id required'}, status=400)
+    try:
+        ptype = PlatformType(ptype_str)
+    except ValueError:
+        return JsonResponse({'error': 'Invalid platform'}, status=400)
+
+    discord_id = str(getattr(request.web_user, 'discord_id', '') or '')
+    fluxer_id_str = str(getattr(request.web_user, 'fluxer_id', '') or '')
+
+    # Verify ownership
+    if ptype == PlatformType.FLUXER:
+        if not pid.startswith('http'):
+            linked = [i for i in [discord_id, fluxer_id_str] if i]
+            if not linked:
+                return JsonResponse({'error': 'Connect your Fluxer account first'}, status=403)
+            ph = ','.join(f':lid{i}' for i in range(len(linked)))
+            params = {f'lid{i}': v for i, v in enumerate(linked)}
+            params['gid'] = pid
+            row = db.execute(text(f"SELECT guild_id FROM web_fluxer_guild_settings WHERE guild_id=:gid AND owner_id IN ({ph}) LIMIT 1"), params).fetchone()
+            if not row:
+                return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+    elif ptype == PlatformType.DISCORD:
+        try:
+            discord_guild_id = int(pid)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Discord platform_id must be a numeric guild ID'}, status=400)
+        if not discord_id:
+            return JsonResponse({'error': 'Connect your Discord account first'}, status=403)
+        row = db.execute(text("SELECT guild_id FROM guilds WHERE guild_id=:gid AND owner_id=:oid AND bot_present=1 LIMIT 1"),
+                         {'gid': discord_guild_id, 'oid': int(discord_id)}).fetchone()
+        if not row:
+            return JsonResponse({'error': 'You are not the owner of that Discord server (or bot not installed)'}, status=403)
+
+    # Check if this platform row already exists
+    dup = db.query(WebCommunity).filter_by(platform=ptype, platform_id=pid).first()
+    if dup:
+        # If it's owned by someone else, block it
+        if dup.owner_id != community.owner_id:
+            return JsonResponse({'error': f'That {ptype.value} server is already registered by another community'}, status=400)
+        # It's the same owner's row - just link it into this group
+        group_id = community.community_group_id or community.id
+        dup.community_group_id = group_id
+        dup.is_primary = False
+        dup.is_active = True
+        dup.updated_at = int(time.time())
+        if not community.community_group_id:
+            community.community_group_id = group_id
+        db.commit()
+        return JsonResponse({'success': True, 'new_id': dup.id})
+
+    # Auto-populate icon
+    p_icon_url = None
+    if ptype == PlatformType.FLUXER:
+        icon_row = db.execute(text("SELECT guild_icon_hash FROM web_fluxer_guild_settings WHERE guild_id=:g LIMIT 1"), {'g': pid}).fetchone()
+        if icon_row and icon_row[0]:
+            p_icon_url = f'https://cdn.discordapp.com/icons/{pid}/{icon_row[0]}.png?size=256'
+    elif ptype == PlatformType.DISCORD:
+        try:
+            icon_row = db.execute(text("SELECT guild_icon_hash FROM guilds WHERE guild_id=:g LIMIT 1"), {'g': int(pid)}).fetchone()
+            if icon_row and icon_row[0]:
+                p_icon_url = f'https://cdn.discordapp.com/icons/{pid}/{icon_row[0]}.png?size=256'
+        except (ValueError, TypeError):
+            pass
+
+    now = int(time.time())
+    group_id = community.community_group_id or community.id
+    new_row = WebCommunity(
+        platform=ptype, platform_id=pid,
+        invite_url=_validate_invite_url(data.get('invite_url')),
+        member_count=0,
+        icon_url=p_icon_url or community.icon_url,
+        name=community.name,
+        short_description=community.short_description,
+        description=community.description,
+        website_url=community.website_url,
+        twitch_url=community.twitch_url,
+        youtube_url=community.youtube_url,
+        twitter_url=community.twitter_url,
+        tags=community.tags,
+        games=community.games,
+        allow_discovery=community.allow_discovery,
+        allow_joins=bool(data.get('invite_url')),
+        site_xp_to_guild=False,
+        guild_game=community.guild_game,
+        guild_game_name=community.guild_game_name,
+        owner_id=community.owner_id,
+        network_status=community.network_status,
+        is_active=True,
+        is_banned=False,
+        is_primary=False,
+        community_group_id=group_id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(new_row)
+    db.flush()
+    # Ensure primary row also has the group_id set
+    if not community.community_group_id:
+        community.community_group_id = group_id
+    db.commit()
+    return JsonResponse({'success': True, 'new_id': new_row.id})
 
 
 def _validate_invite_url(url):
@@ -449,10 +556,37 @@ def api_lfg_list(request):
 
         return JsonResponse({'success': True, 'id': group.id, 'share_token': group.share_token})
 
-    # GET — list groups; ?mine=true returns groups the user created or joined
+    # GET — list groups; ?mine=true returns groups the user created or joined; ?community_id=X filters by community
     mine = request.GET.get('mine') == 'true'
+    community_id_filter = safe_int(request.GET.get('community_id'), None)
+    limit = safe_int(request.GET.get('limit'), default=50, min_val=1, max_val=100)
     with get_db_session() as db:
-        if mine and request.web_user:
+        if community_id_filter:
+            # Groups created by members of this community
+            member_ids = [
+                row[0] for row in db.execute(
+                    text("SELECT user_id FROM web_community_members WHERE community_id=:cid"),
+                    {'cid': community_id_filter}
+                ).fetchall()
+            ]
+            # Also include groups from sibling community rows in the same group
+            grp_row = db.execute(
+                text("SELECT community_group_id FROM web_communities WHERE id=:cid LIMIT 1"),
+                {'cid': community_id_filter}
+            ).fetchone()
+            if grp_row and grp_row[0]:
+                extra_ids = [
+                    row[0] for row in db.execute(
+                        text("SELECT user_id FROM web_community_members cm JOIN web_communities wc ON wc.id=cm.community_id WHERE wc.community_group_id=:gid"),
+                        {'gid': grp_row[0]}
+                    ).fetchall()
+                ]
+                member_ids = list(set(member_ids + extra_ids))
+            groups = db.query(WebLFGGroup).filter(
+                WebLFGGroup.creator_id.in_(member_ids),
+                WebLFGGroup.status.in_(['open', 'full']),
+            ).order_by(WebLFGGroup.created_at.desc()).limit(limit).all()
+        elif mine and request.web_user:
             # Groups where user is creator OR active member
             member_group_ids = [
                 m.group_id for m in db.query(WebLFGMember).filter_by(
@@ -465,7 +599,7 @@ def api_lfg_list(request):
         else:
             groups = db.query(WebLFGGroup).filter(
                 WebLFGGroup.status.in_(['open', 'full'])
-            ).order_by(WebLFGGroup.created_at.desc()).limit(50).all()
+            ).order_by(WebLFGGroup.created_at.desc()).limit(limit).all()
 
         viewer_id = request.web_user.id if request.web_user else None
 
@@ -1036,16 +1170,40 @@ def api_communities(request):
             "SELECT guild_id, member_count FROM guilds WHERE member_count > 0"
         )).fetchall()}
 
+        # Build group_id -> sibling rows map for multi-platform badges
+        group_ids = list(set(c.community_group_id for c in communities if c.community_group_id))
+        siblings_map = {}  # group_id -> list of {platform, platform_id, invite_url}
+        if group_ids:
+            ph = ','.join(f':g{i}' for i in range(len(group_ids)))
+            params = {f'g{i}': v for i, v in enumerate(group_ids)}
+            sib_rows = db.execute(sa_text(f"""
+                SELECT community_group_id, platform, platform_id, invite_url, allow_joins
+                FROM web_communities
+                WHERE community_group_id IN ({ph}) AND is_active=1
+            """), params).fetchall()
+            for row in sib_rows:
+                gid = row[0]
+                if gid not in siblings_map:
+                    siblings_map[gid] = []
+                siblings_map[gid].append({
+                    'platform': row[1] if isinstance(row[1], str) else row[1].value,
+                    'platform_id': str(row[2] or ''),
+                    'invite_url': row[3] if row[4] else None,
+                })
+
         data = []
         for c in communities:
             platform = c.platform.value if hasattr(c.platform, 'value') else str(c.platform)
             pid = str(c.platform_id or '')
+            # Use only the primary row's live member count - no summing across platforms (that's double-dipping)
             if platform == 'fluxer' and pid in fluxer_counts:
                 live_count = fluxer_counts[pid]
             elif platform == 'discord' and pid in discord_counts:
                 live_count = discord_counts[pid]
             else:
                 live_count = c.member_count
+            group_id = c.community_group_id
+            sibs = siblings_map.get(group_id, []) if group_id else []
             # Keep stored count in sync so ordering stays accurate
             if live_count != c.member_count:
                 c.member_count = live_count
@@ -1056,10 +1214,11 @@ def api_communities(request):
                 'short_description': c.short_description,
                 'description': c.description,
                 'platform': platform,
+                'platforms': sibs if sibs else [{'platform': platform, 'platform_id': pid, 'invite_url': c.invite_url if c.allow_joins else None}],
                 'icon_url': c.icon_url,
                 'banner_url': c.banner_url,
                 'member_count': live_count,
-                'activity_level': c.activity_level,
+                'activity_level': c.activity_level or 'unknown',
                 'allow_joins': c.allow_joins,
                 'invite_url': c.invite_url if c.allow_joins else None,
                 'tags': json.loads(c.tags or '[]'),
@@ -1152,13 +1311,120 @@ def api_community_detail(request, community_id):
             except (json.JSONDecodeError, ValueError):
                 return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
+            # Dispatch action-based requests before name validation (these don't need name)
+            if data.get('action') == 'add_platform':
+                return _community_add_platform(request, db, community, data)
+
+            # Toggle XP on a specific platform row (owner can disable; enabling requires bot present)
+            if data.get('action') == 'toggle_xp':
+                target_id = safe_int(data.get('community_id'), None)
+                enable = bool(data.get('enable'))
+                if not target_id:
+                    return JsonResponse({'error': 'community_id required'}, status=400)
+                target = db.query(WebCommunity).filter_by(id=target_id).first()
+                if not target or target.owner_id != request.web_user.id:
+                    return JsonResponse({'error': 'Not your community'}, status=403)
+                if enable:
+                    # Check bot is present
+                    pval = target.platform.value if hasattr(target.platform, 'value') else str(target.platform)
+                    pid = str(target.platform_id or '')
+                    bot_ok = False
+                    if pval == 'fluxer' and pid:
+                        bot_ok = bool(db.execute(text("SELECT 1 FROM web_fluxer_guild_settings WHERE guild_id=:g LIMIT 1"), {'g': pid}).fetchone())
+                    elif pval == 'discord' and pid:
+                        try:
+                            bot_ok = bool(db.execute(text("SELECT 1 FROM guilds WHERE guild_id=:g AND bot_present=1 LIMIT 1"), {'g': int(pid)}).fetchone())
+                        except (ValueError, TypeError):
+                            pass
+                    if not bot_ok:
+                        return JsonResponse({'error': 'Bot not installed in that server - install the bot first'}, status=400)
+                    # Only allow if admin previously approved (site_xp_to_guild was True at some point)
+                    # We allow owner to re-enable if they've been approved before
+                    if not target.site_xp_to_guild and target.network_status != 'approved':
+                        return JsonResponse({'error': 'Unified XP requires admin approval first'}, status=403)
+                target.site_xp_to_guild = enable
+                target.updated_at = int(time.time())
+                db.commit()
+                return JsonResponse({'success': True})
+
+            # Set a platform row as primary (controls which badge shows on directory card)
+            if data.get('action') == 'set_primary':
+                target_id = safe_int(data.get('community_id'), None)
+                if not target_id:
+                    return JsonResponse({'error': 'community_id required'}, status=400)
+                target = db.query(WebCommunity).filter_by(id=target_id).first()
+                if not target or target.owner_id != request.web_user.id:
+                    return JsonResponse({'error': 'Not your community'}, status=403)
+                group_id = target.community_group_id or target.id
+                # Copy platform-agnostic fields from old primary to new primary so nothing is lost
+                old_primary = db.query(WebCommunity).filter(
+                    WebCommunity.community_group_id == group_id,
+                    WebCommunity.is_primary == True,
+                    WebCommunity.id != target_id,
+                ).first()
+                if old_primary:
+                    for field in ('name', 'short_description', 'description', 'website_url',
+                                  'twitch_url', 'youtube_url', 'twitter_url', 'tags', 'games',
+                                  'icon_url', 'banner_url', 'allow_discovery', 'allow_joins',
+                                  'guild_game', 'guild_game_name'):
+                        # invite_url is intentionally excluded - each platform keeps its own
+                        if getattr(old_primary, field, None) is not None:
+                            setattr(target, field, getattr(old_primary, field))
+                # Clear primary on all siblings, set on target
+                db.query(WebCommunity).filter(
+                    WebCommunity.community_group_id == group_id
+                ).update({'is_primary': False}, synchronize_session=False)
+                target.is_primary = True
+                # Update member count to the new primary's live count
+                pval = target.platform.value if hasattr(target.platform, 'value') else str(target.platform)
+                pid = str(target.platform_id or '')
+                if pval == 'fluxer' and pid:
+                    live = db.execute(text("SELECT member_count FROM web_fluxer_guild_settings WHERE guild_id=:g LIMIT 1"), {'g': pid}).fetchone()
+                    if live and live[0]:
+                        target.member_count = live[0]
+                elif pval == 'discord' and pid:
+                    try:
+                        live = db.execute(text("SELECT member_count FROM guilds WHERE guild_id=:g LIMIT 1"), {'g': int(pid)}).fetchone()
+                        if live and live[0]:
+                            target.member_count = live[0]
+                    except (ValueError, TypeError):
+                        pass
+                target.updated_at = int(time.time())
+                db.commit()
+                return JsonResponse({'success': True, 'new_primary_id': target.id})
+
+            # Remove a platform row from this community group
+            if data.get('action') == 'remove_platform':
+                target_id = safe_int(data.get('community_id'), None)
+                if not target_id:
+                    return JsonResponse({'error': 'community_id required'}, status=400)
+                target = db.query(WebCommunity).filter_by(id=target_id).first()
+                if not target or target.owner_id != request.web_user.id:
+                    return JsonResponse({'error': 'Not your community'}, status=403)
+                group_id = target.community_group_id
+                sibling_count = db.query(WebCommunity).filter(
+                    WebCommunity.community_group_id == group_id,
+                    WebCommunity.is_active == True,
+                ).count() if group_id else 1
+                if sibling_count <= 1:
+                    return JsonResponse({'error': 'Cannot remove the last platform - delete the community instead'}, status=400)
+                # If removing the primary, promote another sibling
+                if target.is_primary and group_id:
+                    new_primary = db.query(WebCommunity).filter(
+                        WebCommunity.community_group_id == group_id,
+                        WebCommunity.id != target_id,
+                        WebCommunity.is_active == True,
+                    ).first()
+                    if new_primary:
+                        new_primary.is_primary = True
+                target.is_active = False
+                target.updated_at = int(time.time())
+                db.commit()
+                return JsonResponse({'success': True})
+
             name = (data.get('name') or '').strip()
             if not name or len(name) > 200:
                 return JsonResponse({'error': 'Name is required (max 200 chars)'}, status=400)
-
-            # Prevent platform type changes after registration
-            if 'platform' in data and data['platform'] != community.platform.value:
-                return JsonResponse({'error': 'Platform type cannot be changed after registration'}, status=400)
 
             raw_tags = data.get('tags') or []
             community.name = name
@@ -1173,8 +1439,6 @@ def api_community_detail(request, community_id):
             raw_games = data.get('games') or []
             community.games = json.dumps([g.strip() for g in raw_games if isinstance(g, str) and g.strip()][:20])
             community.member_count = safe_int(data.get('member_count') or community.member_count, default=community.member_count, min_val=0)
-            # Auto-calculate activity level - not owner-settable
-            community.activity_level = _calc_activity_level(db, community)
             community.allow_discovery = bool(data.get('allow_discovery', community.allow_discovery))
             community.allow_joins = bool(data.get('allow_joins', community.allow_joins))
             # In-game guild fields
@@ -1188,6 +1452,21 @@ def api_community_detail(request, community_id):
             if 'site_xp_to_guild' in data and not data['site_xp_to_guild']:
                 community.site_xp_to_guild = False
             community.updated_at = int(time.time())
+            # Sync platform-agnostic fields to all sibling rows so data survives primary swaps
+            if community.community_group_id:
+                siblings = db.query(WebCommunity).filter(
+                    WebCommunity.community_group_id == community.community_group_id,
+                    WebCommunity.id != community.id,
+                    WebCommunity.is_active == True,
+                ).all()
+                for sib in siblings:
+                    for field in ('name', 'short_description', 'description', 'website_url',
+                                  'twitch_url', 'youtube_url', 'twitter_url', 'tags', 'games',
+                                  'allow_discovery', 'allow_joins', 'guild_game', 'guild_game_name',
+                                  'icon_url', 'banner_url'):
+                        # invite_url intentionally excluded - each platform keeps its own
+                        setattr(sib, field, getattr(community, field))
+                    sib.updated_at = community.updated_at
             db.commit()
             return JsonResponse({'success': True})
 
@@ -1240,6 +1519,77 @@ def api_community_detail(request, community_id):
             if fluxer_settings and fluxer_settings.member_count:
                 member_count = fluxer_settings.member_count
 
+        # Build platforms list - all rows in the same group (or just this row)
+        group_id = community.community_group_id
+        if group_id:
+            siblings = db.query(WebCommunity).filter(
+                WebCommunity.community_group_id == group_id,
+                WebCommunity.is_active == True,
+            ).all()
+        else:
+            siblings = [community]
+
+        platforms_data = []
+        for sib in siblings:
+            pval = sib.platform.value if hasattr(sib.platform, 'value') else str(sib.platform)
+            pid = str(sib.platform_id or '')
+            bot_present = False
+            guild_name = None
+            if pval == 'fluxer' and pid:
+                row = db.execute(
+                    text("SELECT guild_name, bot_present FROM web_fluxer_guild_settings WHERE guild_id=:g LIMIT 1"),
+                    {'g': pid}
+                ).fetchone()
+                if row:
+                    guild_name = row[0]
+                    bot_present = bool(row[1])
+            elif pval == 'discord' and pid:
+                try:
+                    row = db.execute(
+                        text("SELECT guild_name, bot_present FROM guilds WHERE guild_id=:g LIMIT 1"),
+                        {'g': int(pid)}
+                    ).fetchone()
+                    if row:
+                        guild_name = row[0]
+                        bot_present = bool(row[1])
+                except (ValueError, TypeError):
+                    pass
+            platforms_data.append({
+                'id': sib.id,
+                'platform': pval,
+                'platform_id': pid,
+                'guild_name': guild_name or sib.name,
+                'invite_url': sib.invite_url if (sib.allow_joins or is_owner) else None,
+                'member_count': sib.member_count,
+                'site_xp_to_guild': bool(sib.site_xp_to_guild),
+                'bot_present': bot_present,
+                'is_primary': bool(sib.is_primary),
+            })
+
+        # Build list of owner's servers not yet linked - for one-click add
+        available_platforms = []
+        if is_owner:
+            linked_pids = {(p['platform'], p['platform_id']) for p in platforms_data}
+            fluxer_id_str = str(getattr(request.web_user, 'fluxer_id', '') or '')
+            discord_id_str = str(getattr(request.web_user, 'discord_id', '') or '')
+            if fluxer_id_str:
+                f_rows = db.execute(text(
+                    "SELECT guild_id, guild_name, member_count FROM web_fluxer_guild_settings WHERE owner_id=:oid"
+                ), {'oid': fluxer_id_str}).fetchall()
+                for r in f_rows:
+                    if ('fluxer', str(r[0])) not in linked_pids:
+                        available_platforms.append({'platform': 'fluxer', 'platform_id': str(r[0]), 'guild_name': r[1] or str(r[0]), 'member_count': r[2] or 0})
+            if discord_id_str:
+                try:
+                    d_rows = db.execute(text(
+                        "SELECT guild_id, guild_name, member_count FROM guilds WHERE owner_id=:oid AND bot_present=1"
+                    ), {'oid': int(discord_id_str)}).fetchall()
+                    for r in d_rows:
+                        if ('discord', str(r[0])) not in linked_pids:
+                            available_platforms.append({'platform': 'discord', 'platform_id': str(r[0]), 'guild_name': r[1] or str(r[0]), 'member_count': r[2] or 0})
+                except (ValueError, TypeError):
+                    pass
+
         return JsonResponse({
             'id': community.id,
             'slug': _community_slug(community.name),
@@ -1247,6 +1597,8 @@ def api_community_detail(request, community_id):
             'short_description': community.short_description,
             'description': community.description,
             'platform': community.platform.value,
+            'platforms': platforms_data,
+            'available_platforms': available_platforms,
             'icon_url': community.icon_url,
             'banner_url': community.banner_url,
             'invite_url': community.invite_url if (community.allow_joins or is_owner) else None,
@@ -1256,7 +1608,7 @@ def api_community_detail(request, community_id):
             'twitter_url': community.twitter_url,
             'tags': json.loads(community.tags or '[]'),
             'member_count': member_count,
-            'activity_level': community.activity_level,
+            'activity_level': community.activity_level or 'unknown',
             'allow_discovery': community.allow_discovery,
             'allow_joins': community.allow_joins,
             'site_xp_to_guild': bool(community.site_xp_to_guild),
@@ -1812,18 +2164,21 @@ def api_mention_search(request):
 
 @add_web_user_context
 def api_community_members_list(request, community_id):
-    """GET QuestLog members of a community."""
+    """GET QuestLog members of a community.
+    Source of truth is web_community_members - populated when a user links their
+    Discord/Fluxer account and they are found in that platform's guild.
+    """
     with get_db_session() as db:
         community = db.query(WebCommunity).filter_by(id=community_id, is_active=True).first()
         if not community:
             return JsonResponse({'error': 'Not found'}, status=404)
 
         page = safe_int(request.GET.get('page', 1), 1, 1, 100)
-        limit = 24
+        limit = 48
         offset = (page - 1) * limit
 
         rows = db.execute(text("""
-            SELECT u.id, u.username, u.display_name, u.avatar_url, u.is_banned, u.is_disabled,
+            SELECT u.id, u.username, u.display_name, u.avatar_url,
                    cm.role, cm.joined_at
             FROM web_community_members cm
             JOIN web_users u ON u.id = cm.user_id
@@ -1844,7 +2199,7 @@ def api_community_members_list(request, community_id):
             'display_name': r.display_name or r.username,
             'avatar_url': r.avatar_url or '',
             'role': r.role,
-            'joined_at': r.joined_at,
+            'linked': True,
         } for r in rows]
 
         return JsonResponse({'members': members, 'total': total, 'has_more': offset + limit < total})
@@ -2659,7 +3014,14 @@ def api_creators(request):
             profile.banner_url = (data.get('banner_url') or '')[:500] or None
             # Only update social URLs if not OAuth-connected (OAuth sets these automatically)
             if not profile.twitch_user_id:
-                profile.twitch_url = (data.get('twitch_url') or '')[:500] or None
+                twitch_url_val = (data.get('twitch_url') or '')[:500] or None
+                profile.twitch_url = twitch_url_val
+                # Keep web_users.twitch_username in sync so live detection works
+                if twitch_url_val:
+                    extracted = twitch_url_val.rstrip('/').split('/')[-1]
+                    db.query(WebUser).filter_by(id=profile.user_id).update({'twitch_username': extracted})
+                else:
+                    db.query(WebUser).filter_by(id=profile.user_id).update({'twitch_username': None})
             if not profile.youtube_channel_id:
                 profile.youtube_url = (data.get('youtube_url') or '')[:500] or None
             profile.kick_url = (data.get('kick_url') or '')[:500] or None
@@ -2955,11 +3317,11 @@ def api_igdb_search(request):
         from app.utils.igdb import search_games
 
         loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
             games = loop.run_until_complete(search_games(q, limit=limit))
         finally:
             loop.close()
+            asyncio.set_event_loop(None)
 
         # Enrich steam_id for games IGDB doesn't have a Steam mapping for.
         # Priority: IGDB external_games > web_found_games > web_lfg_game_configs > web_users.current_game_appid
@@ -3053,6 +3415,7 @@ def api_gamers(request):
             query = db.query(WebUser).filter(
                 WebUser.is_banned == False,
                 WebUser.is_disabled == False,
+                WebUser.is_hidden == False,
                 WebUser.email_verified == True,
                 WebUser.allow_discovery == True,
                 ~WebUser.id.in_(EXCLUDED_USER_IDS),
@@ -3847,8 +4210,12 @@ def api_community_set_primary(request, community_id):
         ).first()
         if not community:
             return JsonResponse({'error': 'Community not found'}, status=404)
-        # Clear primary on all owner's communities, then set this one
-        db.query(WebCommunity).filter_by(owner_id=request.web_user.id).update({'is_primary': False})
+        # Clear primary on siblings in the same group only, then set this one
+        group_id = community.community_group_id
+        if group_id:
+            db.query(WebCommunity).filter_by(community_group_id=group_id).update({'is_primary': False}, synchronize_session=False)
+        else:
+            db.query(WebCommunity).filter_by(owner_id=request.web_user.id).update({'is_primary': False}, synchronize_session=False)
         community.is_primary = True
         community.updated_at = int(time.time())
         db.commit()
@@ -3876,6 +4243,7 @@ def api_top_posts(request):
                 WebPost.created_at >= since,
                 WebUser.is_banned == False,
                 WebUser.is_disabled == False,
+                WebUser.is_hidden == False,
                 ~WebUser.id.in_(EXCLUDED_USER_IDS),
             )
             .order_by(

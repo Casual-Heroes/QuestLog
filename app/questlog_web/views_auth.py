@@ -24,7 +24,7 @@ from django.core.mail import send_mail
 from django.conf import settings as django_settings
 
 from sqlalchemy import text as sa_text
-from .models import WebUser, WebCreatorProfile, WebReferral, WebSiteConfig, WebFlair, WebUserFlair, WebEarlyAccessCode, WebXpEvent, WebHeroPointEvent
+from .models import WebUser, WebCreatorProfile, WebReferral, WebSiteConfig, WebFlair, WebUserFlair, WebEarlyAccessCode, WebXpEvent, WebHeroPointEvent, WebCommunityMember
 from app.db import get_db_session
 from .fluxer_webhooks import notify_member_signup_log as _log_new_member
 from .helpers import (
@@ -462,6 +462,10 @@ def ql_register(request):
         email = request.POST.get('email', '').strip().lower()
         password = request.POST.get('password', '')
         password2 = request.POST.get('password2', '')
+        is_dev = request.POST.get('is_dev', '') == '1'
+        dev_game_name = request.POST.get('dev_game_name', '').strip()[:200]
+        dev_game_pitch = request.POST.get('dev_game_pitch', '').strip()[:1000]
+        dev_game_link = request.POST.get('dev_game_link', '').strip()[:500]
 
         errors = []
 
@@ -496,6 +500,10 @@ def ql_register(request):
                 'turnstile_site_key': django_settings.TURNSTILE_SITE_KEY,
                 'early_access_mode': getattr(django_settings, 'EARLY_ACCESS_ENABLED', False),
                 'invite_code': request.POST.get('invite_code', ''),
+                'is_dev': is_dev,
+                'dev_game_name': dev_game_name,
+                'dev_game_pitch': dev_game_pitch,
+                'dev_game_link': dev_game_link,
             })
 
         # 4. Early access invite code gate
@@ -574,6 +582,10 @@ def ql_register(request):
                 'turnstile_site_key': django_settings.TURNSTILE_SITE_KEY,
                 'early_access_mode': getattr(django_settings, 'EARLY_ACCESS_ENABLED', False),
                 'invite_code': request.POST.get('invite_code', ''),
+                'is_dev': is_dev,
+                'dev_game_name': dev_game_name,
+                'dev_game_pitch': dev_game_pitch,
+                'dev_game_link': dev_game_link,
             })
 
         # Create account as active - email_verified=False in WebUser gates features.
@@ -599,6 +611,8 @@ def ql_register(request):
                 display_name=django_user.username,
                 email=email,
                 email_verified=False,
+                is_indie_dev=False,
+                indie_dev_pending=is_dev,  # Flagged for admin approval, not auto-approved
                 created_at=now,
                 updated_at=now,
                 last_login_at=now,
@@ -636,6 +650,16 @@ def ql_register(request):
                     db.commit()
                     logger.info(f"Referral recorded: referrer={referrer.id} invited={user.id}")
 
+        # Store game info in session so it can be submitted after dev account is approved
+        _new_game_slug = None
+        if is_dev and dev_game_name:
+            request.session['pending_dev_game'] = {
+                'name': dev_game_name,
+                'pitch': dev_game_pitch,
+                'link': dev_game_link,
+            }
+            logger.info(f"Dev game info stored in session for pending approval: user {user.id}")
+
         _send_verification_email(request, django_user)
 
         # Auto-login immediately - email_verified=False banner will prompt them to verify
@@ -644,6 +668,11 @@ def ql_register(request):
         request.session['web_user_name']     = user.username
         request.session['web_user_avatar']   = user.avatar_url or ''
         request.session['web_user_is_admin'] = False
+
+        # Dev registrations: send them straight to their game draft page
+        if is_dev:
+            messages.info(request, "Your dev account application has been submitted. We'll review it shortly - you'll be able to submit your game once approved.")
+            return redirect('/ql/indie-heroes/')
 
         return redirect('/')
 
@@ -882,6 +911,68 @@ def discord_link(request):
     return redirect(f"{_DISCORD_AUTH_URL}?{urlencode(params)}")
 
 
+def _sync_community_memberships(db, web_user_id, platform, platform_user_id):
+    """Add user to web_community_members for every active community on `platform`
+    where platform_user_id appears as a current member in the platform's member table.
+    Called after Discord/Fluxer account link. Non-fatal - exceptions are logged only.
+    """
+    try:
+        now = int(time.time())
+        if platform == 'discord':
+            # Include the platform join date so the ticker doesn't show stale members as new
+            rows = db.execute(sa_text("""
+                SELECT wc.id, COALESCE(gm.first_seen, :now) AS platform_joined
+                FROM web_communities wc
+                JOIN guild_members gm
+                  ON CAST(wc.platform_id AS UNSIGNED) = gm.guild_id
+                  AND gm.user_id = :uid AND gm.left_at IS NULL
+                WHERE wc.platform = 'discord' AND wc.is_active = 1
+            """), {'uid': int(platform_user_id), 'now': now}).fetchall()
+        elif platform == 'fluxer':
+            rows = db.execute(sa_text("""
+                SELECT wc.id, COALESCE(fm.joined_at, :now) AS platform_joined
+                FROM web_communities wc
+                JOIN web_fluxer_members fm
+                  ON CAST(wc.platform_id AS UNSIGNED) = fm.guild_id
+                  AND fm.user_id = :uid AND fm.left_at IS NULL
+                WHERE wc.platform = 'fluxer' AND wc.is_active = 1
+            """), {'uid': int(platform_user_id), 'now': now}).fetchall()
+        else:
+            return
+
+        community_ids = [(r[0], r[1]) for r in rows]
+        for cid, platform_joined in community_ids:
+            # Use the real platform join date - prevents stale members showing as new in the ticker
+            db.execute(sa_text("""
+                INSERT IGNORE INTO web_community_members (user_id, community_id, role, joined_at)
+                VALUES (:uid, :cid, 'member', :joined)
+            """), {'uid': web_user_id, 'cid': cid, 'joined': int(platform_joined)})
+
+        if community_ids:
+            db.commit()
+            logger.info(f"_sync_community_memberships: added user {web_user_id} to {len(community_ids)} {platform} communities")
+
+    except Exception as e:
+        logger.error(f"_sync_community_memberships failed for user {web_user_id} platform={platform}: {e}")
+
+
+def _remove_community_memberships(db, web_user_id, platform):
+    """Remove user from web_community_members for all communities on `platform`.
+    Called on Discord/Fluxer account unlink.
+    """
+    try:
+        db.execute(sa_text("""
+            DELETE wcm FROM web_community_members wcm
+            JOIN web_communities wc ON wc.id = wcm.community_id
+            WHERE wcm.user_id = :uid AND wc.platform = :plat AND wc.is_active = 1
+              AND wcm.role NOT IN ('owner', 'admin', 'moderator')
+        """), {'uid': web_user_id, 'plat': platform})
+        db.commit()
+        logger.info(f"_remove_community_memberships: removed user {web_user_id} from {platform} communities")
+    except Exception as e:
+        logger.error(f"_remove_community_memberships failed for user {web_user_id} platform={platform}: {e}")
+
+
 @web_login_required
 @ratelimit(key='ip', rate='10/h', block=True)
 def discord_link_callback(request):
@@ -1054,6 +1145,13 @@ def discord_link_callback(request):
     except Exception as e:
         logger.error(f"discord_link: XP merge failed for user {web_user_id}: {e}", exc_info=True)
 
+    # Sync community memberships from Discord guilds
+    try:
+        with get_db_session() as db_sync:
+            _sync_community_memberships(db_sync, web_user_id, 'discord', discord_id)
+    except Exception as e:
+        logger.error(f"discord_link: community sync failed for user {web_user_id}: {e}")
+
     # Redirect to profile so the user sees Connected status and My Servers
     from django.http import HttpResponseRedirect
     from django.urls import reverse
@@ -1074,6 +1172,7 @@ def discord_unlink(request):
         user.discord_username = None
         user.updated_at       = int(time.time())
         db.commit()
+        _remove_community_memberships(db, request.web_user.id, 'discord')
 
     messages.success(request, "Discord account disconnected.")
     return redirect('questlog_web_profile')
@@ -1264,6 +1363,13 @@ def fluxer_link_callback(request):
         except Exception as e:
             logger.error(f"Fluxer XP migration failed for user {web_user_id}: {e}")
 
+    # Sync community memberships from Fluxer guilds
+    try:
+        with get_db_session() as db_sync:
+            _sync_community_memberships(db_sync, web_user_id, 'fluxer', fluxer_id)
+    except Exception as e:
+        logger.error(f"fluxer_link: community sync failed for user {web_user_id}: {e}")
+
     messages.success(request, f"Fluxer account @{fluxer_username} linked successfully!")
     return redirect('questlog_web_profile')
 
@@ -1286,6 +1392,7 @@ def fluxer_unlink(request):
         user.fluxer_sync_custom_status = False
         user.updated_at               = int(time.time())
         db.commit()
+        _remove_community_memberships(db, request.web_user.id, 'fluxer')
 
     messages.success(request, "Fluxer account disconnected.")
     return redirect('questlog_web_profile')
@@ -1611,6 +1718,7 @@ def twitch_oauth_callback(request):
         profile.updated_at = now
         db.commit()
 
+    request.session.cycle_key()
     messages.success(request, f"Twitch account connected: {user_info['display_name']}")
     return redirect('questlog_web_creator_register')
 

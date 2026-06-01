@@ -184,32 +184,30 @@
   <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 22s linear infinite;"></div>
 </div>
 
-{% if game_servers %}
-<!-- Game Server Strip -->
-<div class="bg-neutral-900/60 border-b border-neutral-800 px-4 py-2">
+<!-- Game Server Strip - loaded async after page render -->
+<div id="game-server-strip" class="hidden bg-neutral-900/60 border-b border-neutral-800 px-4 py-2">
   <div class="max-w-5xl mx-auto flex items-center gap-2 overflow-x-auto" style="scrollbar-width:none;">
     <span class="text-xs text-gray-600 font-medium whitespace-nowrap flex-shrink-0 mr-1">
       <i class="fas fa-server text-gray-700 mr-1"></i>Servers:
     </span>
-    {% for s in game_servers %}
-    <a href="{% url 'questlog_web_gameservers' %}"
-       class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs whitespace-nowrap flex-shrink-0 transition
-              {% if s.live_now %}bg-green-500/10 border border-green-500/20 text-green-300 hover:bg-green-500/20
-              {% else %}bg-neutral-800 border border-neutral-700 text-gray-500 hover:bg-neutral-700{% endif %}">
-      <span class="w-1.5 h-1.5 rounded-full {% if s.live_now %}bg-green-400{% else %}bg-gray-600{% endif %}"></span>
-      {{ s.name }}
-      {% if s.live_now and s.online != '-' %}
-      <span class="{% if s.live_now %}text-green-400{% else %}text-gray-600{% endif %} font-semibold">{{ s.online }}/{{ s.max }}</span>
-      {% endif %}
-    </a>
-    {% endfor %}
+    <div id="game-server-items" class="flex items-center gap-2"></div>
     <a href="{% url 'questlog_web_gameservers' %}" class="text-xs text-gray-600 hover:text-gray-400 transition whitespace-nowrap flex-shrink-0 ml-1">View all &rarr;</a>
   </div>
 </div>
-{% endif %}
 
-<!-- Main layout: discovery content + right sidebar -->
-<div class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+<!-- Spotlight Bar - shown when active spotlights exist -->
+<div id="discover-spotlight-section" class="hidden border-b border-neutral-800/60 bg-neutral-950/50 px-4 py-4">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex items-center gap-3 mb-3">
+      <i class="fas fa-star text-amber-400 text-xs"></i>
+      <span class="text-xs font-bold text-amber-500 uppercase tracking-widest">Community Spotlights</span>
+    </div>
+    <div id="discover-spotlight-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+  </div>
+</div>
+
+<!-- Main layout: main content + right sidebar -->
+<div class="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
   <div class="flex flex-col lg:flex-row gap-6">
 
     <!-- Discovery Main Column -->
@@ -230,12 +228,13 @@
             <textarea id="discover-post-content" rows="2" maxlength="{% if web_user.is_admin %}6000{% elif web_user.is_hero %}3000{% else %}1000{% endif %}"
               placeholder="What are you playing? Share a moment... (paste a video link or image!)"
               class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-600 focus:outline-none resize-none leading-relaxed pt-1 overflow-hidden"
-              oninput="discoverAutoExpand(this); discoverUpdateBtn()" onpaste="discoverHandlePasteImage(event)"></textarea>
+              oninput="discoverAutoExpand(this); discoverUpdateBtn()" onpaste="discoverHandlePasteImage(event)"
+              onfocus="document.getElementById('discover-composer-toolbar').classList.remove('hidden')"></textarea>
           </div>
         </div>
 
-        <!-- Tools bar -->
-        <div class="px-4 py-3 border-t border-neutral-800/50">
+        <!-- Tools bar - hidden until textarea focused -->
+        <div id="discover-composer-toolbar" class="hidden px-4 py-3 border-t border-neutral-800/50">
           <div id="discover-image-preview" class="hidden mb-3"></div>
           <!-- Game tag display -->
           <div id="discover-game-tag-display" class="hidden mb-3 flex items-center gap-2">
@@ -304,7 +303,8 @@
       </div>
       {% endif %}
 
-      <!-- 1. GROUPS FORMING NOW - first thing a visitor sees, the dopamine hook -->
+      <!-- 1. GROUPS FORMING NOW - hidden when empty -->
+      {% if lfg_groups %}
       <section>
         <div class="section-header">
           <h2 class="section-title">
@@ -389,9 +389,7 @@
         </div>
         {% endif %}
       </section>
-
-      <!-- post-composer-anchor: JS will move #quick-composer here after LFG loads -->
-      <div id="post-composer-anchor"></div>
+      {% endif %}
 
       <!-- 2. COMMUNITIES - for members looking for a home -->
       <section>
@@ -401,9 +399,6 @@
               <i class="fas fa-shield-alt text-purple-400 text-xs"></i>
             </span>
             Communities
-            {% if community_counts %}
-            <span class="text-xs font-normal text-gray-500">{{ featured_communities|length }} shown</span>
-            {% endif %}
           </h2>
           <a href="{% url 'questlog_web_communities' %}" class="view-all">
             Browse All <i class="fas fa-arrow-right text-[10px]"></i>
@@ -520,7 +515,27 @@
         {% endif %}
       </section>
 
-      <!-- 3. CREATORS - Live Now + Previously Live -->
+      <!-- 3. INDIE HEROES - 5 random spotlight games -->
+      <section>
+        <div class="section-header">
+          <h2 class="section-title">
+            <span class="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
+              <i class="fas fa-rocket text-amber-400 text-xs"></i>
+            </span>
+            Indie Heroes
+          </h2>
+          <a href="{% url 'questlog_web_indie_heroes' %}" class="view-all">
+            All Games <i class="fas fa-arrow-right text-[10px]"></i>
+          </a>
+        </div>
+        <div id="ih-discover-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 hidden"></div>
+        <div id="ih-discover-loading" class="text-center py-6 text-gray-600 text-xs">
+          <i class="fas fa-spinner fa-spin mr-1"></i> Loading...
+        </div>
+        <div id="ih-discover-empty" class="hidden text-center py-4 text-gray-600 text-xs">No games yet - check back soon.</div>
+      </section>
+
+      <!-- 4. CREATORS - Live Now + Previously Live -->
       {% if live_streamers or recently_streamed %}
       <section>
         <div class="section-header">
@@ -563,9 +578,11 @@
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
               <span class="text-[10px] text-red-400 font-semibold">LIVE</span>
-              {% if s.platform == 'twitch' %}<i class="fab fa-twitch text-purple-400 text-xs"></i>
-              {% elif s.platform == 'youtube' %}<i class="fab fa-youtube text-red-400 text-xs"></i>
-              {% elif s.platform == 'kick' %}<i class="fas fa-bolt text-green-400 text-xs"></i>{% endif %}
+              {% for p in s.platforms %}
+                {% if p.platform == 'twitch' %}<i class="fab fa-twitch text-purple-400 text-xs"></i>
+                {% elif p.platform == 'youtube' %}<i class="fab fa-youtube text-red-400 text-xs"></i>
+                {% elif p.platform == 'kick' %}<i class="fas fa-bolt text-green-400 text-xs"></i>{% endif %}
+              {% endfor %}
             </div>
           </a>
           {% endfor %}
@@ -595,10 +612,12 @@
               </div>
               <p class="text-[11px] text-gray-600 truncate{% if not s.current_game %} hidden{% endif %}">{{ s.current_game }}</p>
             </div>
-            <div class="flex items-center gap-1.5 flex-shrink-0 text-gray-600 text-xs">
-              {% if s.platform == 'twitch' %}<i class="fab fa-twitch"></i>
-              {% elif s.platform == 'youtube' %}<i class="fab fa-youtube"></i>
-              {% elif s.platform == 'kick' %}<i class="fas fa-bolt"></i>{% endif %}
+            <div class="flex items-center gap-1.5 flex-shrink-0 text-xs">
+              {% for p in s.platforms %}
+                {% if p.platform == 'twitch' %}<i class="fab fa-twitch text-purple-400"></i>
+                {% elif p.platform == 'youtube' %}<i class="fab fa-youtube text-red-400"></i>
+                {% elif p.platform == 'kick' %}<i class="fas fa-bolt text-green-400"></i>{% endif %}
+              {% endfor %}
             </div>
           </a>
           {% endfor %}
@@ -607,6 +626,9 @@
 
       </section>
       {% endif %}
+
+      <!-- 5. POST COMPOSER - at the bottom, after discovery content -->
+      <div id="post-composer-anchor"></div>
 
       <!-- Bottom CTA: federation pitch (logged out only) -->
       {% if not web_user %}
@@ -673,7 +695,7 @@
       <!-- Find Players by Game -->
       <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
         <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-          <i class="fas fa-search text-violet-400"></i>Find Players
+          <i class="fas fa-search text-violet-400"></i>Find Players by Game
         </h3>
         <div class="relative mb-3">
           <input id="find-players-input" type="text" placeholder="Search a game..."
@@ -683,29 +705,6 @@
         </div>
         <div id="find-players-results" class="space-y-2">
           <p class="text-gray-600 text-xs text-center py-2">Search a game to find members playing it.</p>
-        </div>
-      </div>
-
-      <!-- Top Players -->
-      <div class="bg-neutral-900/50 rounded-xl border border-yellow-700/30 p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
-            <i class="fas fa-trophy text-yellow-400"></i>Top Players
-          </h3>
-          <a href="{% url 'questlog_web_leaderboard' %}" class="text-yellow-400 hover:text-yellow-300 text-xs">Full List</a>
-        </div>
-        <div id="sidebar-leaderboard" class="space-y-2">
-          <p class="text-gray-600 text-xs">Loading...</p>
-        </div>
-      </div>
-
-      <!-- Top Posts -->
-      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
-        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-          <i class="fas fa-fire text-rose-400"></i>Top Posts
-        </h3>
-        <div id="sidebar-top-posts" class="space-y-2">
-          <p class="text-gray-600 text-xs">Loading...</p>
         </div>
       </div>
 
@@ -740,6 +739,19 @@
       </div>
       {% endif %}
 
+      <!-- Top Players -->
+      <div class="bg-neutral-900/50 rounded-xl border border-yellow-700/30 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fas fa-trophy text-yellow-400"></i>Top Players
+          </h3>
+          <a href="{% url 'questlog_web_leaderboard' %}" class="text-yellow-400 hover:text-yellow-300 text-xs">Full List</a>
+        </div>
+        <div id="sidebar-leaderboard" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
       <!-- Community Picks -->
       {% if community_picks %}
       <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
@@ -772,6 +784,16 @@
       </div>
       {% endif %}
 
+      <!-- Top Posts -->
+      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i class="fas fa-fire text-rose-400"></i>Top Posts
+        </h3>
+        <div id="sidebar-top-posts" class="space-y-2">
+          <p class="text-gray-600 text-xs">Loading...</p>
+        </div>
+      </div>
+
       <!-- Gaming News -->
       <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
         <div class="flex items-center justify-between mb-3">
@@ -802,6 +824,9 @@
           </a>
           <a href="{% url 'questlog_web_games' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
             <i class="fas fa-gamepad text-indigo-400"></i>Games
+          </a>
+          <a href="{% url 'questlog_web_indie_heroes' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
+            <i class="fas fa-rocket text-amber-400"></i>Indie Heroes
           </a>
           {% if web_user %}
           <a href="{% url 'questlog_web_network' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
@@ -1310,6 +1335,9 @@ document.addEventListener('DOMContentLoaded', function() {
   setInterval(refreshTicker, 30000);
   loadSidebarContent();
   loadNudgeCards();
+  loadDiscoverIndieHeroes();
+  loadGameServerStrip();
+  loadDiscoverSpotlights();
   initFindPlayers();
   // Preload custom emoji so the tab icon can update
   fetch('/api/emoji/').then(r => r.json()).then(data => {
@@ -1387,6 +1415,7 @@ async function loadActivity() {
         community_post:   { icon: 'fa-comments',        color: 'text-teal-400' },
         game_night:       { icon: 'fa-moon',            color: 'text-indigo-400' },
         announcement:     { icon: 'fa-bullhorn',        color: 'text-yellow-400' },
+        indie_hero:       { icon: 'fa-rocket',           color: 'text-emerald-400' },
       };
 
       function buildTickerItem(t) {
@@ -1411,13 +1440,22 @@ async function loadActivity() {
           msgHtml = `<a href="${esc(t.community_url)}" class="${t.type === 'game_night' ? 'text-indigo-400' : 'text-teal-400'} hover:underline">${esc(t.message)}</a>`;
         } else if (t.type === 'announcement' && t.ann_url) {
           msgHtml = `<a href="${esc(t.ann_url)}" class="text-yellow-400 hover:underline">${esc(t.message)}</a>`;
+        } else if (t.type === 'indie_hero' && t.indie_slug) {
+          msgHtml = `<a href="/indie-heroes/${esc(t.indie_slug)}/" class="text-emerald-400 hover:underline">${esc(t.message)}</a>`;
         }
         const annAvatar = t.type === 'announcement'
           ? `<span class="w-4 h-4 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0"><i class="fas fa-bullhorn text-yellow-400" style="font-size:8px"></i></span>`
-          : avatarHtml(t.username || t.display_name, t.avatar_url, 'w-4 h-4');
+          : t.type === 'indie_hero'
+            ? `<span class="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0"><i class="fas fa-rocket text-emerald-400" style="font-size:8px"></i></span>`
+            : avatarHtml(t.username || t.display_name, t.avatar_url, 'w-4 h-4');
+        const tickerNameHtml = t.type === 'announcement'
+          ? '<span class="text-yellow-400 font-medium">New Update</span>'
+          : t.type === 'indie_hero'
+            ? `<a href="/indie-heroes/${esc(t.indie_slug)}/" class="text-emerald-300 font-medium hover:underline">${esc(t.indie_name)}</a>`
+            : userLink;
         return `<span class="inline-flex items-center gap-1.5 text-xs">
           ${annAvatar}
-          ${t.type === 'announcement' ? '<span class="text-yellow-400 font-medium">New Update</span>' : userLink}
+          ${tickerNameHtml}
           <span class="${meta.color}"><i class="fas ${meta.icon} text-xs"></i></span>
           <span class="text-gray-400">${msgHtml}</span>
           <span class="text-gray-600">${tickerTimeAgo(t.timestamp)}</span>
@@ -1499,6 +1537,7 @@ function buildTickerItemStatic(t) {
     play_together: 'fa-layer-group text-violet-400',
     community_post: 'fa-comments text-teal-400', game_night: 'fa-moon text-indigo-400',
     announcement: 'fa-bullhorn text-yellow-400',
+    indie_hero:   'fa-rocket text-emerald-400',
   };
   const iconCls = ICONS[t.type] || 'fa-circle text-gray-400';
   const userLink = t.username
@@ -1519,17 +1558,23 @@ function buildTickerItemStatic(t) {
     msgHtml = `wants to play <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-violet-400 hover:underline">${esc(t.game)}</a>`;
   else if (t.type === 'announcement' && t.ann_url)
     msgHtml = `<a href="${esc(t.ann_url)}" class="text-yellow-400 hover:underline">${esc(t.message)}</a>`;
-  const annStaticAvatar = t.type === 'announcement'
+  else if (t.type === 'indie_hero' && t.indie_slug)
+    msgHtml = `<a href="/indie-heroes/${esc(t.indie_slug)}/" class="text-emerald-400 hover:underline">${esc(t.message)}</a>`;
+  const specialAvatar = t.type === 'announcement'
     ? `<span class="w-4 h-4 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0"><i class="fas fa-bullhorn text-yellow-400" style="font-size:8px"></i></span>`
-    : null;
-  const av = annStaticAvatar || (t.avatar_url
+    : t.type === 'indie_hero'
+      ? `<span class="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0"><i class="fas fa-rocket text-emerald-400" style="font-size:8px"></i></span>`
+      : null;
+  const av = specialAvatar || (t.avatar_url
     ? `<img src="${esc(t.avatar_url)}" class="w-4 h-4 rounded-full object-cover flex-shrink-0" loading="lazy">`
     : `<span class="w-4 h-4 rounded-full bg-neutral-700 flex-shrink-0 flex items-center justify-center text-[8px] text-gray-400">${esc((t.display_name||'?')[0].toUpperCase())}</span>`);
-  const staticUserLink = t.type === 'announcement'
+  const staticNameHtml = t.type === 'announcement'
     ? `<span class="text-yellow-400 font-medium">New Update</span>`
-    : userLink;
+    : t.type === 'indie_hero'
+      ? `<a href="/indie-heroes/${esc(t.indie_slug)}/" class="text-emerald-300 font-medium hover:underline">${esc(t.indie_name)}</a>`
+      : userLink;
   return `<span class="inline-flex items-center gap-1.5 text-xs">
-    ${av} ${staticUserLink}
+    ${av} ${staticNameHtml}
     <span><i class="fas ${iconCls} text-xs"></i></span>
     <span class="text-gray-400">${msgHtml}</span>
     <span class="text-gray-600">${ago(t.timestamp)}</span>
@@ -1561,6 +1606,164 @@ async function loadNudgeCards() {
       </div>`;
     }).join('');
   } catch(e) {}
+}
+
+// Indie Heroes discover widget - 5 random published games
+async function loadDiscoverSpotlights() {
+  try {
+    const r = await fetch('/api/spotlight/');
+    const data = await r.json();
+
+    const cards = [];
+    const _e = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    function indieCard(g, label) {
+      const cover = g.cover_url
+        ? `<img src="${_e(g.cover_url)}" class="w-full h-44 object-cover object-top" loading="lazy">`
+        : `<div class="w-full h-44 bg-neutral-800 flex items-center justify-center"><i class="fas fa-gamepad text-neutral-600 text-3xl"></i></div>`;
+      return `<a href="/indie-heroes/${_e(g.slug)}/" class="block bg-neutral-900 border border-neutral-800 hover:border-emerald-500/40 rounded-xl overflow-hidden transition group relative">
+        ${cover}
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
+        <div class="absolute top-2 left-2"><span class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-black/60 backdrop-blur-sm border border-emerald-500/30 px-2 py-0.5 rounded-full">${_e(label)}</span></div>
+        <div class="absolute bottom-0 left-0 right-0 p-3">
+          <p class="text-white font-bold text-sm group-hover:text-emerald-300 transition leading-tight">${_e(g.name)}</p>
+          ${g.spotlight_quote ? `<p class="text-gray-400 text-xs italic mt-0.5 line-clamp-1">"${_e(g.spotlight_quote)}"</p>` : ''}
+        </div>
+      </a>`;
+    }
+
+    function commCard(c, label) {
+      const platIcon = c.platform === 'discord'
+        ? `<i class="fab fa-discord text-indigo-400 text-xs"></i>`
+        : c.platform === 'fluxer'
+          ? `<span class="text-xs text-purple-400">F</span>`
+          : `<i class="fas fa-server text-gray-400 text-xs"></i>`;
+      const banner = c.banner_url
+        ? `<div class="w-full h-24 overflow-hidden bg-neutral-950"><img src="${_e(c.banner_url)}" class="w-full h-full object-cover object-center" loading="lazy"></div>`
+        : `<div class="w-full h-24 bg-gradient-to-br from-purple-900/60 via-indigo-900/40 to-neutral-900"></div>`;
+      const icon = c.icon_url
+        ? `<img src="${_e(c.icon_url)}" class="w-10 h-10 rounded-lg object-cover border-2 border-neutral-900 flex-shrink-0">`
+        : `<div class="w-10 h-10 rounded-lg bg-purple-800 flex items-center justify-center flex-shrink-0 border-2 border-neutral-900"><i class="fas fa-server text-purple-300 text-sm"></i></div>`;
+      const tags = (c.tags || []).slice(0, 3).map(t =>
+        `<span class="text-[10px] bg-neutral-800 text-gray-400 px-1.5 py-0.5 rounded">${_e(t)}</span>`
+      ).join('');
+      return `<a href="/communities/${c.id}/" class="block bg-neutral-900 border border-neutral-800 hover:border-purple-500/40 rounded-xl overflow-hidden transition group">
+        <div class="relative">
+          ${banner}
+          <div class="absolute top-2 left-2"><span class="text-[10px] font-bold text-purple-300 uppercase tracking-widest bg-neutral-900/80 backdrop-blur-sm border border-purple-500/30 px-2 py-0.5 rounded-full">${_e(label)}</span></div>
+          <div class="absolute -bottom-4 left-3">${icon}</div>
+        </div>
+        <div class="pt-6 px-3 pb-3">
+          <div class="flex items-center gap-1.5 mb-0.5">
+            <p class="text-white font-bold text-sm group-hover:text-purple-300 transition truncate flex-1">${_e(c.name)}</p>
+            ${platIcon}
+          </div>
+          ${c.short_description ? `<p class="text-gray-500 text-xs line-clamp-1 mb-1.5">${_e(c.short_description)}</p>` : ''}
+          ${tags ? `<div class="flex flex-wrap gap-1 mb-1.5">${tags}</div>` : ''}
+          ${c.member_count ? `<p class="text-gray-600 text-xs"><i class="fas fa-users mr-1"></i>${c.member_count.toLocaleString()} members</p>` : ''}
+        </div>
+      </a>`;
+    }
+
+    function creatorCard(u, label) {
+      const av = u.avatar
+        ? `<img src="${_e(u.avatar)}" class="w-14 h-14 rounded-full object-cover border-2 border-neutral-900 flex-shrink-0">`
+        : `<div class="w-14 h-14 rounded-full bg-red-900 flex items-center justify-center flex-shrink-0 font-bold text-red-200 text-xl border-2 border-neutral-900">${_e((u.username||'?')[0].toUpperCase())}</div>`;
+      return `<a href="/u/${_e(u.username)}/" class="block bg-neutral-900 border border-neutral-800 hover:border-red-500/40 rounded-2xl overflow-hidden transition group">
+        <div class="h-16 bg-gradient-to-br from-red-900/40 to-neutral-900 relative">
+          <div class="absolute top-2 left-2"><span class="text-[10px] font-bold text-red-300 uppercase tracking-widest bg-neutral-900/80 backdrop-blur-sm border border-red-500/30 px-2 py-0.5 rounded-full">${_e(label)}</span></div>
+          <div class="absolute -bottom-7 left-4">${av}</div>
+        </div>
+        <div class="pt-9 px-4 pb-4">
+          <p class="text-white font-bold text-sm group-hover:text-red-300 transition">@${_e(u.username)}</p>
+          ${u.bio ? `<p class="text-gray-500 text-xs line-clamp-2 mt-1">${_e(u.bio)}</p>` : ''}
+        </div>
+      </a>`;
+    }
+
+    // Show month if set, fall back to week
+    const indie = (data.indie && (data.indie.month || data.indie.week));
+    const comm  = (data.community && (data.community.month || data.community.week));
+    const creator = (data.creator && (data.creator.month || data.creator.week));
+
+    if (indie)    cards.push(indieCard(indie,     data.indie.month    ? 'Indie of the Month'     : 'Indie of the Week'));
+    if (comm)     cards.push(commCard(comm,        data.community.month ? 'Community of the Month' : 'Community of the Week'));
+    if (creator)  cards.push(creatorCard(creator,  data.creator.month   ? 'Creator of the Month'   : 'Creator of the Week'));
+
+    if (!cards.length) return;
+
+    document.getElementById('discover-spotlight-grid').innerHTML = cards.join('');
+    document.getElementById('discover-spotlight-section').classList.remove('hidden');
+  } catch(e) {}
+}
+
+async function loadGameServerStrip() {
+  try {
+    const r = await fetch('/api/gameservers/discover-strip/');
+    const data = await r.json();
+    const servers = data.servers || [];
+    if (!servers.length) return;
+    const strip = document.getElementById('game-server-strip');
+    const items = document.getElementById('game-server-items');
+    if (!strip || !items) return;
+    items.innerHTML = servers.map(s => {
+      const live = s.live_now || false;
+      const hasAmp = s.has_amp || false;
+      const name = s.name || s.id || 'Server';
+      const cls = live
+        ? 'bg-green-500/10 border border-green-500/20 text-green-300 hover:bg-green-500/20'
+        : hasAmp
+          ? 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20'
+          : 'bg-neutral-800 border border-neutral-700 text-gray-500 hover:bg-neutral-700';
+      const dot = live ? 'bg-green-400 animate-pulse' : hasAmp ? 'bg-red-500' : 'bg-gray-600';
+      const count = live ? `<span class="text-green-400 font-semibold ml-1">${s.online}/${s.max}</span>` : '';
+      return `<a href="/ql/gameservers/" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs whitespace-nowrap flex-shrink-0 transition ${cls}"><span class="w-1.5 h-1.5 rounded-full ${dot}"></span>${escapeHtml(name)}${count}</a>`;
+    }).join('');
+    strip.classList.remove('hidden');
+  } catch(e) {}
+}
+
+async function loadDiscoverIndieHeroes() {
+  const grid = document.getElementById('ih-discover-grid');
+  const loading = document.getElementById('ih-discover-loading');
+  const empty = document.getElementById('ih-discover-empty');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/indie-heroes/?random=5');
+    const data = await res.json();
+    loading.classList.add('hidden');
+    if (!data.games || !data.games.length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+    grid.innerHTML = data.games.map(g => {
+      const cover = g.cover_url
+        ? `<img src="${esc(g.cover_url)}" class="w-10 h-14 rounded object-cover flex-shrink-0" loading="lazy">`
+        : `<div class="w-10 h-14 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>`;
+      const badge = g.status === 'featured'
+        ? `<span class="text-[9px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1 py-0.5 rounded-full font-bold">Featured</span>`
+        : g.status === 'new'
+        ? `<span class="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 py-0.5 rounded-full font-bold">New</span>`
+        : g.status === 'spotlight'
+        ? `<span class="text-[9px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-1 py-0.5 rounded-full font-bold">Spotlight</span>`
+        : '';
+      const quote = g.spotlight_quote ? `<p class="text-gray-500 text-[11px] truncate italic">${esc(g.spotlight_quote)}</p>` : '';
+      return `<a href="/indie-heroes/${esc(g.slug)}/" class="discover-card rounded-xl p-3 flex items-center gap-3 group">
+        ${cover}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 mb-0.5">
+            <span class="font-semibold text-white text-xs truncate group-hover:text-amber-300 transition">${esc(g.name)}</span>
+            ${badge}
+          </div>
+          ${quote}
+        </div>
+      </a>`;
+    }).join('');
+    grid.classList.remove('hidden');
+  } catch(e) {
+    loading.classList.add('hidden');
+    empty.classList.remove('hidden');
+  }
 }
 
 // Find Players by game search
@@ -1695,53 +1898,45 @@ async function loadSidebarContent() {
     } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No ranked players yet</p>'; }
   } catch(e) { document.getElementById('sidebar-leaderboard').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
 
-  // Top Posts
+  // Top Posts - render to both right sidebar and left sidebar
   try {
     const res = await fetch('/api/posts/top/?limit=5');
     const data = await res.json();
-    const el = document.getElementById('sidebar-top-posts');
     const posts = data.posts || [];
-    if (posts.length > 0) {
-      el.innerHTML = posts.map(p => {
-        const snippet = esc(p.content || '').slice(0, 80) + (p.content && p.content.length > 80 ? '...' : '');
-        const avatar = p.author_avatar_url
-          ? `<img src="${esc(p.author_avatar_url)}" class="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="">`
-          : `<div class="w-6 h-6 rounded-full bg-indigo-800 flex items-center justify-center flex-shrink-0"><span class="text-white text-xs font-bold">${esc((p.author_username||'?').slice(0,1).toUpperCase())}</span></div>`;
-        return `
-        <a href="/post/${esc(p.public_id)}/" class="block p-2 rounded-lg hover:bg-neutral-800 transition group">
-          <div class="flex items-center gap-1.5 mb-1">
-            ${avatar}
-            <span class="text-gray-400 text-xs truncate group-hover:text-white transition">${esc(p.author_display_name)}</span>
-            ${p.game_tag_name ? `<a href="/ql/lfg/browse/?game=${encodeURIComponent(p.game_tag_name)}" class="text-indigo-400 hover:text-indigo-300 text-[10px] truncate ml-auto flex-shrink-0 transition"><i class="fas fa-gamepad text-[9px]"></i> ${esc(p.game_tag_name)}</a>` : ''}
-          </div>
-          ${snippet ? `<p class="text-white text-xs leading-relaxed line-clamp-2">${snippet}</p>` : ''}
-          <div class="flex items-center gap-3 mt-1.5 text-gray-600 text-[11px]">
-            <span><i class="fas fa-heart text-rose-500/70 text-[10px]"></i> ${p.like_count}</span>
-            <span><i class="fas fa-comment text-indigo-400/70 text-[10px]"></i> ${p.comment_count}</span>
-            ${p.repost_count ? `<span><i class="fas fa-retweet text-green-500/70 text-[10px]"></i> ${p.repost_count}</span>` : ''}
-          </div>
-        </a>`;
-      }).join('');
-    } else {
-      el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No posts yet this week</p>';
-    }
-  } catch(e) { document.getElementById('sidebar-top-posts').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+    const postsHtml = posts.length > 0 ? posts.map(p => {
+      const snippet = esc(p.content || '').slice(0, 80) + (p.content && p.content.length > 80 ? '...' : '');
+      const avatar = p.author_avatar_url
+        ? `<img src="${esc(p.author_avatar_url)}" class="w-6 h-6 rounded-full object-cover flex-shrink-0" alt="">`
+        : `<div class="w-6 h-6 rounded-full bg-indigo-800 flex items-center justify-center flex-shrink-0"><span class="text-white text-xs font-bold">${esc((p.author_username||'?').slice(0,1).toUpperCase())}</span></div>`;
+      return `<a href="/post/${esc(p.public_id)}/" class="block p-2 rounded-lg hover:bg-neutral-800 transition group">
+        <div class="flex items-center gap-1.5 mb-1">
+          ${avatar}
+          <span class="text-gray-400 text-xs truncate group-hover:text-white transition">${esc(p.author_display_name)}</span>
+        </div>
+        ${snippet ? `<p class="text-white text-xs leading-relaxed line-clamp-2">${snippet}</p>` : ''}
+        <div class="flex items-center gap-3 mt-1 text-gray-600 text-[11px]">
+          <span><i class="fas fa-heart text-rose-500/70 text-[10px]"></i> ${p.like_count}</span>
+          <span><i class="fas fa-comment text-indigo-400/70 text-[10px]"></i> ${p.comment_count}</span>
+        </div>
+      </a>`;
+    }).join('') : '<p class="text-gray-600 text-xs text-center py-2">No posts yet this week</p>';
+    const el = document.getElementById('sidebar-top-posts');
+    if (el) el.innerHTML = postsHtml;
+  } catch(e) { const el = document.getElementById('sidebar-top-posts'); if(el) el.innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
 
   // News
   try {
     const res = await fetch('{% url "questlog_web_api_articles" %}');
     const data = await res.json();
-    const el = document.getElementById('sidebar-news');
     const articles = (data.articles || []).slice(0, 4);
-    if (articles.length > 0) {
-      el.innerHTML = articles.map(a => `
-        <a href="${esc(a.url)}" target="_blank" rel="noopener" class="block p-2 rounded-lg hover:bg-neutral-800 transition">
-          <p class="text-white text-xs font-medium line-clamp-2">${esc(a.title)}</p>
-          <p class="text-gray-500 text-xs mt-0.5">${a.source_name || 'News'}</p>
-        </a>
-      `).join('');
-    } else { el.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No articles yet</p>'; }
-  } catch(e) { document.getElementById('sidebar-news').innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+    const newsHtml = articles.length > 0 ? articles.map(a => `
+      <a href="${esc(a.url)}" target="_blank" rel="noopener" class="block p-2 rounded-lg hover:bg-neutral-800 transition">
+        <p class="text-white text-xs font-medium line-clamp-2">${esc(a.title)}</p>
+        <p class="text-gray-500 text-xs mt-0.5">${a.source_name || 'News'}</p>
+      </a>`).join('') : '<p class="text-gray-600 text-xs text-center py-2">No articles yet</p>';
+    const el = document.getElementById('sidebar-news');
+    if (el) el.innerHTML = newsHtml;
+  } catch(e) { const el = document.getElementById('sidebar-news'); if(el) el.innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
 }
 </script>
 

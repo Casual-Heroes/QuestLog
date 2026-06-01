@@ -32,7 +32,7 @@ from .views_pages import (
     network, network_leaderboard, api_leaderboard_top, games, creators, creator_profile, articles, gamers,
     communities, community_register, community_detail, community_detail_slug, community_guidelines,
     profile, profile_edit, creator_register, settings, getting_started, hero_shop, public_legacy,
-    game_servers_ql, api_gameservers_status,
+    game_servers_ql, api_gameservers_status, api_gameservers_discover_strip,
     api_active_poll, api_poll_vote,
     giveaways_page, legacy_page, legacy_nominate, api_legacy_nominate,
     api_internal_close_nominations,
@@ -222,6 +222,7 @@ from .views_admin import (
     api_quest_control_god_action,
     api_quest_control_send_embed,
     api_quest_control_claim,
+    api_user_lookup,
 )
 from .views_discovery import (
     api_lfg_list, api_lfg_detail,
@@ -244,6 +245,22 @@ from .views_discovery import (
     api_community_events, api_community_event_rsvp, api_community_integrations,
     api_community_connections, api_community_network_feed, api_community_search,
     api_calendar_event_detail,
+)
+from .views_indie_heroes import (
+    indie_heroes, indie_game_detail,
+    api_indie_games, api_indie_game_detail,
+    api_indie_wall, api_indie_wall_action,
+    api_indie_game_dev_edit,
+    api_indie_game_admin, api_indie_game_admin_update,
+    api_indie_submit, api_indie_resubmit,
+    api_indie_admin_review, api_indie_admin_submissions,
+    api_indie_claim, api_indie_claim_review,
+    api_indie_dev_register, api_indie_game_delete,
+    api_indie_suggest, api_indie_suggestions_list, api_indie_suggestion_action,
+)
+from .views_spotlight import (
+    api_spotlight, api_spotlight_set, api_spotlight_remove,
+    api_spotlight_pool_list, api_spotlight_remove_by_id, api_spotlight_reroll,
 )
 from .views_uploads import (
     api_upload_image, api_upload_avatar, api_upload_banner,
@@ -284,7 +301,7 @@ from .views_game_library import (
     api_play_together, api_game_community_stats, api_find_players,
     api_nudge_opportunities, api_library_game_owners, api_library_game_communities,
     api_library_favorites, api_library_toggle_favorite,
-    api_library_sync_steam,
+    api_library_sync_steam, api_cover_fallback,
     api_steam_sync_achievements, api_steam_achievements_list,
     api_steam_showcase_get, api_steam_showcase_save,
 )
@@ -426,6 +443,36 @@ urlpatterns = [
     path('api/blog/comment/<int:comment_id>/',   api_blog_comment_delete, name='questlog_web_api_blog_comment_delete'),
     path('api/blog/comment/<int:comment_id>/like/', api_blog_comment_like, name='questlog_web_api_blog_comment_like'),
 
+    # Indie Heroes
+    path('indie-heroes/',                                        indie_heroes,                 name='questlog_web_indie_heroes'),
+    path('indie-heroes/<slug:slug>/',                            indie_game_detail,            name='questlog_web_indie_game_detail'),
+    path('api/indie-heroes/',                                    api_indie_games,              name='questlog_web_api_indie_games'),
+    path('api/indie-heroes/add/',                                api_indie_game_admin,         name='questlog_web_api_indie_game_admin'),
+    path('api/indie-heroes/dev-register/',                       api_indie_dev_register,       name='questlog_web_api_indie_dev_register'),
+    path('api/indie-heroes/suggest/',                            api_indie_suggest,            name='questlog_web_api_indie_suggest'),
+    path('api/indie-heroes/suggestions/',                        api_indie_suggestions_list,   name='questlog_web_api_indie_suggestions_list'),
+    path('api/indie-heroes/suggestions/<int:suggestion_id>/action/', api_indie_suggestion_action, name='questlog_web_api_indie_suggestion_action'),
+    path('api/indie-heroes/submit/',                             api_indie_submit,             name='questlog_web_api_indie_submit'),
+    path('api/indie-heroes/admin-submissions/',                  api_indie_admin_submissions,  name='questlog_web_api_indie_admin_submissions'),
+    path('api/indie-heroes/<slug:slug>/',                        api_indie_game_detail,        name='questlog_web_api_indie_game_detail'),
+    path('api/indie-heroes/<slug:slug>/update/',                 api_indie_game_admin_update,  name='questlog_web_api_indie_game_admin_update'),
+    path('api/indie-heroes/<slug:slug>/dev-edit/',               api_indie_game_dev_edit,      name='questlog_web_api_indie_game_dev_edit'),
+    path('api/indie-heroes/<slug:slug>/wall/',                   api_indie_wall,               name='questlog_web_api_indie_wall'),
+    path('api/indie-heroes/<slug:slug>/wall/<int:post_id>/action/', api_indie_wall_action,     name='questlog_web_api_indie_wall_action'),
+    path('api/indie-heroes/<slug:slug>/resubmit/',               api_indie_resubmit,           name='questlog_web_api_indie_resubmit'),
+    path('api/indie-heroes/<slug:slug>/delete/',                  api_indie_game_delete,        name='questlog_web_api_indie_game_delete'),
+    path('api/indie-heroes/<slug:slug>/admin-review/',           api_indie_admin_review,       name='questlog_web_api_indie_admin_review'),
+    path('api/indie-heroes/<slug:slug>/claim/',                  api_indie_claim,              name='questlog_web_api_indie_claim'),
+    path('api/indie-heroes/<slug:slug>/claim-review/',           api_indie_claim_review,       name='questlog_web_api_indie_claim_review'),
+
+    # Spotlight slots
+    path('api/spotlight/',              api_spotlight,               name='questlog_web_api_spotlight'),
+    path('api/spotlight/set/',          api_spotlight_set,           name='questlog_web_api_spotlight_set'),
+    path('api/spotlight/remove/',       api_spotlight_remove,        name='questlog_web_api_spotlight_remove'),
+    path('api/spotlight/remove-by-id/', api_spotlight_remove_by_id,  name='questlog_web_api_spotlight_remove_by_id'),
+    path('api/spotlight/reroll/',       api_spotlight_reroll,         name='questlog_web_api_spotlight_reroll'),
+    path('api/spotlight/pool/',         api_spotlight_pool_list,     name='questlog_web_api_spotlight_pool'),
+
     # Communities
     path('communities/', communities, name='questlog_web_communities'),
     path('communities/register/', community_register, name='questlog_web_community_register'),
@@ -442,6 +489,7 @@ urlpatterns = [
     path('getting-started/', getting_started, name='questlog_web_getting_started'),
     path('gameservers/', game_servers_ql, name='questlog_web_gameservers'),
     path('api/gameservers/status/', api_gameservers_status, name='api_gameservers_status'),
+    path('api/gameservers/discover-strip/', api_gameservers_discover_strip, name='api_gameservers_discover_strip'),
 
     # Game Library
     path('library/',                              game_library_page,          name='questlog_web_library'),
@@ -460,6 +508,7 @@ urlpatterns = [
     path('api/library/game-communities/',         api_library_game_communities,    name='api_library_game_communities'),
     path('api/library/u/<str:username>/',         api_user_library,           name='api_library_user'),
     path('api/library/sync-steam/',              api_library_sync_steam,     name='api_library_sync_steam'),
+    path('api/library/cover-fallback/',          api_cover_fallback,         name='api_library_cover_fallback'),
 
     # Steam achievements / showcase (csrf_exempt applied here so the flag survives decorator wrapping)
     path('api/steam/sync-achievements/',         _csrf_exempt(api_steam_sync_achievements),  name='api_steam_sync_achievements'),
@@ -580,6 +629,7 @@ urlpatterns = [
     path('api/admin/rss-feeds/<int:feed_id>/fetch-now/', api_admin_rss_feed_fetch_now, name='questlog_web_api_admin_rss_fetch_now'),
 
     # Admin: Users
+    path('api/user-lookup/', api_user_lookup, name='questlog_web_api_user_lookup'),
     path('api/admin/users/', api_admin_users, name='questlog_web_api_admin_users'),
     path('api/admin/users/<int:user_id>/action/', api_admin_user_action, name='questlog_web_api_admin_user_action'),
 

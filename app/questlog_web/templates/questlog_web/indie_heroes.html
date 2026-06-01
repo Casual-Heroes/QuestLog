@@ -1,0 +1,827 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}Indie Heroes - QuestLog{% endblock %}
+{% block og_title %}Indie Heroes | QuestLog{% endblock %}
+{% block og_description %}Curated indie games saving gaming. These are the developers keeping the soul of gaming alive.{% endblock %}
+
+{% block web_content %}
+<style>
+.ih-card {
+  background: rgb(15 15 15);
+  border: 1px solid rgb(38 38 38);
+  transition: border-color 0.25s, box-shadow 0.25s;
+  overflow: hidden;
+}
+.ih-card:hover {
+  border-color: rgb(99 102 241 / 0.5);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.15);
+}
+.ih-cover {
+  position: relative;
+  overflow: hidden;
+  background: rgb(23 23 23);
+  aspect-ratio: 3 / 4;
+}
+.ih-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  transition: transform 0.4s ease;
+}
+.ih-card:hover .ih-cover img {
+  transform: scale(1.04);
+}
+.ih-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(10,10,10,0.97) 0%, rgba(10,10,10,0.6) 40%, rgba(10,10,10,0.1) 70%, transparent 100%);
+}
+.ih-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+.ih-status-featured { background: rgba(99,102,241,0.2); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+.ih-status-new      { background: rgba(34,197,94,0.2);  color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.ih-status-spotlight{ background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.ih-status-alumni   { background: rgba(107,114,128,0.15); color: #9ca3af; border: 1px solid rgba(107,114,128,0.2); }
+.ih-platform-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.07);
+  font-size: 11px;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+.ih-filter-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgb(63 63 70);
+  color: #9ca3af;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ih-filter-btn:hover { border-color: rgb(99 102 241); color: #c7d2fe; }
+.ih-filter-btn.active { background: rgba(99,102,241,0.15); border-color: #6366f1; color: #a5b4fc; }
+</style>
+
+<!-- Hero -->
+<div class="relative overflow-hidden bg-neutral-950 border-b border-neutral-800">
+  <div class="absolute inset-0 pointer-events-none">
+    <div class="absolute -top-32 left-1/4 w-[600px] h-[400px] bg-indigo-900/20 rounded-full blur-[100px]"></div>
+    <div class="absolute -top-20 right-1/4 w-[400px] h-[300px] bg-amber-900/15 rounded-full blur-[80px]"></div>
+  </div>
+  <div class="relative max-w-7xl mx-auto px-6 py-12">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+      <div class="max-w-2xl">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs font-bold text-amber-400 uppercase tracking-widest">Indie Games</span>
+        </div>
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-4 leading-tight">
+          Indie <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-amber-400">Heroes</span>
+        </h1>
+        <p class="text-gray-400 text-base leading-relaxed max-w-xl">
+          Indie devs keeping the soul of gaming alive. Submit your game, follow the ones you love, and help the community find the next hidden gem.
+        </p>
+        <div class="flex items-center gap-3 mt-5 flex-wrap">
+          <div id="ih-count-wrap" class="hidden flex items-center gap-2 text-sm text-gray-500">
+            <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+            <span id="ih-total-count"></span>
+          </div>
+        </div>
+      </div>
+      <div class="flex-shrink-0 flex items-center gap-3 flex-wrap justify-end">
+        {% if web_user %}
+        <a href="/gamesuggest/"
+                class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-500 text-gray-400 hover:text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+          <i class="fas fa-lightbulb text-yellow-400"></i> Suggest a Game
+        </a>
+        <button onclick="openSubmitModal()"
+                class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-indigo-600 text-gray-300 hover:text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+          <i class="fas fa-rocket text-indigo-400"></i> Submit Your Game
+        </button>
+        {% else %}
+        <a href="/gamesuggest/"
+                class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-neutral-500 text-gray-400 hover:text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+          <i class="fas fa-lightbulb text-yellow-400"></i> Suggest a Game
+        </a>
+        <a href="{% url 'questlog_web_register' %}?next=/ql/indie-heroes/"
+           class="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-indigo-600 text-gray-300 hover:text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition">
+          <i class="fas fa-rocket text-indigo-400"></i> Submit Your Game
+        </a>
+        {% endif %}
+        {% if web_user and web_user.is_admin %}
+        <button onclick="openAddGameModal()"
+                class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-indigo-900/30">
+          <i class="fas fa-plus"></i> Add Curated Game
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="max-w-7xl mx-auto px-6 py-5">
+  <div class="flex items-center gap-2 flex-wrap">
+    <button class="ih-filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+    <button class="ih-filter-btn" data-filter="featured" onclick="setFilter('featured', this)">
+      <i class="fas fa-star text-indigo-400 mr-1"></i>Featured
+    </button>
+    <button class="ih-filter-btn" data-filter="new" onclick="setFilter('new', this)">
+      <i class="fas fa-bolt text-green-400 mr-1"></i>New
+    </button>
+    <button class="ih-filter-btn" data-filter="spotlight" onclick="setFilter('spotlight', this)">
+      <i class="fas fa-fire text-amber-400 mr-1"></i>Spotlight
+    </button>
+    <button class="ih-filter-btn" data-filter="alumni" onclick="setFilter('alumni', this)">
+      <i class="fas fa-medal text-gray-400 mr-1"></i>Alumni
+    </button>
+  </div>
+</div>
+
+<!-- Main grid -->
+<div class="max-w-7xl mx-auto px-6 pb-8">
+  <div id="ih-loading" class="text-center py-20 text-gray-600">
+    <i class="fas fa-circle-notch fa-spin text-3xl mb-3 block"></i>
+    <p class="text-sm">Loading indie heroes...</p>
+  </div>
+  <div id="ih-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 hidden" style="justify-content:center"></div>
+  <div id="ih-empty" class="hidden text-center py-20">
+    <i class="fas fa-rocket text-5xl text-gray-700 mb-4 block"></i>
+    <p class="text-white font-semibold mb-1">No games here yet</p>
+    <p class="text-gray-500 text-sm">Be the first to submit your indie game to the community.</p>
+  </div>
+  <div class="text-center mt-8 hidden" id="ih-load-more-wrap">
+    <button id="ih-load-more" onclick="loadMore()"
+            class="px-6 py-2.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 rounded-xl text-sm font-medium transition">
+      Load More
+    </button>
+  </div>
+</div>
+
+<!-- Divider between sections (only when curated has content) -->
+<div id="ih-section-divider" class="hidden max-w-7xl mx-auto px-6 pb-4">
+  <div class="border-t border-neutral-800"></div>
+</div>
+
+<!-- CH Curated section -->
+<div id="ih-curated-section" class="hidden max-w-7xl mx-auto px-6 pb-16">
+  <div class="flex items-center gap-3 mb-4 pt-2">
+    <span class="text-xs font-bold text-amber-400 uppercase tracking-widest bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+      <i class="fas fa-bookmark mr-1"></i>CH Curated
+    </span>
+    <p class="text-xs text-gray-500">Hand-picked games we're spotlighting. <span class="text-indigo-400">Are you the dev? Claim your game.</span></p>
+  </div>
+  <div id="ih-curated-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style="justify-content:start"></div>
+</div>
+
+{% if web_user and web_user.is_admin %}
+<!-- Add Game Modal -->
+<div id="addGameModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAddGameModal()"></div>
+  <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h2 class="text-lg font-bold text-white">Add Indie Game</h2>
+      <button onclick="closeAddGameModal()" class="text-gray-500 hover:text-white transition">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="p-5 space-y-4">
+      <!-- Game search (reuse existing IGDB/Steam pattern) -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Search Game (IGDB/Steam)</label>
+        <div class="relative">
+          <input type="text" id="ih-game-search" placeholder="Search by game name..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition"
+                 oninput="ihSearchGame(this.value)">
+          <div id="ih-game-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <!-- Selected game preview -->
+      <div id="ih-selected-game" class="hidden bg-neutral-800/50 border border-neutral-700 rounded-xl p-4">
+        <div class="flex items-start gap-4">
+          <img id="ih-sel-cover" src="" alt="" class="w-24 h-14 object-cover rounded-lg flex-shrink-0 bg-neutral-700">
+          <div class="flex-1 min-w-0">
+            <p id="ih-sel-name" class="text-white font-bold text-sm truncate"></p>
+            <p id="ih-sel-meta" class="text-gray-400 text-xs mt-0.5"></p>
+            <div id="ih-sel-platforms" class="flex flex-wrap gap-1 mt-1.5"></div>
+          </div>
+          <button onclick="clearSelectedGame()" class="text-gray-600 hover:text-white transition text-xs flex-shrink-0">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Hidden game fields -->
+      <input type="hidden" id="ih-field-steam-id">
+      <input type="hidden" id="ih-field-steam-url">
+      <input type="hidden" id="ih-field-igdb-id">
+      <input type="hidden" id="ih-field-igdb-url">
+      <input type="hidden" id="ih-field-cover-url">
+      <input type="hidden" id="ih-field-banner-url">
+      <input type="hidden" id="ih-field-platforms">
+      <input type="hidden" id="ih-field-genres">
+      <input type="hidden" id="ih-field-release-date">
+      <input type="hidden" id="ih-field-name">
+
+      <!-- Spotlight quote -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotlight Quote <span class="text-gray-600 normal-case">(shown on card)</span></label>
+        <input type="text" id="ih-field-quote" maxlength="500" placeholder="One line that captures why this game matters..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+      </div>
+
+      <!-- Spotlight text -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotlight Write-up</label>
+        <textarea id="ih-field-spotlight" rows="4" placeholder="Why does this game matter? What makes it special? Write your take..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+      </div>
+
+      <!-- Status + options row -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Status</label>
+          <select id="ih-field-status" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+            <option value="featured">Featured</option>
+            <option value="new">New</option>
+            <option value="spotlight">Spotlight</option>
+            <option value="alumni">Alumni</option>
+          </select>
+        </div>
+        <div class="flex flex-col justify-end gap-2 pb-1">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="ih-field-published" class="w-4 h-4 rounded accent-indigo-500">
+            <span class="text-sm text-gray-300">Publish immediately</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="ih-field-featured-pin" class="w-4 h-4 rounded accent-amber-500">
+            <span class="text-sm text-gray-300">Pin to top</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Assign dev -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Assign Dev Account <span class="text-gray-600 normal-case">(optional - username)</span></label>
+        <input type="text" id="ih-field-dev-username" placeholder="QuestLog username of the dev..."
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition"
+               oninput="ihSearchDev(this.value)">
+        <input type="hidden" id="ih-field-dev-user-id">
+        <p id="ih-dev-found" class="hidden text-xs text-green-400 mt-1"><i class="fas fa-check mr-1"></i><span></span></p>
+      </div>
+
+      <div id="ih-add-error" class="hidden text-red-400 text-sm bg-red-950/30 border border-red-800/30 rounded-lg px-3 py-2"></div>
+    </div>
+    <div class="flex items-center justify-end gap-3 p-5 border-t border-neutral-800">
+      <button onclick="closeAddGameModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+      <button onclick="submitAddGame()"
+              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition">
+        Add Game
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if web_user %}
+<!-- Submit Game Modal (dev self-submission) -->
+<div id="submitGameModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeSubmitModal()"></div>
+  <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h2 class="text-lg font-bold text-white"><i class="fas fa-rocket text-indigo-400 mr-2"></i>Submit Your Indie Game</h2>
+      <button onclick="closeSubmitModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-5">
+
+      <!-- State: pending approval -->
+      <div id="sub-pending-msg" class="hidden text-center py-6">
+        <i class="fas fa-clock text-amber-400 text-3xl mb-3 block"></i>
+        <p class="text-white font-semibold mb-1">Dev application pending</p>
+        <p class="text-gray-400 text-sm">Your dev account request is under review. You'll be able to submit your game once approved - usually within 24 hours.</p>
+      </div>
+
+      <!-- State: not a dev yet, apply first -->
+      <div id="sub-apply-msg" class="hidden text-center py-6">
+        <i class="fas fa-rocket text-emerald-400 text-3xl mb-3 block"></i>
+        <p class="text-white font-semibold mb-2">You need a dev account to submit a game</p>
+        <p class="text-gray-400 text-sm mb-4">Apply for a free dev account - we review applications within 24 hours. Once approved you can submit your game and manage your page.</p>
+        <button id="sub-apply-btn" onclick="applyForDevAccount()"
+                class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition">
+          <i class="fas fa-paper-plane mr-1.5"></i>Apply for Dev Account
+        </button>
+      </div>
+
+      <!-- State: approved dev, show form -->
+      <div id="sub-game-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Game Name <span class="text-red-500">*</span></label>
+          <input type="text" id="sub-game-name" maxlength="200" placeholder="Your game's name"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Steam Page <span class="text-gray-600 font-normal normal-case">- optional if on itch.io</span></label>
+          <input type="url" id="sub-game-link" placeholder="https://store.steampowered.com/app/..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">itch.io Page <span class="text-gray-600 font-normal normal-case">- optional if on Steam</span></label>
+          <input type="url" id="sub-game-itch" placeholder="https://yourname.itch.io/your-game"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">About Your Game <span class="text-red-500">*</span></label>
+          <textarea id="sub-game-pitch" rows="3" maxlength="1000" placeholder="A short description - genre, what players do, what makes it yours."
+                    class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+        </div>
+      </div>
+
+      <div id="sub-error" class="hidden mt-3 text-red-400 text-sm bg-red-950/30 border border-red-800/30 rounded-lg px-3 py-2"></div>
+    </div>
+    <div class="flex items-center justify-end gap-3 p-5 border-t border-neutral-800">
+      <button onclick="closeSubmitModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+      <button id="sub-submit-btn" onclick="submitDevGame()"
+              class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition">
+        <i class="fas fa-paper-plane mr-1.5"></i>Submit Game
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+let _ihCurrentFilter = 'all';
+let _ihPage = 1;
+let _ihHasMore = false;
+let _ihGames = [];
+let _ihSearchTimeout = null;
+const _ihIsAdmin = {{ web_user.is_admin|yesno:"true,false" }};
+const _ihIsLoggedIn = {{ web_user|yesno:"true,false" }};
+const _ihIsIndieDev = {% if web_user and web_user.is_indie_dev %}true{% else %}false{% endif %};
+const _ihDevPending = {% if web_user and web_user.indie_dev_pending and not web_user.is_indie_dev %}true{% else %}false{% endif %};
+let _ihSelectedGame = null;
+let _ihDevSearchTimeout = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadCurated();
+  loadGames(true);
+});
+
+function setFilter(filter, btn) {
+  _ihCurrentFilter = filter;
+  document.querySelectorAll('.ih-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _ihPage = 1;
+  _ihGames = [];
+  loadGames(true);
+}
+
+async function loadCurated() {
+  try {
+    const res = await fetch('/api/indie-heroes/?section=curated');
+    const data = await res.json();
+    const games = data.games || [];
+    if (!games.length) return;
+
+    const section = document.getElementById('ih-curated-section');
+    const grid = document.getElementById('ih-curated-grid');
+    grid.innerHTML = '';
+    games.forEach(g => {
+      const el = document.createElement('div');
+      el.innerHTML = renderCuratedCard(g);
+      grid.appendChild(el.firstElementChild);
+    });
+    section.classList.remove('hidden');
+    document.getElementById('ih-section-divider').classList.remove('hidden');
+  } catch(e) {
+    console.error('curated load error', e);
+  }
+}
+
+async function loadGames(reset) {
+  if (reset) {
+    _ihPage = 1;
+    _ihGames = [];
+    const g = document.getElementById('ih-grid');
+    g.innerHTML = '';
+    g.classList.add('hidden');
+    document.getElementById('ih-loading').classList.remove('hidden');
+    document.getElementById('ih-empty').classList.add('hidden');
+    document.getElementById('ih-load-more-wrap').classList.add('hidden');
+  }
+
+  const params = new URLSearchParams({ page: _ihPage, section: 'main' });
+  if (_ihCurrentFilter !== 'all') params.set('status', _ihCurrentFilter);
+
+  try {
+    const res = await fetch(`/api/indie-heroes/?${params}`);
+    const data = await res.json();
+    _ihHasMore = data.has_more;
+    _ihGames = _ihGames.concat(data.games || []);
+
+    document.getElementById('ih-loading').classList.add('hidden');
+
+    if (!_ihGames.length) {
+      document.getElementById('ih-empty').classList.remove('hidden');
+      document.getElementById('ih-load-more-wrap').classList.add('hidden');
+      return;
+    }
+
+    document.getElementById('ih-empty').classList.add('hidden');
+    const grid = document.getElementById('ih-grid');
+    grid.classList.remove('hidden');
+    data.games.forEach(g => {
+      const el = document.createElement('div');
+      el.innerHTML = renderGameCard(g);
+      grid.appendChild(el.firstElementChild);
+    });
+
+    document.getElementById('ih-total-count').textContent = `${_ihGames.length}${_ihHasMore ? '+' : ''} game${_ihGames.length !== 1 ? 's' : ''}`;
+    document.getElementById('ih-count-wrap').classList.remove('hidden');
+    document.getElementById('ih-load-more-wrap').classList.toggle('hidden', !_ihHasMore);
+  } catch(e) {
+    console.error(e);
+    document.getElementById('ih-loading').classList.add('hidden');
+    document.getElementById('ih-empty').classList.remove('hidden');
+  }
+}
+
+function loadMore() {
+  _ihPage++;
+  loadGames(false);
+}
+
+function statusBadge(status) {
+  const map = {
+    featured:  ['ih-status-featured', '<i class="fas fa-star"></i>', 'Featured'],
+    new:       ['ih-status-new',      '<i class="fas fa-bolt"></i>', 'New'],
+    spotlight: ['ih-status-spotlight','<i class="fas fa-fire"></i>', 'Spotlight'],
+    alumni:    ['ih-status-alumni',   '<i class="fas fa-medal"></i>','Alumni'],
+  };
+  const [cls, icon, label] = map[status] || map['featured'];
+  return `<span class="ih-status-badge ${cls}">${icon} ${label}</span>`;
+}
+
+function platformIcons(platforms) {
+  if (!platforms || !platforms.length) return '';
+  const iconMap = {
+    'PC': '<i class="fas fa-desktop"></i>',
+    'Windows': '<i class="fas fa-desktop"></i>',
+    'Mac': '<i class="fab fa-apple"></i>',
+    'Linux': '<i class="fab fa-linux"></i>',
+    'PS5': '<i class="fab fa-playstation"></i>',
+    'PS4': '<i class="fab fa-playstation"></i>',
+    'Xbox Series X|S': '<i class="fab fa-xbox"></i>',
+    'Xbox One': '<i class="fab fa-xbox"></i>',
+    'Nintendo Switch': '<i class="fas fa-gamepad"></i>',
+    'iOS': '<i class="fab fa-apple"></i>',
+    'Android': '<i class="fab fa-android"></i>',
+  };
+  return platforms.slice(0, 5).map(p => {
+    const icon = iconMap[p] || '<i class="fas fa-microchip"></i>';
+    return `<span class="ih-platform-icon" title="${escapeHtml(p)}">${icon}</span>`;
+  }).join('');
+}
+
+function reviewBar(score) {
+  if (!score && score !== 0) return '';
+  let color = score >= 75 ? 'bg-green-500' : score >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+  let label = score >= 75 ? 'Positive' : score >= 50 ? 'Mixed' : 'Negative';
+  return `
+    <div class="flex items-center gap-2 mt-2">
+      <div class="flex-1 h-1 bg-neutral-700 rounded-full overflow-hidden">
+        <div class="${color} h-full rounded-full" style="width:${score}%"></div>
+      </div>
+      <span class="text-xs text-gray-500">${label} (${score}%)</span>
+    </div>`;
+}
+
+function renderGameCard(g) {
+  const cover = g.cover_url
+    ? `<img src="${escapeHtml(g.cover_url)}" alt="${escapeHtml(g.name)}" loading="lazy" onerror="this.style.display='none'">`
+    : `<div class="w-full h-full flex items-center justify-center"><i class="fas fa-gamepad text-5xl text-neutral-700"></i></div>`;
+
+  const adminGear = _ihIsAdmin
+    ? `<div role="button" onclick="event.preventDefault();event.stopPropagation();window.location='/indie-heroes/${escapeHtml(g.slug)}/#manage'" class="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/80 text-gray-400 hover:text-white transition cursor-pointer" title="Edit"><i class="fas fa-cog text-xs"></i></div>`
+    : '';
+
+  return `
+    <a href="/indie-heroes/${escapeHtml(g.slug)}/"
+       class="ih-card rounded-2xl block group cursor-pointer overflow-hidden">
+      <div class="ih-cover">
+        ${cover}
+        <div class="ih-cover-overlay"></div>
+        <div class="absolute top-3 left-3 flex items-center gap-1.5 z-10">
+          ${statusBadge(g.status)}
+          ${g.is_featured ? `<i class="fas fa-bookmark text-amber-400 text-sm" title="Pinned"></i>` : ''}
+        </div>
+        ${adminGear}
+        <div class="absolute bottom-0 left-0 right-0 p-4 z-10">
+          <h3 class="text-white font-bold text-base leading-tight group-hover:text-indigo-300 transition line-clamp-2">${escapeHtml(g.name)}</h3>
+          ${g.spotlight_quote ? `<p class="text-gray-300 text-xs italic leading-snug line-clamp-2 opacity-90 mt-1">"${escapeHtml(g.spotlight_quote)}"</p>` : ''}
+        </div>
+      </div>
+    </a>`;
+}
+
+function renderCuratedCard(g) {
+  const cover = g.cover_url
+    ? `<img src="${escapeHtml(g.cover_url)}" alt="${escapeHtml(g.name)}" loading="lazy" class="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105" onerror="this.style.display='none'">`
+    : `<div class="w-full h-full flex items-center justify-center"><i class="fas fa-gamepad text-3xl text-neutral-700"></i></div>`;
+
+  const adminGear = _ihIsAdmin
+    ? `<div role="button" onclick="event.preventDefault();event.stopPropagation();window.location='/ql/indie-heroes/${escapeHtml(g.slug)}/#manage'" class="absolute top-2 right-2 z-10 w-6 h-6 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/90 text-gray-400 hover:text-white transition cursor-pointer" title="Edit"><i class="fas fa-cog text-[10px]"></i></div>`
+    : '';
+
+  let claimBtn = '';
+  if (_ihIsLoggedIn) {
+    claimBtn = `<div role="button" onclick="event.preventDefault();event.stopPropagation();window.location='/ql/indie-heroes/${escapeHtml(g.slug)}/#claim'"
+      class="absolute bottom-2 left-2 right-2 z-10 text-center bg-amber-600/90 hover:bg-amber-500 text-white text-xs font-semibold py-1.5 rounded-lg transition cursor-pointer">
+      <i class="fas fa-hand-point-up mr-1"></i>Claim this game
+    </div>`;
+  }
+
+  return `
+    <a href="/ql/indie-heroes/${escapeHtml(g.slug)}/"
+       class="ih-card rounded-xl block group cursor-pointer overflow-hidden">
+      <div class="ih-cover" style="aspect-ratio:3/4">
+        ${cover}
+        <div class="ih-cover-overlay"></div>
+        <div class="absolute top-2 left-2 z-10">
+          <span class="text-[9px] font-bold text-amber-400 uppercase tracking-widest bg-black/60 px-2 py-0.5 rounded-full">CH Pick</span>
+        </div>
+        ${adminGear}
+        <div class="absolute bottom-${_ihIsLoggedIn ? '10' : '2'} left-0 right-0 px-3 z-10">
+          <h3 class="text-white font-bold text-sm leading-tight group-hover:text-amber-300 transition line-clamp-2">${escapeHtml(g.name)}</h3>
+        </div>
+        ${claimBtn}
+      </div>
+    </a>`;
+}
+
+{% if web_user and web_user.is_admin %}
+function openAddGameModal() {
+  document.getElementById('addGameModal').classList.remove('hidden');
+}
+function closeAddGameModal() {
+  document.getElementById('addGameModal').classList.add('hidden');
+  clearSelectedGame();
+  document.getElementById('ih-game-search').value = '';
+  document.getElementById('ih-field-quote').value = '';
+  document.getElementById('ih-field-spotlight').value = '';
+  document.getElementById('ih-field-status').value = 'featured';
+  document.getElementById('ih-field-published').checked = false;
+  document.getElementById('ih-field-featured-pin').checked = false;
+  document.getElementById('ih-field-dev-username').value = '';
+  document.getElementById('ih-field-dev-user-id').value = '';
+  document.getElementById('ih-dev-found').classList.add('hidden');
+  document.getElementById('ih-add-error').classList.add('hidden');
+}
+
+function clearSelectedGame() {
+  _ihSelectedGame = null;
+  document.getElementById('ih-selected-game').classList.add('hidden');
+  ['steam-id','steam-url','igdb-id','igdb-url','cover-url','banner-url','platforms','genres','release-date','name'].forEach(f => {
+    document.getElementById(`ih-field-${f}`).value = '';
+  });
+}
+
+function ihSearchGame(q) {
+  clearTimeout(_ihSearchTimeout);
+  const box = document.getElementById('ih-game-suggestions');
+  if (!q || q.length < 2) { box.classList.add('hidden'); return; }
+  _ihSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/igdb/search/?q=${encodeURIComponent(q)}&limit=8`);
+      const data = await res.json();
+      const games = data.games || [];
+      if (!games.length) { box.classList.add('hidden'); return; }
+      box.innerHTML = games.map(g => `
+        <button type="button" onclick="selectGame(${JSON.stringify(g).replace(/"/g, '&quot;')})"
+                class="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition text-left border-b border-neutral-800 last:border-0">
+          ${g.cover_url ? `<img src="${escapeHtml(g.cover_url)}" class="w-10 h-7 object-cover rounded flex-shrink-0">` : `<div class="w-10 h-7 bg-neutral-700 rounded flex-shrink-0"></div>`}
+          <div class="min-w-0">
+            <p class="text-white text-sm font-medium truncate">${escapeHtml(g.name)}</p>
+            <p class="text-gray-500 text-xs">${g.release_date || ''} ${g.steam_app_id ? '· Steam' : ''}</p>
+          </div>
+        </button>`).join('');
+      box.classList.remove('hidden');
+    } catch(e) { box.classList.add('hidden'); }
+  }, 300);
+}
+
+function selectGame(g) {
+  _ihSelectedGame = g;
+  document.getElementById('ih-game-suggestions').classList.add('hidden');
+  document.getElementById('ih-game-search').value = g.name;
+
+  // IGDB search returns platforms as a comma-joined string; normalize to array
+  const platArray = Array.isArray(g.platforms)
+    ? g.platforms
+    : (g.platforms ? g.platforms.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+  document.getElementById('ih-field-name').value = g.name || '';
+  document.getElementById('ih-field-steam-id').value = g.steam_app_id || g.steam_id || '';
+  document.getElementById('ih-field-steam-url').value = g.steam_url || '';
+  document.getElementById('ih-field-igdb-id').value = g.igdb_id || g.id || '';
+  document.getElementById('ih-field-igdb-url').value = g.igdb_url || '';
+  document.getElementById('ih-field-cover-url').value = g.cover_url || '';
+  document.getElementById('ih-field-banner-url').value = g.banner_url || g.cover_url || '';
+  document.getElementById('ih-field-platforms').value = JSON.stringify(platArray);
+  document.getElementById('ih-field-genres').value = JSON.stringify(g.genres || []);
+  document.getElementById('ih-field-release-date').value = g.release_date || g.release_year || '';
+
+  const preview = document.getElementById('ih-selected-game');
+  preview.classList.remove('hidden');
+  document.getElementById('ih-sel-cover').src = g.cover_url || '';
+  document.getElementById('ih-sel-name').textContent = g.name;
+  const steamId = g.steam_app_id || g.steam_id;
+  const igdbId = g.igdb_id || g.id;
+  const meta = [g.release_date || g.release_year, steamId ? 'Steam' : '', igdbId ? 'IGDB' : ''].filter(Boolean).join(' · ');
+  document.getElementById('ih-sel-meta').textContent = meta;
+  const plats = document.getElementById('ih-sel-platforms');
+  plats.innerHTML = platArray.slice(0,5).map(p => `<span class="text-[10px] text-gray-400 bg-neutral-700 px-1.5 py-0.5 rounded">${escapeHtml(p)}</span>`).join('');
+}
+
+async function ihSearchDev(q) {
+  clearTimeout(_ihDevSearchTimeout);
+  document.getElementById('ih-field-dev-user-id').value = '';
+  document.getElementById('ih-dev-found').classList.add('hidden');
+  if (!q || q.length < 2) return;
+  _ihDevSearchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(`/ql/api/admin/users/?search=${encodeURIComponent(q)}&limit=1`);
+      const data = await res.json();
+      const u = (data.users || [])[0];
+      if (u) {
+        document.getElementById('ih-field-dev-user-id').value = u.id;
+        const found = document.getElementById('ih-dev-found');
+        found.querySelector('span').textContent = `${u.display_name || u.username} (@${u.username})`;
+        found.classList.remove('hidden');
+      }
+    } catch(e) {}
+  }, 400);
+}
+
+async function submitAddGame() {
+  const name = document.getElementById('ih-field-name').value.trim() || document.getElementById('ih-game-search').value.trim();
+  const errEl = document.getElementById('ih-add-error');
+  errEl.classList.add('hidden');
+
+  if (!name) {
+    errEl.textContent = 'Please search for and select a game first.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const payload = {
+    name,
+    steam_app_id: parseInt(document.getElementById('ih-field-steam-id').value) || null,
+    steam_url: document.getElementById('ih-field-steam-url').value || null,
+    igdb_id: parseInt(document.getElementById('ih-field-igdb-id').value) || null,
+    igdb_url: document.getElementById('ih-field-igdb-url').value || null,
+    cover_url: document.getElementById('ih-field-cover-url').value || null,
+    banner_url: document.getElementById('ih-field-banner-url').value || null,
+    platforms: JSON.parse(document.getElementById('ih-field-platforms').value || '[]'),
+    genres: JSON.parse(document.getElementById('ih-field-genres').value || '[]'),
+    release_date: document.getElementById('ih-field-release-date').value || null,
+    spotlight_quote: document.getElementById('ih-field-quote').value.trim() || null,
+    spotlight_text: document.getElementById('ih-field-spotlight').value.trim() || null,
+    status: document.getElementById('ih-field-status').value,
+    is_published: document.getElementById('ih-field-published').checked,
+    is_featured: document.getElementById('ih-field-featured-pin').checked,
+    dev_user_id: parseInt(document.getElementById('ih-field-dev-user-id').value) || null,
+  };
+
+  try {
+    const res = await csrfFetch('/api/indie-heroes/add/', { method: 'POST', body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.ok) {
+      closeAddGameModal();
+      window.location.href = `/indie-heroes/${data.slug}/`;
+    } else {
+      errEl.textContent = data.error || 'Failed to add game.';
+      errEl.classList.remove('hidden');
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+// Close suggestions on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#ih-game-search') && !e.target.closest('#ih-game-suggestions')) {
+    document.getElementById('ih-game-suggestions').classList.add('hidden');
+  }
+});
+{% endif %}
+
+{% if web_user %}
+function openSubmitModal() {
+  const modal = document.getElementById('submitGameModal');
+  const form  = document.getElementById('sub-game-form');
+  const pending = document.getElementById('sub-pending-msg');
+  const apply   = document.getElementById('sub-apply-msg');
+
+  // Show the right state
+  if (_ihIsIndieDev) {
+    form.classList.remove('hidden');
+    if (pending) pending.classList.add('hidden');
+    if (apply) apply.classList.add('hidden');
+  } else if (_ihDevPending) {
+    form.classList.add('hidden');
+    if (pending) pending.classList.remove('hidden');
+    if (apply) apply.classList.add('hidden');
+  } else {
+    form.classList.add('hidden');
+    if (pending) pending.classList.add('hidden');
+    if (apply) apply.classList.remove('hidden');
+  }
+
+  document.getElementById('sub-error').classList.add('hidden');
+  modal.classList.remove('hidden');
+}
+function closeSubmitModal() {
+  document.getElementById('submitGameModal').classList.add('hidden');
+  document.getElementById('sub-game-name').value = '';
+  document.getElementById('sub-game-link').value = '';
+  document.getElementById('sub-game-itch').value = '';
+  document.getElementById('sub-game-pitch').value = '';
+  document.getElementById('sub-error').classList.add('hidden');
+}
+async function applyForDevAccount() {
+  const btn = document.getElementById('sub-apply-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  try {
+    const res = await csrfFetch('/api/indie-heroes/dev-register/', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('sub-apply-msg').innerHTML = '<div class="text-center py-4"><i class="fas fa-check-circle text-emerald-400 text-3xl mb-3 block"></i><p class="text-white font-semibold mb-1">Application submitted!</p><p class="text-gray-400 text-sm">We\'ll review your request and approve your dev account shortly.</p></div>';
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Apply for Dev Account';
+      alert(data.error || 'Something went wrong.');
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Apply for Dev Account';
+  }
+}
+async function submitDevGame() {
+  const name  = document.getElementById('sub-game-name').value.trim();
+  const steam = document.getElementById('sub-game-link').value.trim();
+  const itch  = document.getElementById('sub-game-itch').value.trim();
+  const pitch = document.getElementById('sub-game-pitch').value.trim();
+  const link  = steam || itch;
+  const errEl = document.getElementById('sub-error');
+  errEl.classList.add('hidden');
+
+  if (!name)  { errEl.textContent = 'Game name is required.'; errEl.classList.remove('hidden'); return; }
+  if (!link)  { errEl.textContent = 'Please add a Steam or itch.io link.'; errEl.classList.remove('hidden'); return; }
+  if (!pitch) { errEl.textContent = 'Please write a short description.'; errEl.classList.remove('hidden'); return; }
+
+  const btn = document.getElementById('sub-submit-btn');
+  btn.disabled = true;
+  try {
+    const res = await csrfFetch('/api/indie-heroes/submit/', { method: 'POST', body: JSON.stringify({ name, link, steam_url: steam, itch_url: itch, pitch }) });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.href = `/ql/indie-heroes/${data.slug}/`;
+    } else {
+      errEl.textContent = data.error || 'Submission failed.';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+  }
+}
+{% endif %}
+</script>
+{% endblock %}

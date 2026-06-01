@@ -2086,12 +2086,9 @@ def process_uploaded_image(uploaded_file, dest_subdir='posts',
                 save_path, format='GIF', save_all=True, append_images=frames[1:],
                 loop=0, duration=durations, optimize=False,
             )
-        except Exception:
-            # Fallback: write raw bytes if Pillow multi-frame save fails
-            uploaded_file.seek(0)
-            with open(save_path, 'wb') as f:
-                for chunk in uploaded_file.chunks():
-                    f.write(chunk)
+        except Exception as _gif_err:
+            logger.error('GIF multi-frame save failed, rejecting upload: %s', _gif_err)
+            raise ValueError('GIF processing failed - please try a different file.')
         saved_size = os.path.getsize(save_path)
     else:
         ext = '.webp'

@@ -89,6 +89,7 @@ def discover(request):
             ).filter(
                 WebCreatorProfile.allow_discovery == True,
                 WebUser.is_banned == False,
+                WebUser.is_hidden == False,
             ).order_by(
                 WebUser.is_live.desc(),
                 WebCreatorProfile.is_current_cotm.desc(),
@@ -97,20 +98,26 @@ def discover(request):
             ).limit(20).all()
 
             for cp, u in creator_rows:
-                platform = None
-                stream_url = None
+                # All connected platforms (used for LIVE display - show all active streams)
+                all_platforms = []
                 if cp.twitch_url:
-                    platform = 'twitch'
-                    stream_url = cp.twitch_url
-                elif cp.youtube_url:
-                    platform = 'youtube'
-                    stream_url = cp.youtube_url
-                elif cp.kick_url:
-                    platform = 'kick'
-                    stream_url = cp.kick_url
+                    all_platforms.append({'platform': 'twitch', 'url': cp.twitch_url})
+                if cp.youtube_url:
+                    all_platforms.append({'platform': 'youtube', 'url': cp.youtube_url})
+                if cp.kick_url:
+                    all_platforms.append({'platform': 'kick', 'url': cp.kick_url})
+
+                # For "Previously Live": only the platform actually detected live last session
+                last_platform = cp.latest_stream_platform if cp.latest_stream_platform else None
+                url_map = {'twitch': cp.twitch_url, 'youtube': cp.youtube_url, 'kick': cp.kick_url}
+                prev_platforms = [{'platform': last_platform, 'url': url_map.get(last_platform)}] if last_platform and url_map.get(last_platform) else []
+
+                # Primary platform = first connected (for backwards compat)
+                platform = all_platforms[0]['platform'] if all_platforms else None
+                stream_url = all_platforms[0]['url'] if all_platforms else None
 
                 resolved_avatar = _valid_avatar(cp.avatar_url) or _valid_avatar(u.avatar_url)
-                entry = {
+                base_entry = {
                     'username': u.username,
                     'display_name': cp.display_name or u.username,
                     'avatar_url': resolved_avatar,
@@ -123,13 +130,13 @@ def discover(request):
                 }
 
                 if u.is_live and len(live_streamers) < 4:
-                    live_streamers.append(entry)
+                    live_streamers.append({**base_entry, 'platforms': all_platforms})
                 elif not u.is_live and platform and len(recently_streamed) < 4:
                     # Only show in "Recently Streamed" if they have a stream platform
                     # and have an actual stream history within the last 30 days
                     last_streamed = getattr(cp, 'latest_stream_ended_at', None) or 0
                     if last_streamed >= thirty_days_ago:
-                        recently_streamed.append(entry)
+                        recently_streamed.append({**base_entry, 'platforms': prev_platforms})
 
             # --- LFG groups (6 most recent open groups) with urgency tags ---
             groups = db.query(WebLFGGroup).filter(
@@ -247,40 +254,7 @@ def discover(request):
     except Exception as e:
         logger.error('discover view error: %s', e)
 
-    # --- Game server strip (non-blocking, best effort) ---
-    try:
-        from app.models import SiteActivityGame
-        from app.views import fetch_instance_data
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        with get_db_session() as db:
-            db_games = db.query(SiteActivityGame).filter(
-                SiteActivityGame.is_active == True,
-                SiteActivityGame.game_type.in_(['amp', 'both']),
-                SiteActivityGame.show_on_discover_strip == True,
-            ).order_by(SiteActivityGame.sort_order).all()
-
-            amp_names = [g.amp_instance_id for g in db_games if g.amp_instance_id]
-            amp_map = {}
-            if amp_names:
-                results = loop.run_until_complete(asyncio.gather(
-                    *(fetch_instance_data(n) for n in amp_names),
-                    return_exceptions=True
-                ))
-                amp_map = {r.get('id'): r for r in results if isinstance(r, dict)}
-
-            for db_game in db_games:
-                amp = amp_map.get(db_game.amp_instance_id)
-                game_servers.append({
-                    'name': db_game.display_name,
-                    'online': amp.get('online', '-') if amp else '-',
-                    'max': amp.get('max', '-') if amp else '-',
-                    'live_now': amp.get('live_now', False) if amp else False,
-                })
-        loop.close()
-    except Exception as e:
-        logger.error('discover game server strip error: %s', e)
+    # Game server strip is loaded client-side via JS after page load to avoid blocking LCP
 
     # --- Community Steam widgets ---
     # Raw pool data (expensive Steam API calls) cached 15 min - shared across workers.
@@ -354,6 +328,7 @@ def discover(request):
                     _WebUser.steam_id != '',
                     _WebUser.is_banned == False,
                     _WebUser.is_disabled == False,
+                    _WebUser.is_hidden == False,
                 ).limit(50).all()
                 adult_rows = db.execute(
                     text("""SELECT DISTINCT app_id FROM web_steam_app_tags
@@ -1125,64 +1100,68 @@ def network_leaderboard(request):
             "       wu.current_game, wu.current_game_appid, wu.show_playing_status "
             "FROM web_users wu "
             "LEFT JOIN web_rank_titles wr ON wr.level = wu.web_level "
-            "WHERE wu.is_banned = 0 AND wu.is_disabled = 0 "
+            "WHERE wu.is_banned = 0 AND wu.is_disabled = 0 AND wu.is_hidden = 0 "
             "AND wu.email_verified = 1 AND wu.web_xp > 0 "
-            f"AND wu.id NOT IN ({','.join(str(i) for i in EXCLUDED_USER_IDS)}) "
+            "AND wu.id NOT IN :excl "
             "ORDER BY wu.web_xp DESC "
             "LIMIT :limit OFFSET :offset"
-        ), {'limit': per_page, 'offset': offset}).fetchall()
+        ), {'limit': per_page, 'offset': offset, 'excl': tuple(EXCLUDED_USER_IDS) or (0,)}).fetchall()
 
         total = db.execute(text(
             "SELECT COUNT(*) FROM web_users "
-            f"WHERE is_banned=0 AND is_disabled=0 AND email_verified=1 AND web_xp > 0 "
-            f"AND id NOT IN ({','.join(str(i) for i in EXCLUDED_USER_IDS)})"
-        )).scalar() or 0
+            "WHERE is_banned=0 AND is_disabled=0 AND is_hidden=0 AND email_verified=1 AND web_xp > 0 "
+            "AND id NOT IN :excl"
+        ), {'excl': tuple(EXCLUDED_USER_IDS) or (0,)}).scalar() or 0
 
         if request.web_user and getattr(request.web_user, 'id', None) not in EXCLUDED_USER_IDS:
             my_rank = db.execute(text(
                 "SELECT COUNT(*) + 1 FROM web_users "
-                f"WHERE web_xp > :xp AND is_banned=0 AND is_disabled=0 AND email_verified=1 "
-                f"AND id NOT IN ({','.join(str(i) for i in EXCLUDED_USER_IDS)})"
-            ), {'xp': request.web_user.web_xp or 0}).scalar()
+                "WHERE web_xp > :xp AND is_banned=0 AND is_disabled=0 AND email_verified=1 "
+                "AND id NOT IN :excl"
+            ), {'xp': request.web_user.web_xp or 0, 'excl': tuple(EXCLUDED_USER_IDS) or (0,)}).scalar()
 
-        # Top communities: one entry per primary community, using the right XP source per platform.
-        # Fluxer guilds: fluxer_member_xp (has all members + rich stats)
-        # Discord/other: web_unified_leaderboard
+        # Top 3 communities: one entry per owner (their highest-XP primary community).
         community_rows = db.execute(text("""
-            SELECT wc.id, wc.name, wc.icon_url, wc.platform,
-                   COALESCE(fgs.member_count, dc.member_count, 0) AS active_members,
-                   COALESCE(fx.total_xp, dc.total_xp, 0) AS total_xp,
-                   COALESCE(fx.total_messages, dc.total_messages, 0) AS total_messages,
-                   COALESCE(fx.total_media, dc.total_media, 0) AS total_media,
-                   COALESCE(fx.total_voice_mins, dc.total_voice_mins, 0) AS total_voice_mins,
-                   COALESCE(fx.total_reactions, dc.total_reactions, 0) AS total_reactions
-            FROM web_communities wc
-            LEFT JOIN web_fluxer_guild_settings fgs
-                   ON fgs.guild_id = wc.platform_id AND wc.platform = 'fluxer'
-            LEFT JOIN (
-                SELECT guild_id,
-                       SUM(xp) AS total_xp,
-                       SUM(message_count) AS total_messages,
-                       SUM(media_count) AS total_media,
-                       SUM(voice_minutes) AS total_voice_mins,
-                       SUM(reaction_count) AS total_reactions
-                FROM fluxer_member_xp
-                GROUP BY guild_id
-            ) fx ON fx.guild_id = CAST(wc.platform_id AS UNSIGNED) AND wc.platform = 'fluxer'
-            LEFT JOIN (
-                SELECT guild_id,
-                       COUNT(DISTINCT user_id) AS member_count,
-                       SUM(xp) AS total_xp,
-                       SUM(message_count) AS total_messages,
-                       SUM(media_count) AS total_media,
-                       SUM(voice_minutes) AS total_voice_mins,
-                       SUM(reaction_count) AS total_reactions
-                FROM guild_members
-                GROUP BY guild_id
-            ) dc ON dc.guild_id = CAST(wc.platform_id AS UNSIGNED) AND wc.platform = 'discord'
-            WHERE wc.network_status='approved' AND wc.is_active=1 AND wc.is_primary=1
-              AND COALESCE(fx.total_xp, dc.total_xp, 0) > 0
-            ORDER BY total_xp DESC LIMIT 5
+            SELECT id, name, icon_url, platform, active_members,
+                   total_xp, total_messages, total_media, total_voice_mins, total_reactions
+            FROM (
+                SELECT wc.id, wc.name, wc.icon_url, wc.platform, wc.owner_id,
+                       COALESCE(fgs.member_count, dc.member_count, 0) AS active_members,
+                       COALESCE(fx.total_xp, dc.total_xp, 0) AS total_xp,
+                       COALESCE(fx.total_messages, dc.total_messages, 0) AS total_messages,
+                       COALESCE(fx.total_media, dc.total_media, 0) AS total_media,
+                       COALESCE(fx.total_voice_mins, dc.total_voice_mins, 0) AS total_voice_mins,
+                       COALESCE(fx.total_reactions, dc.total_reactions, 0) AS total_reactions,
+                       ROW_NUMBER() OVER (PARTITION BY wc.owner_id ORDER BY COALESCE(fx.total_xp, dc.total_xp, 0) DESC) AS rn
+                FROM web_communities wc
+                LEFT JOIN web_fluxer_guild_settings fgs
+                       ON fgs.guild_id = wc.platform_id AND wc.platform = 'fluxer'
+                LEFT JOIN (
+                    SELECT guild_id,
+                           SUM(xp) AS total_xp,
+                           SUM(message_count) AS total_messages,
+                           SUM(media_count) AS total_media,
+                           SUM(voice_minutes) AS total_voice_mins,
+                           SUM(reaction_count) AS total_reactions
+                    FROM fluxer_member_xp
+                    GROUP BY guild_id
+                ) fx ON fx.guild_id = CAST(wc.platform_id AS UNSIGNED) AND wc.platform = 'fluxer'
+                LEFT JOIN (
+                    SELECT guild_id,
+                           COUNT(DISTINCT user_id) AS member_count,
+                           SUM(xp) AS total_xp,
+                           SUM(message_count) AS total_messages,
+                           SUM(media_count) AS total_media,
+                           SUM(voice_minutes) AS total_voice_mins,
+                           SUM(reaction_count) AS total_reactions
+                    FROM guild_members
+                    GROUP BY guild_id
+                ) dc ON dc.guild_id = CAST(wc.platform_id AS UNSIGNED) AND wc.platform = 'discord'
+                WHERE wc.network_status='approved' AND wc.is_active=1 AND wc.is_primary=1
+                  AND COALESCE(fx.total_xp, dc.total_xp, 0) > 0
+            ) ranked
+            WHERE rn = 1
+            ORDER BY total_xp DESC LIMIT 3
         """)).fetchall()
 
     entries = [
@@ -1242,10 +1221,10 @@ def api_leaderboard_top(request):
         rows = db.execute(text(
             "SELECT wu.id, wu.username, wu.avatar_url, wu.web_xp, wu.web_level "
             "FROM web_users wu "
-            "WHERE wu.is_banned=0 AND wu.is_disabled=0 AND wu.email_verified=1 AND wu.web_xp > 0 "
-            f"AND wu.id NOT IN ({','.join(str(i) for i in EXCLUDED_USER_IDS)}) "
+            "WHERE wu.is_banned=0 AND wu.is_disabled=0 AND wu.is_hidden=0 AND wu.email_verified=1 AND wu.web_xp > 0 "
+            "AND wu.id NOT IN :excl "
             "ORDER BY wu.web_xp DESC LIMIT :lim"
-        ), {'lim': limit}).fetchall()
+        ), {'lim': limit, 'excl': tuple(EXCLUDED_USER_IDS) or (0,)}).fetchall()
     return JsonResponse({'entries': [
         {'rank': i + 1, 'username': r[1], 'avatar_url': r[2] or '', 'xp': r[3], 'level': r[4]}
         for i, r in enumerate(rows)
@@ -1538,14 +1517,22 @@ def community_detail_slug(request, slug):
     """View community details by slug (generated from name)."""
     import re as _re
     with get_db_session() as db:
-        # Find community whose name converts to the requested slug
-        all_communities = db.query(WebCommunity).filter_by(is_active=True).all()
+        # Find the primary community row whose name converts to the requested slug
+        all_communities = db.query(WebCommunity).filter_by(is_active=True, is_primary=True).all()
         community = None
         for c in all_communities:
             c_slug = _re.sub(r'[^a-z0-9]+', '-', c.name.lower()).strip('-')
             if c_slug == slug:
                 community = c
                 break
+        # Fallback: if no primary match, try any active row (handles communities with no is_primary set)
+        if not community:
+            all_communities = db.query(WebCommunity).filter_by(is_active=True).all()
+            for c in all_communities:
+                c_slug = _re.sub(r'[^a-z0-9]+', '-', c.name.lower()).strip('-')
+                if c_slug == slug:
+                    community = c
+                    break
     if not community:
         from django.http import Http404
         raise Http404
@@ -1576,7 +1563,7 @@ def profile(request):
     ffxiv_rewards = []
     steam_ach_events = []
     with get_db_session() as db:
-        from .models import WebUserGame as _WebUserGame, WebFfxivCharacter as _WebFfxivChar, WebFfxivAchievementReward as _WebFfxivReward, WebXpEvent as _WebXpEvent
+        from .models import WebUserGame as _WebUserGame, WebFfxivCharacter as _WebFfxivChar, WebFfxivAchievementReward as _WebFfxivReward, WebXpEvent as _WebXpEvent, WebIndieGame as _WebIndieGame
         from sqlalchemy import case as _sa_case2
         _lib_order = _sa_case2(
             (_WebUserGame.status == 'play_together', 0),
@@ -1704,9 +1691,46 @@ def profile(request):
                     WebCommunity.network_status == 'approved',
                 ).order_by(WebCommunity.name).all():
                     _add_community(c)
+        indie_games_raw = db.query(_WebIndieGame).filter(
+            _WebIndieGame.dev_user_id == wu.id,
+            _WebIndieGame.is_published == True,
+        ).order_by(_WebIndieGame.created_at.desc()).all()
+        indie_games = [
+            {
+                'name': g.name, 'slug': g.slug, 'cover_url': g.cover_url or '',
+                'dev_bio': g.dev_bio or '', 'dev_devlog': g.dev_devlog or '',
+                'status': g.status or '',
+                'dev_website': g.dev_website or '', 'dev_twitter': g.dev_twitter or '',
+                'dev_discord_url': g.dev_discord_url or '', 'dev_fluxer_url': g.dev_fluxer_url or '',
+                'dev_itch_url': g.dev_itch_url or '', 'dev_youtube_url': g.dev_youtube_url or '',
+                'dev_twitch_url': g.dev_twitch_url or '', 'dev_steam_url': g.dev_steam_url or '',
+                'dev_tiktok_url': g.dev_tiktok_url or '', 'dev_instagram_url': g.dev_instagram_url or '',
+                'dev_facebook_url': g.dev_facebook_url or '', 'dev_bsky_url': g.dev_bsky_url or '',
+                'dev_kick_url': g.dev_kick_url or '',
+            }
+            for g in indie_games_raw
+        ]
+        # Also load pending/rejected submissions so dev can track status
+        _pending_raw = db.query(_WebIndieGame).filter(
+            _WebIndieGame.submitted_by == wu.id,
+            _WebIndieGame.submission_status.in_(['pending', 'rejected', 'resubmitted']),
+        ).order_by(_WebIndieGame.created_at.desc()).all()
+        indie_pending = [
+            {
+                'name': g.name, 'slug': g.slug,
+                'submission_status': g.submission_status,
+                'submission_pitch': g.submission_pitch or '',
+                'submission_link': g.submission_link or '',
+                'submission_note': g.submission_note or '',
+            }
+            for g in _pending_raw
+        ]
+
     context = {
         'web_user': wu,
         'active_page': 'profile',
+        'indie_games': indie_games,
+        'indie_pending': indie_pending,
         'gaming_platforms_list': _json.loads(wu.gaming_platforms) if wu.gaming_platforms else [],
         'favorite_genres_list':  _json.loads(wu.favorite_genres)  if wu.favorite_genres  else [],
         'favorite_games_list':   library_games_list,
@@ -2051,6 +2075,55 @@ def api_gameservers_status(request):
     except Exception as e:
         logger.error('api_gameservers_status: %s', e)
         return JsonResponse({'error': 'failed'}, status=500)
+    finally:
+        loop.close()
+
+    return JsonResponse({'servers': servers})
+
+
+@require_http_methods(["GET"])
+def api_gameservers_discover_strip(request):
+    """Return only servers with show_on_discover_strip=True for the discover page pill bar."""
+    import asyncio
+    from app.models import SiteActivityGame
+    from app.views import fetch_instance_data
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    servers = []
+    try:
+        with get_db_session() as db:
+            db_games = (
+                db.query(SiteActivityGame)
+                .filter(
+                    SiteActivityGame.is_active == True,
+                    SiteActivityGame.show_on_discover_strip == True,
+                    SiteActivityGame.game_type.in_(['amp', 'both']),
+                )
+                .order_by(SiteActivityGame.sort_order)
+                .all()
+            )
+            amp_names = [g.amp_instance_id for g in db_games if g.amp_instance_id]
+            amp_data_map = {}
+            if amp_names:
+                results = loop.run_until_complete(asyncio.gather(
+                    *(fetch_instance_data(n) for n in amp_names),
+                    return_exceptions=True
+                ))
+                amp_data_map = {r.get('id'): r for r in results if isinstance(r, dict)}
+
+            for db_game in db_games:
+                amp = amp_data_map.get(db_game.amp_instance_id)
+                online = amp.get('online', '-') if amp else '-'
+                servers.append({
+                    'name': db_game.display_name,
+                    'online': online if amp else None,
+                    'max': amp.get('max', '-') if amp else None,
+                    'live_now': bool(amp and amp.get('live_now', False)),
+                    'has_amp': bool(db_game.amp_instance_id),
+                })
+    except Exception as e:
+        logger.error('api_gameservers_discover_strip: %s', e)
     finally:
         loop.close()
 
@@ -4147,6 +4220,7 @@ def api_steamquest_who_owns(request):
             WebUser.steam_id != '',
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
         ).limit(100).all()
 
     if not candidates:
@@ -4210,6 +4284,7 @@ def api_steamquest_community_owns(request):
             WebUser.steam_id != '',
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
         ).limit(200).all()
 
     name_lower = {n.lower(): n for n in names}

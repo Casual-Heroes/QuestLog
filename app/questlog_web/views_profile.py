@@ -18,7 +18,7 @@ from .models import (
     WebComment, WebCommentLike, WebNotification, WebUserBlock,
     WebCommunity, WebCommunityMember, WebLFGMember, WebRaffleEntry, WebCreatorProfile,
     WebReferral, WebFlair, WebUserFlair, WebRankTitle, WebHeroPointEvent,
-    WebFfxivCharacter, WebFfxivAchievementReward,
+    WebFfxivCharacter, WebFfxivAchievementReward, WebIndieGame,
 )
 from app.db import get_db_session
 from .helpers import (
@@ -129,7 +129,7 @@ def api_profile_update(request):
                 user.display_name = val
 
         if 'bio' in data:
-            user.bio = sanitize_text(data['bio'], max_length=500)
+            user.bio = sanitize_text(data['bio'], max_length=1000)
 
         if 'banner_url' in data:
             url = (data['banner_url'] or '').strip()
@@ -330,6 +330,18 @@ def public_profile(request, username):
                 'active_page': 'profile',
             })
 
+        # Hidden/banned/disabled profiles are invisible to non-admins
+        is_admin_viewer = request.web_user and (request.web_user.is_admin or request.web_user.is_mod)
+        is_own_profile = request.web_user and request.web_user.id == profile_user.id
+        if not is_admin_viewer and not is_own_profile:
+            if profile_user.is_banned or profile_user.is_disabled or profile_user.is_hidden:
+                return render(request, 'questlog_web/public_profile.html', {
+                    'web_user': request.web_user,
+                    'profile_user': None,
+                    'error': 'User not found',
+                    'active_page': 'profile',
+                })
+
         if request.web_user and is_blocked(db, request.web_user.id, profile_user.id):
             return render(request, 'questlog_web/public_profile.html', {
                 'web_user': request.web_user,
@@ -394,6 +406,36 @@ def public_profile(request, username):
                     for r in rewards
                 ]
 
+        # Indie games this user is listed as dev for
+        indie_games = db.query(WebIndieGame).filter(
+            WebIndieGame.dev_user_id == profile_user.id,
+            WebIndieGame.is_published == True,
+        ).order_by(WebIndieGame.created_at.desc()).all()
+        indie_games_data = [
+            {
+                'name': g.name,
+                'slug': g.slug,
+                'cover_url': g.cover_url or '',
+                'dev_bio': g.dev_bio or '',
+                'dev_devlog': g.dev_devlog or '',
+                'status': g.status or '',
+                'dev_website': g.dev_website or '',
+                'dev_twitter': g.dev_twitter or '',
+                'dev_discord_url': g.dev_discord_url or '',
+                'dev_fluxer_url': g.dev_fluxer_url or '',
+                'dev_itch_url': g.dev_itch_url or '',
+                'dev_youtube_url': g.dev_youtube_url or '',
+                'dev_twitch_url': g.dev_twitch_url or '',
+                'dev_steam_url': g.dev_steam_url or '',
+                'dev_tiktok_url': g.dev_tiktok_url or '',
+                'dev_instagram_url': g.dev_instagram_url or '',
+                'dev_facebook_url': g.dev_facebook_url or '',
+                'dev_bsky_url': g.dev_bsky_url or '',
+                'dev_kick_url': g.dev_kick_url or '',
+            }
+            for g in indie_games
+        ]
+
         db.expunge(profile_user)
 
     og_name = profile_user.display_name or profile_user.username
@@ -415,6 +457,9 @@ def public_profile(request, username):
         'flair_emoji': flair_emoji,
         'flair_name': flair_name,
         'rank_title': rank_title,
+        'indie_games': indie_games_data,
+        'is_vip': bool(profile_user.is_vip),
+        'is_founder': bool(profile_user.is_founder),
         'active_page': 'public_profile',
         'og_title': f"{og_name} on QuestLog",
         'og_desc': og_desc,
@@ -997,24 +1042,35 @@ def api_pull_avatar(request):
 @add_web_user_context
 @require_http_methods(['GET'])
 def api_flairs(request):
-    """List all enabled flairs + which ones the current user owns/has equipped."""
+    """List flairs for the current user.
+    Shop-visible: all enabled non-admin-only flairs (whether owned or not).
+    Also included: any admin-only flairs the user actually owns.
+    """
     with get_db_session() as db:
-        flairs = (
-            db.query(WebFlair)
-            .filter_by(enabled=True)
-            .order_by(WebFlair.display_order, WebFlair.id)
-            .all()
-        )
-        owned_ids = {
-            uf.flair_id
-            for uf in db.query(WebUserFlair)
-            .filter_by(user_id=request.web_user.id)
-            .all()
-        }
+        user_id = request.web_user.id
         equipped_id = request.web_user.active_flair_id
         equipped_id2 = getattr(request.web_user, 'active_flair2_id', None)
 
-        # Count owners of each flair so we can hide capped exclusives (e.g. Founding Member)
+        # All flairs the user owns (any type)
+        owned_rows = db.query(WebUserFlair).filter_by(user_id=user_id).all()
+        owned_ids = {uf.flair_id for uf in owned_rows}
+
+        # Shop flairs: enabled, non-admin-only
+        shop_flairs = (
+            db.query(WebFlair)
+            .filter(WebFlair.enabled == True, WebFlair.admin_only != 1)
+            .order_by(WebFlair.display_order, WebFlair.id)
+            .all()
+        )
+        # Admin-only flairs this user owns (granted by admin) - not in shop
+        admin_owned_flairs = (
+            db.query(WebFlair)
+            .filter(WebFlair.enabled == True, WebFlair.admin_only == 1,
+                    WebFlair.id.in_(owned_ids))
+            .order_by(WebFlair.display_order, WebFlair.id)
+            .all()
+        ) if owned_ids else []
+
         from sqlalchemy import func as sqlfunc
         owner_counts = {
             flair_id: count
@@ -1023,15 +1079,10 @@ def api_flairs(request):
         }
 
         from app.questlog_web.views_auth import FOUNDING_FLAIR_LIMIT, FOUNDING_FLAIR_NAME
-
         now_ts = int(time.time())
-        data = []
-        for f in flairs:
-            is_owned = f.id in owned_ids
-            # Exclusive flairs: always show in shop so people can see they exist,
-            # but they cannot be purchased - only auto-granted.
 
-            # Determine availability status for the UI
+        def _serialize(f, is_admin_only_owned=False):
+            is_owned = f.id in owned_ids
             available = True
             available_from_ts = None
             available_until_ts = None
@@ -1044,8 +1095,7 @@ def api_flairs(request):
                 available_from_label = f"Available {dt.strftime('%b %-d, %Y')}"
             if f.available_until:
                 available_until_ts = f.available_until
-
-            data.append({
+            return {
                 'id': f.id,
                 'name': f.name,
                 'emoji': f.emoji or '',
@@ -1053,6 +1103,7 @@ def api_flairs(request):
                 'flair_type': f.flair_type,
                 'hp_cost': f.hp_cost,
                 'owned': is_owned,
+                'admin_only': bool(getattr(f, 'admin_only', 0)),
                 'equipped': f.id == equipped_id,
                 'equipped_slot2': f.id == equipped_id2 if equipped_id2 else False,
                 'available': available,
@@ -1060,7 +1111,11 @@ def api_flairs(request):
                 'available_from_label': available_from_label,
                 'available_until': available_until_ts,
                 'equippable': bool(getattr(f, 'equippable', 1)),
-            })
+            }
+
+        data = [_serialize(f) for f in shop_flairs]
+        # Append admin-only owned flairs at the end (not visible in shop, but user can equip)
+        data += [_serialize(f, is_admin_only_owned=True) for f in admin_owned_flairs]
 
     return JsonResponse({'flairs': data})
 
@@ -1079,9 +1134,11 @@ def api_flair_buy(request, flair_id):
         if not flair:
             return JsonResponse({'error': 'Flair not found.'}, status=404)
 
-        # Exclusive flairs are award-only - cannot be purchased
+        # Exclusive and admin-only flairs cannot be purchased
         if flair.flair_type == 'exclusive':
             return JsonResponse({'error': 'This flair is award-only and cannot be purchased.'}, status=403)
+        if getattr(flair, 'admin_only', 0):
+            return JsonResponse({'error': 'This flair can only be assigned by an admin.'}, status=403)
 
         already = db.query(WebUserFlair).filter_by(
             user_id=request.web_user.id, flair_id=flair_id

@@ -180,6 +180,45 @@
         <a href="{% url 'questlog_web_blog' %}" class="inline-flex items-center gap-1 text-orange-400 hover:text-orange-300 text-xs mt-3 transition">Read the Blog <i class="fas fa-arrow-right text-[10px]"></i></a>
       </div>
 
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-emerald-500/30 transition sm:col-span-2">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+            <i class="fas fa-rocket text-emerald-400"></i>
+          </div>
+          <h3 class="text-white font-semibold">Indie Heroes</h3>
+          <span class="text-xs bg-emerald-900/40 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-800/40 ml-auto">New</span>
+        </div>
+        <p class="text-gray-500 text-sm leading-relaxed mb-4">Indie game developers keeping the soul of gaming alive. Submit your game, post devlogs and updates, and connect directly with gamers who want to find the next hidden gem - no algorithm, no pitch deck required.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div class="bg-neutral-800/60 border border-neutral-700/40 rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <i class="fas fa-rocket text-emerald-400 text-sm"></i>
+              <span class="text-white text-sm font-semibold">You're an Indie Dev</span>
+            </div>
+            <ul class="text-gray-400 text-xs space-y-1.5">
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Create an account - toggle "I'm an indie dev" on the register page to submit your game right away</li>
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Or join first and submit from the Indie Heroes page anytime</li>
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Your game gets its own page - add a description, Steam and itch.io links</li>
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Post devlogs and updates directly to your game's wall</li>
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Gamers follow your game, leave feedback, and find you through LFG</li>
+            </ul>
+          </div>
+          <div class="bg-neutral-800/60 border border-neutral-700/40 rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <i class="fas fa-gamepad text-emerald-400 text-sm"></i>
+              <span class="text-white text-sm font-semibold">You're a Gamer</span>
+            </div>
+            <ul class="text-gray-400 text-xs space-y-1.5">
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Browse Indie Heroes to find hidden gems the community is spotlighting</li>
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Follow devs and get updates when they post new content</li>
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Leave feedback on game walls and connect with the dev directly</li>
+              <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-500 text-[10px] mt-0.5 flex-shrink-0"></i> Know a great indie game? <a href="/gamesuggest/" class="text-emerald-400 hover:text-emerald-300 transition">Suggest it</a> and we'll review it for the spotlight</li>
+            </ul>
+          </div>
+        </div>
+        <a href="/ql/indie-heroes/" class="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-xs transition">Explore Indie Heroes <i class="fas fa-arrow-right text-[10px]"></i></a>
+      </div>
+
       <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-indigo-500/30 transition sm:col-span-2">
         <div class="flex items-center gap-3 mb-3">
           <div class="w-9 h-9 rounded-xl bg-indigo-500/15 flex items-center justify-center flex-shrink-0">
@@ -215,11 +254,11 @@
     </div>
   </div>
 
-  <!-- Gamer vs Creator -->
+  <!-- Gamer vs Creator vs Dev -->
   <div class="mb-16">
     <p class="text-xs font-bold text-gray-600 uppercase tracking-widest text-center mb-3">Who are you?</p>
-    <h2 class="text-2xl font-extrabold text-white text-center mb-8">Gamer or Creator - Both Have a Home Here</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+    <h2 class="text-2xl font-extrabold text-white text-center mb-8">Gamer, Creator, or Indie Dev - All Have a Home Here</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
         <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center mb-4">
           <i class="fas fa-gamepad text-emerald-400"></i>
@@ -248,6 +287,21 @@
           <li class="flex items-start gap-2"><i class="fas fa-check text-red-400 text-xs mt-1 flex-shrink-0"></i> Appear in the Creators directory</li>
           <li class="flex items-start gap-2"><i class="fas fa-check text-red-400 text-xs mt-1 flex-shrink-0"></i> Write blog articles and build your audience</li>
         </ul>
+      </div>
+      <div class="bg-neutral-900 border border-emerald-800/30 rounded-2xl p-6">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center mb-4">
+          <i class="fas fa-rocket text-emerald-400"></i>
+        </div>
+        <h3 class="text-white font-bold text-lg mb-3">You're an Indie Dev</h3>
+        <ul class="text-gray-400 text-sm space-y-2">
+          <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-400 text-xs mt-1 flex-shrink-0"></i> Toggle "I'm an indie dev" at registration to submit your game instantly</li>
+          <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-400 text-xs mt-1 flex-shrink-0"></i> Your game gets its own page with Steam, itch.io links and a description</li>
+          <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-400 text-xs mt-1 flex-shrink-0"></i> Post devlogs and updates to your game's wall</li>
+          <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-400 text-xs mt-1 flex-shrink-0"></i> Gamers follow your game and leave feedback directly</li>
+          <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-400 text-xs mt-1 flex-shrink-0"></i> Get spotlighted to the whole community</li>
+          <li class="flex items-start gap-2"><i class="fas fa-check text-emerald-400 text-xs mt-1 flex-shrink-0"></i> No algorithm, no pitch deck - just your game and your people</li>
+        </ul>
+        <a href="/ql/indie-heroes/" class="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-xs mt-4 transition">Submit Your Game <i class="fas fa-arrow-right text-[10px]"></i></a>
       </div>
     </div>
   </div>
