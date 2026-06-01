@@ -930,8 +930,13 @@ def _get_recent_activity(request):
             'follower_count': u.follower_count or 0,
         } for u in new_members]
 
-        # --- Trending games: based purely on member activity on this platform ---
-        # Signal 1: active LFG groups for this game (4x - highest intent, actively recruiting)
+        # --- Trending games: based on member activity with recency weighting ---
+        # Recency windows: last 7 days counts 3x, last 30 days counts 1.5x, all-time counts 1x
+        seven_days_ago = now - (7 * 86400)
+        thirty_days_ago = now - (30 * 86400)
+
+        # Signal 1: active LFG groups (4x - highest intent, actively recruiting)
+        # LFG groups are always current (open/full/started) so no time decay needed
         lfg_rows = db.execute(text("""
             SELECT game_name, MAX(game_image_url) as img, MAX(game_id) as gid, COUNT(*) as cnt
             FROM web_lfg_groups
@@ -955,8 +960,8 @@ def _get_recent_activity(request):
             LIMIT 30
         """)).fetchall()
 
-        # Signal 3: posts tagged with a game (2x - active engagement)
-        post_rows = db.execute(text("""
+        # Signal 3: posts tagged with a game in last 30 days (4x recent, 2x older)
+        post_rows_recent = db.execute(text("""
             SELECT p.game_tag_name, MAX(p.game_tag_steam_id) as steam_id,
                    MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
             FROM web_posts p
@@ -965,12 +970,28 @@ def _get_recent_activity(request):
             WHERE p.game_tag_name IS NOT NULL AND p.game_tag_name != ''
               AND p.is_deleted = 0 AND p.is_hidden = 0
               AND u.is_banned = 0 AND u.is_disabled = 0
+              AND p.created_at >= :since
             GROUP BY p.game_tag_name
             ORDER BY cnt DESC
             LIMIT 30
-        """)).fetchall()
+        """), {'since': seven_days_ago}).fetchall()
 
-        # Signal 4: games in members' libraries (1x - ownership/interest, weakest)
+        post_rows_older = db.execute(text("""
+            SELECT p.game_tag_name, MAX(p.game_tag_steam_id) as steam_id,
+                   MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
+            FROM web_posts p
+            JOIN web_users u ON u.id = p.author_id
+            LEFT JOIN web_found_games fg ON fg.steam_app_id = p.game_tag_steam_id
+            WHERE p.game_tag_name IS NOT NULL AND p.game_tag_name != ''
+              AND p.is_deleted = 0 AND p.is_hidden = 0
+              AND u.is_banned = 0 AND u.is_disabled = 0
+              AND p.created_at >= :since AND p.created_at < :recent
+            GROUP BY p.game_tag_name
+            ORDER BY cnt DESC
+            LIMIT 30
+        """), {'since': thirty_days_ago, 'recent': seven_days_ago}).fetchall()
+
+        # Signal 4: library ownership (0.5x - static, just a tiebreaker now)
         lib_rows = db.execute(text("""
             SELECT g.name, MAX(g.steam_app_id) as steam_id,
                    MAX(fg.cover_url) as igdb_cover, COUNT(*) as cnt
@@ -1007,31 +1028,40 @@ def _get_recent_activity(request):
             elif cover and not trending_map[key]['cover_url']:
                 trending_map[key]['cover_url'] = cover
 
-        # LFG signal - 4x weight, uses img/gid columns not igdb_cover
-        max_lfg = max((r[3] for r in lfg_rows), default=1)
+        # Score using raw weighted counts - NOT normalized against max.
+        # This means 1 post this week genuinely outranks 5 library entries from months ago.
+        # Weights per event:
+        #   Active LFG group   = 10 pts  (live intent, someone is recruiting RIGHT NOW)
+        #   Post this week     = 8  pts  (fresh discussion)
+        #   Play Together flag = 5  pts  (wants to group up)
+        #   Post last month    = 3  pts  (recent but not hot)
+        #   Library ownership  = 0.5 pts (static tiebreaker only)
+
+        # LFG - 10pts per active group
         for row in lfg_rows:
             name, img, gid, cnt = row[0], row[1], row[2], row[3]
             key = name.strip().lower()
             cover = img or (f'https://cdn.cloudflare.steamstatic.com/steam/apps/{gid}/header.jpg' if gid and str(gid).isdigit() else None)
             _ensure(key, name, cover)
-            trending_map[key]['score'] += 4.0 * (cnt / max_lfg)
+            trending_map[key]['score'] += 10.0 * cnt
             trending_map[key]['lfg_count'] = max(trending_map[key]['lfg_count'], cnt)
 
-        def _add_signal(rows, weight, count_field):
-            max_cnt = max((r[3] for r in rows), default=1)
+        def _add_signal_raw(rows, pts_per, count_field):
             for row in rows:
                 name, steam_id, igdb_cover, cnt = row[0], row[1], row[2], row[3]
+                if not name:
+                    continue
                 key = name.strip().lower()
                 _ensure(key, name, _resolve_cover(igdb_cover, steam_id))
-                trending_map[key]['score'] += weight * (cnt / max_cnt)
-                # Use max not sum - same member can appear in both lib and pt queries
-                trending_map[key][count_field] = max(trending_map[key].get(count_field, 0), cnt)
+                trending_map[key]['score'] += pts_per * cnt
+                trending_map[key][count_field] = trending_map[key].get(count_field, 0) + cnt
 
-        _add_signal(pt_rows,   3.0, 'member_count')
-        _add_signal(post_rows, 2.0, 'post_count')
-        _add_signal(lib_rows,  1.0, 'member_count')
+        _add_signal_raw(post_rows_recent, 8.0, 'post_count')    # posted this week
+        _add_signal_raw(pt_rows,          5.0, 'member_count')  # wants to play together
+        _add_signal_raw(post_rows_older,  3.0, 'post_count')    # posted last month
+        _add_signal_raw(lib_rows,         0.5, 'member_count')  # owns it (tiebreaker)
 
-        trending_games = sorted(trending_map.values(), key=lambda x: x['score'], reverse=True)[:5]
+        trending_games = sorted(trending_map.values(), key=lambda x: x['score'], reverse=True)[:8]
 
         ticker = []
         two_days_ago = now - 172800
