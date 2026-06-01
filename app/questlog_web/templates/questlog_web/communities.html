@@ -61,7 +61,7 @@
         <div id="platformFilterContainer"></div>
       </div>
       <div>
-        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">In-Game Guild</label>
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">In-Game Guild/Clan</label>
         <div id="gameFilterContainer"></div>
       </div>
       <div>
@@ -97,17 +97,31 @@ let platformFilterSelect, gameFilterSelect, sortFilterSelect;
 
 const GUILD_GAME_LABELS = {
   ffxiv: 'FFXIV', eso: 'ESO', wow: 'WoW', gw2: 'GW2',
-  lost_ark: 'Lost Ark', bdo: 'BDO', swtor: 'SWTOR', other: 'MMO Guild',
+  lost_ark: 'Lost Ark', bdo: 'BDO', swtor: 'SWTOR',
+  division2: 'Division 2', helldivers2: 'Helldivers 2', destiny2: 'Destiny 2',
+  warframe: 'Warframe', dayz: 'DayZ', rust: 'Rust', ark: 'ARK',
+  sevendays: '7 Days to Die', palworld: 'Palworld', valheim: 'Valheim',
+  other: 'Other',
 };
 const GUILD_GAME_ITEMS = [
-  {value: 'ffxiv',    label: 'Final Fantasy XIV'},
-  {value: 'eso',      label: 'Elder Scrolls Online'},
-  {value: 'wow',      label: 'World of Warcraft'},
-  {value: 'gw2',      label: 'Guild Wars 2'},
-  {value: 'lost_ark', label: 'Lost Ark'},
-  {value: 'bdo',      label: 'Black Desert Online'},
-  {value: 'swtor',    label: 'SWTOR'},
-  {value: 'other',    label: 'Other MMO'},
+  {value: 'ffxiv',       label: 'Final Fantasy XIV'},
+  {value: 'eso',         label: 'Elder Scrolls Online'},
+  {value: 'wow',         label: 'World of Warcraft'},
+  {value: 'gw2',         label: 'Guild Wars 2'},
+  {value: 'lost_ark',    label: 'Lost Ark'},
+  {value: 'bdo',         label: 'Black Desert Online'},
+  {value: 'swtor',       label: 'SWTOR'},
+  {value: 'destiny2',    label: 'Destiny 2'},
+  {value: 'division2',   label: 'The Division 2'},
+  {value: 'helldivers2', label: 'Helldivers 2'},
+  {value: 'warframe',    label: 'Warframe'},
+  {value: 'dayz',        label: 'DayZ'},
+  {value: 'rust',        label: 'Rust'},
+  {value: 'ark',         label: 'ARK: Survival Evolved'},
+  {value: 'sevendays',   label: '7 Days to Die'},
+  {value: 'palworld',    label: 'Palworld'},
+  {value: 'valheim',     label: 'Valheim'},
+  {value: 'other',       label: 'Other'},
 ];
 let _editGuildGameSel = null;
 let _editGames = [];
@@ -213,7 +227,17 @@ gameFilterSelect = createCustomSelect({
     { value: 'lost_ark', label: 'Lost Ark' },
     { value: 'bdo', label: 'Black Desert Online' },
     { value: 'swtor', label: 'SWTOR' },
-    { value: 'other', label: 'Other MMO' },
+    { value: 'destiny2', label: 'Destiny 2' },
+    { value: 'division2', label: 'The Division 2' },
+    { value: 'helldivers2', label: 'Helldivers 2' },
+    { value: 'warframe', label: 'Warframe' },
+    { value: 'dayz', label: 'DayZ' },
+    { value: 'rust', label: 'Rust' },
+    { value: 'ark', label: 'ARK: Survival Evolved' },
+    { value: 'sevendays', label: '7 Days to Die' },
+    { value: 'palworld', label: 'Palworld' },
+    { value: 'valheim', label: 'Valheim' },
+    { value: 'other', label: 'Other' },
   ],
   selected: '',
   color: 'purple',
@@ -273,7 +297,10 @@ function filterCommunities() {
     );
   }
   if (platform) {
-    filtered = filtered.filter(c => c.platform === platform);
+    filtered = filtered.filter(c =>
+      c.platform === platform ||
+      (Array.isArray(c.platforms) && c.platforms.some(p => p.platform === platform))
+    );
   }
   if (game) {
     filtered = filtered.filter(c => Array.isArray(c.guild_game) && c.guild_game.includes(game));
@@ -344,24 +371,24 @@ function renderCommunities(communities) {
     <div class="group bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden hover:border-purple-500/40 transition cursor-pointer flex flex-col"
          onclick="window.location='/communities/${comm.slug || comm.id}/'">
       <!-- Banner -->
-      <div class="relative h-28 bg-neutral-800 flex-shrink-0 overflow-hidden">
+      <div class="relative h-24 bg-neutral-800 flex-shrink-0 overflow-hidden rounded-t-2xl">
         ${comm.banner_url
-          ? `<img src="${escapeHtml(comm.banner_url)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">`
-          : `<div class="w-full h-full bg-gradient-to-br from-purple-900/30 to-neutral-800 flex items-center justify-center"><i class="fas fa-shield-alt text-neutral-700 text-3xl"></i></div>`}
-        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900 via-transparent to-transparent"></div>
+          ? `<img src="${escapeHtml(comm.banner_url)}" class="w-full h-full object-cover object-center group-hover:scale-105 transition duration-500">`
+          : `<div class="w-full h-full bg-gradient-to-br from-purple-900/40 to-neutral-800"></div>`}
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900/80 via-neutral-900/20 to-transparent"></div>
         ${isOwner ? `<button onclick="openEditModal(${comm.id}); event.stopPropagation();"
           class="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full w-7 h-7 flex items-center justify-center transition z-10" title="Edit">
           <i class="fas fa-pen text-xs"></i>
         </button>` : ''}
       </div>
       <!-- Icon + Name -->
-      <div class="px-4 pt-2 relative z-10 flex items-center gap-3 mb-3">
-        <div class="-mt-8 flex-shrink-0">
+      <div class="px-4 pt-0 relative z-10 flex items-center gap-3 mb-2">
+        <div class="-mt-6 flex-shrink-0">
           ${comm.icon_url
-            ? `<img src="${escapeHtml(comm.icon_url)}" class="w-12 h-12 rounded-xl object-cover ring-2 ring-neutral-900">`
-            : `<div class="w-12 h-12 rounded-xl bg-neutral-700 ring-2 ring-neutral-900 flex items-center justify-center">${_pIcon(comm.platform, 'text-lg')}</div>`}
+            ? `<img src="${escapeHtml(comm.icon_url)}" class="w-11 h-11 rounded-xl object-cover ring-2 ring-neutral-900 shadow-lg">`
+            : `<div class="w-11 h-11 rounded-xl bg-neutral-700 ring-2 ring-neutral-900 shadow-lg flex items-center justify-center">${_pIcon(comm.platform, 'text-base')}</div>`}
         </div>
-        <div class="min-w-0 pt-1">
+        <div class="min-w-0 pt-2">
           <h3 class="text-white font-bold text-sm truncate leading-tight">${escapeHtml(comm.name)}</h3>
           <div class="flex items-center gap-1.5 text-xs text-gray-500">
             ${_pIcon(comm.platform, 'text-[10px]')}
@@ -459,14 +486,75 @@ async function openEditModal(communityId) {
   document.getElementById('editMemberCount').value = c.member_count || 0;
   document.getElementById('editAllowDiscovery').checked = !!c.allow_discovery;
   document.getElementById('editAllowJoins').checked = !!c.allow_joins;
-  const xpRow = document.getElementById('editUnifiedXpRow');
-  if (c.site_xp_to_guild) {
-    xpRow.style.display = '';
-    document.getElementById('editSiteXpToGuild').checked = true;
-  } else {
-    xpRow.style.display = 'none';
-  }
   document.getElementById('editPlatform').value = c.platform || 'discord';
+  // Hide the old unified XP row - handled per-platform now
+  const xpRow = document.getElementById('editUnifiedXpRow');
+  if (xpRow) xpRow.style.display = 'none';
+
+  // Render Connected Platforms list
+  const platList = document.getElementById('editPlatformsList');
+  const addBtn = document.getElementById('showAddPlatformBtn');
+  const addSection = document.getElementById('editAddPlatformSection');
+  const availableEl = document.getElementById('editAvailablePlatforms');
+  if (addSection) addSection.classList.add('hidden');
+  if (addBtn) addBtn.classList.remove('hidden');
+
+  // Render available (owned but unlinked) servers as one-click add buttons
+  const available = c.available_platforms || [];
+  if (availableEl) {
+    if (available.length) {
+      availableEl.classList.remove('hidden');
+      availableEl.innerHTML = '<p class="text-xs text-gray-500 mb-1">Your servers not yet linked:</p>'
+        + available.map(p => `
+          <button type="button" onclick="quickAddPlatform('${escapeHtml(p.platform)}','${escapeHtml(p.platform_id)}')"
+            class="w-full flex items-center justify-between bg-neutral-800/60 border border-dashed border-neutral-600 hover:border-purple-500/60 hover:bg-neutral-800 rounded-lg px-3 py-2 transition group">
+            <span class="flex items-center gap-2">
+              ${platformIconHtml(p.platform, 'text-sm')}
+              <span class="text-white text-xs font-medium">${escapeHtml(p.guild_name)}</span>
+              <span class="text-gray-600 text-[10px] capitalize">${escapeHtml(p.platform)}</span>
+            </span>
+            <span class="text-purple-400 text-[10px] group-hover:text-purple-300"><i class="fas fa-plus mr-0.5"></i>Add</span>
+          </button>`).join('');
+    } else {
+      availableEl.classList.add('hidden');
+      availableEl.innerHTML = '';
+    }
+  }
+  const platforms = c.platforms || [{ platform: c.platform, platform_id: '', invite_url: c.invite_url, site_xp_to_guild: c.site_xp_to_guild, bot_present: false, id: communityId }];
+  const multiPlatform = platforms.length > 1;
+  platList.innerHTML = platforms.map(p => {
+    const botLabel = p.bot_present
+      ? '<span class="text-green-400 text-[10px]"><i class="fas fa-check-circle mr-0.5"></i>Bot installed</span>'
+      : '<span class="text-gray-600 text-[10px]"><i class="fas fa-times-circle mr-0.5"></i>Bot not detected</span>';
+    const xpDisabled = !p.bot_present ? 'disabled' : '';
+    const xpChecked = p.site_xp_to_guild ? 'checked' : '';
+    const primaryBadge = p.is_primary
+      ? '<span class="text-yellow-400 text-[10px] ml-1"><i class="fas fa-star mr-0.5"></i>Primary</span>'
+      : '';
+    const setPrimaryBtn = (multiPlatform && !p.is_primary)
+      ? `<button type="button" onclick="setPrimaryPlatform(${p.id})" class="text-[10px] text-gray-500 hover:text-yellow-400 transition" title="Set as primary"><i class="fas fa-star mr-0.5"></i>Set primary</button>`
+      : '';
+    const removeBtn = (multiPlatform && !p.is_primary)
+      ? `<button type="button" onclick="removePlatform(${p.id})" class="text-[10px] text-gray-500 hover:text-red-400 transition ml-2" title="Remove platform"><i class="fas fa-times mr-0.5"></i>Remove</button>`
+      : '';
+    return `<div class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          ${platformIconHtml(p.platform, 'text-sm')}
+          <div>
+            <span class="text-white text-xs font-medium capitalize">${escapeHtml(p.guild_name || p.platform)}</span>
+            ${primaryBadge}
+            <div class="flex items-center gap-2 mt-0.5">${botLabel}${setPrimaryBtn}${removeBtn}</div>
+          </div>
+        </div>
+        <label class="flex items-center gap-1.5 cursor-pointer flex-shrink-0 ml-3" ${!p.bot_present ? 'title="Install the bot first to enable Unified XP"' : ''}>
+          <input type="checkbox" ${xpChecked} ${xpDisabled} onchange="togglePlatformXp(${p.id || communityId}, this.checked)"
+            class="rounded bg-neutral-700 border-neutral-600 text-blue-500 disabled:opacity-40">
+          <span class="text-xs text-gray-400">Unified XP</span>
+        </label>
+      </div>
+    </div>`;
+  }).join('');
   document.getElementById('editGuildGameName').value = c.guild_game_name || '';
   // Reinit guild game multi-select each time modal opens
   if (_editGuildGameSel) { try { _editGuildGameSel.destroy(); } catch(e) {} }
@@ -536,6 +624,90 @@ function closeEditModal() {
   document.getElementById('editModalOverlay').classList.add('hidden');
 }
 
+async function quickAddPlatform(platform, platform_id) {
+  const communityId = document.getElementById('editCommunityId').value;
+  try {
+    const r = await csrfFetch(`/api/communities/${communityId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_platform', platform, platform_id }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.error || 'Failed');
+    await openEditModal(communityId);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function setPrimaryPlatform(communityId) {
+  const rootId = document.getElementById('editCommunityId').value;
+  try {
+    const r = await csrfFetch(`/api/communities/${rootId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_primary', community_id: communityId }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.error || 'Failed');
+    // Reload using the new primary's ID so all fields survive the swap
+    await openEditModal(d.new_primary_id || rootId);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function removePlatform(communityId) {
+  if (!confirm('Remove this platform from your community? The community itself stays active.')) return;
+  const rootId = document.getElementById('editCommunityId').value;
+  try {
+    const r = await csrfFetch(`/api/communities/${rootId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remove_platform', community_id: communityId }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.error || 'Failed');
+    await openEditModal(rootId);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function togglePlatformXp(communityId, enable) {
+  try {
+    const r = await csrfFetch(`/api/communities/${communityId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle_xp', community_id: communityId, enable }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) {
+      alert('Error: ' + (d.error || 'Failed to update XP setting'));
+      // Reload modal to reset checkbox state
+      openEditModal(document.getElementById('editCommunityId').value);
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+    openEditModal(document.getElementById('editCommunityId').value);
+  }
+}
+
+async function submitAddPlatform() {
+  const communityId = document.getElementById('editCommunityId').value;
+  const platform = document.getElementById('addPlatformType').value;
+  const platform_id = document.getElementById('addPlatformId').value.trim();
+  const invite_url = document.getElementById('addPlatformInviteUrl').value.trim();
+  if (!platform_id) { alert('Server / Guild ID is required'); return; }
+  try {
+    const r = await csrfFetch(`/api/communities/${communityId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_platform', platform, platform_id, invite_url }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.error || 'Failed');
+    // Reload modal to show new platform
+    await openEditModal(communityId);
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 async function uploadCommunityImage(communityId, field, fileInput) {
   const file = fileInput.files[0];
   if (!file) return null;
@@ -566,7 +738,6 @@ async function saveEditCommunity() {
     // Save text fields
     const payload = {
       name: document.getElementById('editName').value.trim(),
-      platform: document.getElementById('editPlatform').value,
       short_description: document.getElementById('editShortDesc').value.trim(),
       description: document.getElementById('editDescription').value.trim(),
       invite_url: document.getElementById('editInviteUrl').value.trim(),
@@ -577,7 +748,6 @@ async function saveEditCommunity() {
       member_count: parseInt(document.getElementById('editMemberCount').value) || 0,
       allow_discovery: document.getElementById('editAllowDiscovery').checked,
       allow_joins: document.getElementById('editAllowJoins').checked,
-      site_xp_to_guild: document.getElementById('editSiteXpToGuild').checked,
       tags: [...editSelectedTags],
       guild_game: _editGuildGameSel ? (Array.isArray(_editGuildGameSel.getValue()) ? _editGuildGameSel.getValue() : (_editGuildGameSel.getValue() ? [_editGuildGameSel.getValue()] : [])) : [],
       guild_game_name: document.getElementById('editGuildGameName').value.trim() || null,
@@ -780,19 +950,49 @@ function closeDetailModal() {
         <label class="block text-sm font-medium text-gray-300 mb-1">Name</label>
         <input type="text" id="editName" maxlength="200" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
+      <!-- Connected Platforms -->
       <div>
-        <label class="block text-sm font-medium text-gray-300 mb-1">Platform</label>
-        <select id="editPlatform" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
-          <option value="matrix">Matrix</option>
-          <option value="fluxer">Fluxer</option>
-          <option value="kloak">Kloak</option>
-          <option value="stoat">Stoat</option>
-          <option value="teamspeak">TeamSpeak</option>
-          <option value="root">Root</option>
-          <option value="discord">Discord</option>
-          <option value="mumble">Mumble</option>
-          <option value="other">Other</option>
-        </select>
+        <label class="block text-sm font-medium text-gray-300 mb-2">Connected Platforms</label>
+        <div id="editPlatformsList" class="space-y-2 mb-3"></div>
+        <!-- Add Platform -->
+        <div id="editAddPlatformSection" class="hidden border border-dashed border-neutral-700 rounded-lg p-3 space-y-2">
+          <p class="text-xs text-gray-400 font-medium">Add a platform</p>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Platform</label>
+              <select id="addPlatformType" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs focus:border-purple-500 focus:outline-none">
+                <option value="fluxer">Fluxer</option>
+                <option value="discord">Discord</option>
+                <option value="stoat">Stoat</option>
+                <option value="root">Root</option>
+                <option value="teamspeak">TeamSpeak</option>
+                <option value="mumble">Mumble</option>
+                <option value="kloak">Kloak</option>
+                <option value="matrix">Matrix</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Server / Guild ID</label>
+              <input type="text" id="addPlatformId" placeholder="e.g. 123456789" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs focus:border-purple-500 focus:outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Invite URL (optional)</label>
+            <input type="url" id="addPlatformInviteUrl" placeholder="https://..." class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs focus:border-purple-500 focus:outline-none">
+          </div>
+          <div class="flex gap-2">
+            <button type="button" onclick="submitAddPlatform()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-lg transition">Add Platform</button>
+            <button type="button" onclick="document.getElementById('editAddPlatformSection').classList.add('hidden');document.getElementById('showAddPlatformBtn').classList.remove('hidden')" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs rounded-lg transition">Cancel</button>
+          </div>
+        </div>
+        <!-- Available owned servers not yet linked -->
+        <div id="editAvailablePlatforms" class="hidden mt-2 space-y-1.5"></div>
+        <button type="button" id="showAddPlatformBtn" onclick="document.getElementById('editAddPlatformSection').classList.remove('hidden');this.classList.add('hidden')"
+          class="text-xs text-purple-400 hover:text-purple-300 transition flex items-center gap-1 mt-2">
+          <i class="fas fa-plus text-[10px]"></i> Link by ID manually
+        </button>
+        <input type="hidden" id="editPlatform" value="">
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-300 mb-1">Short Description <span class="text-gray-500">(shown in directory)</span></label>
@@ -829,10 +1029,10 @@ function closeDetailModal() {
         </div>
       </div>
 
-      <!-- In-Game Guild -->
+      <!-- In-Game Guild/Clan -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-sm font-medium text-gray-300 mb-1">In-Game Guild(s)</label>
+          <label class="block text-sm font-medium text-gray-300 mb-1">In-Game Guild/Clan(s)</label>
           <div id="editGuildGameContainer"></div>
         </div>
         <div>

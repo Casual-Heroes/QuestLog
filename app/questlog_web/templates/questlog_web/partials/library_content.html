@@ -44,6 +44,32 @@
     </div>
   </div>
 
+  <!-- SECTION 3: Currently Playing -->
+  <div class="bg-neutral-900 border border-green-700/30 rounded-2xl p-5 mb-5">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>
+      <h3 class="text-white font-bold text-base">Currently Playing</h3>
+      <span id="playing-count-badge" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full">0 games</span>
+    </div>
+    <p class="text-gray-500 text-xs mb-4">Games you're actively playing. Set any game's status to "Playing" in your library below.</p>
+    <div id="playing-grid" class="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-10 gap-2 min-h-[80px]">
+      <div class="col-span-full text-center py-4 text-gray-600 text-xs"><span class="block w-3 h-3 rounded-full bg-neutral-700 mx-auto mb-2"></span>No games currently playing - set a game's status to "Playing" below</div>
+    </div>
+  </div>
+
+  <!-- SECTION 4: Played -->
+  <div class="bg-neutral-900 border border-blue-700/30 rounded-2xl p-5 mb-5">
+    <div class="flex items-center gap-2 mb-1">
+      <i class="fas fa-check text-blue-400 text-xs"></i>
+      <h3 class="text-white font-bold text-base">Played</h3>
+      <span id="played-count-badge" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full">0 games</span>
+    </div>
+    <p class="text-gray-500 text-xs mb-4">Games you've completed or put down. Set any game's status to "Played" in your library below.</p>
+    <div id="played-grid" class="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-10 gap-2 min-h-[80px]">
+      <div class="col-span-full text-center py-4 text-gray-600 text-xs"><i class="fas fa-check text-2xl mb-2 block text-neutral-700"></i>No games marked as played yet</div>
+    </div>
+  </div>
+
   <!-- SECTION 3: Full Library -->
   <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-10">
     <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -193,6 +219,8 @@ function loadLibrary(status) {
       // Always refresh the top panels when loading all games
       if (!status) {
         renderFavPanel(allGames);
+        renderPlayingPanel(allGames);
+        renderPlayedPanel(allGames);
         renderWTPPanel(allGames);
       }
     });
@@ -231,6 +259,56 @@ function renderFavPanel(games) {
   grid.querySelectorAll('[data-fav-id]').forEach(el => {
     el.addEventListener('click', e => toggleFavorite(parseInt(el.dataset.favId), e));
   });
+}
+
+function renderPlayingPanel(games) {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const playing = games.filter(g => g.status === 'playing');
+  document.getElementById('playing-count-badge').textContent = playing.length + ' game' + (playing.length !== 1 ? 's' : '');
+  const grid = document.getElementById('playing-grid');
+  if (!playing.length) {
+    grid.innerHTML = `<div class="col-span-full text-center py-4 text-gray-600 text-xs"><span class="block w-3 h-3 rounded-full bg-neutral-700 mx-auto mb-2"></span>No games currently playing - set a game's status to "Playing" below</div>`;
+    return;
+  }
+  const gameUrl = g => g.steam_app_id
+    ? `https://store.steampowered.com/app/${g.steam_app_id}/`
+    : `https://www.igdb.com/search?type=1&q=${encodeURIComponent(g.name)}`;
+  grid.innerHTML = playing.map(g => {
+    const cover = g.cover_url || '';
+    return `<a href="${gameUrl(g)}" target="_blank" rel="noopener" title="${esc(g.name)}" class="relative group block rounded-lg border border-green-600/40 bg-neutral-800 overflow-hidden aspect-[2/3] hover:border-green-500/70 transition">
+      ${cover
+        ? `<img src="${esc(cover)}" class="w-full h-full object-cover" loading="lazy" alt="${esc(g.name)}">`
+        : `<div class="w-full h-full flex flex-col items-center justify-center gap-1 p-2"><i class="fas fa-gamepad text-neutral-600 text-xl"></i><span class="text-neutral-500 text-[9px] text-center leading-tight">${esc(g.name)}</span></div>`}
+      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-end p-1.5">
+        <span class="text-white text-[9px] font-medium leading-tight line-clamp-2">${esc(g.name)}</span>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+function renderPlayedPanel(games) {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const played = games.filter(g => g.status === 'played');
+  document.getElementById('played-count-badge').textContent = played.length + ' game' + (played.length !== 1 ? 's' : '');
+  const grid = document.getElementById('played-grid');
+  if (!played.length) {
+    grid.innerHTML = `<div class="col-span-full text-center py-4 text-gray-600 text-xs"><i class="fas fa-check text-2xl mb-2 block text-neutral-700"></i>No games marked as played yet</div>`;
+    return;
+  }
+  const gameUrl = g => g.steam_app_id
+    ? `https://store.steampowered.com/app/${g.steam_app_id}/`
+    : `https://www.igdb.com/search?type=1&q=${encodeURIComponent(g.name)}`;
+  grid.innerHTML = played.map(g => {
+    const cover = g.cover_url || '';
+    return `<a href="${gameUrl(g)}" target="_blank" rel="noopener" title="${esc(g.name)}" class="relative group block rounded-lg border border-blue-600/40 bg-neutral-800 overflow-hidden aspect-[2/3] hover:border-blue-500/70 transition">
+      ${cover
+        ? `<img src="${esc(cover)}" class="w-full h-full object-cover" loading="lazy" alt="${esc(g.name)}">`
+        : `<div class="w-full h-full flex flex-col items-center justify-center gap-1 p-2"><i class="fas fa-gamepad text-neutral-600 text-xl"></i><span class="text-neutral-500 text-[9px] text-center leading-tight">${esc(g.name)}</span></div>`}
+      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-end p-1.5">
+        <span class="text-white text-[9px] font-medium leading-tight line-clamp-2">${esc(g.name)}</span>
+      </div>
+    </a>`;
+  }).join('');
 }
 
 function renderWTPPanel(games) {
@@ -307,8 +385,10 @@ function buildCard(g) {
   const statusColor = {playing:'text-green-400',played:'text-blue-400',backlog:'text-purple-400',play_together:'text-orange-400'}[g.status] || 'text-gray-400';
   const statusIcon  = {playing:'<span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1"></span>',played:'<i class="fas fa-check text-[8px] mr-1"></i>',backlog:'<i class="fas fa-clock text-[8px] mr-1"></i>',play_together:'<i class="fas fa-users text-[8px] mr-1"></i>'}[g.status] || '';
   const hrs = g.playtime_hours ? `<span class="text-cyan-400 text-[10px]">${Math.round(g.playtime_hours)} hrs</span>` : '';
+  const fbUrl = '/api/library/cover-fallback/?name=' + encodeURIComponent(g.name) + (g.steam_app_id ? '&sid=' + g.steam_app_id : '');
+  const imgOnerror = `if(this._fb){this.onerror=null;this.parentElement.querySelector('.no-cover').style.display='flex';this.style.display='none';}else{this._fb=1;this.src='${fbUrl}';}`;
   const img = cover
-    ? `<img src="${esc(cover)}" class="w-full aspect-[2/3] object-cover ${grayscaleCls}" loading="lazy" alt="${esc(g.name)}" onerror="this.parentElement.querySelector('.no-cover').style.display='flex';this.style.display='none'">`
+    ? `<img src="${esc(cover)}" class="w-full aspect-[2/3] object-cover ${grayscaleCls}" loading="lazy" alt="${esc(g.name)}" onerror="${imgOnerror}">`
     : '';
   return `
   <div class="group relative rounded-xl overflow-hidden border ${borderCls} transition cursor-pointer ${opacityCls}" onclick="openCardMenu(${g.id},event)">
@@ -395,6 +475,8 @@ function updateStatus(gameId, status) {
       if (d.success) {
         const game = allGames.find(g => g.id === gameId);
         if (game) game.status = status;
+        renderPlayingPanel(allGames);
+        renderPlayedPanel(allGames);
         renderWTPPanel(allGames);
         loadLibrary(activeStatus);
       }

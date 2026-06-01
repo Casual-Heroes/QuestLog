@@ -17,10 +17,18 @@ function formatContent(text) {
   const div = document.createElement('div');
   div.textContent = text;
   let html = div.innerHTML;
-  // Inline markdown: bold, italic, underline, code
-  if (window.renderInlineMarkdown) html = renderInlineMarkdown(html);
+  // renderInlineMarkdown handles bold/italic/underline/code AND URL linkification.
+  // Only fall back to manual URL linkification if renderInlineMarkdown is unavailable.
+  if (window.renderInlineMarkdown) {
+    html = renderInlineMarkdown(html);
+  } else {
+    html = html.replace(/(https?:\/\/[^\s<"']+)/g, function(url) {
+      var clean = url.replace(/[.,;:!?)]+$/, '');
+      var trail = url.slice(clean.length);
+      return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline break-all">' + clean + '</a>' + trail;
+    });
+  }
   html = html.replace(/\n/g, '<br>');
-  html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
   if (window._customEmojiMap) {
     html = html.replace(/:([a-zA-Z0-9_-]+):/g, (match, code) => {
       const url = window._customEmojiMap[code];
@@ -158,7 +166,6 @@ function renderPostCard(post, options = {}) {
     const rankBadge = a.rank_title
       ? `<span class="text-xs text-amber-400/70 font-medium ml-1">· ${escapePost(a.rank_title)}</span>`
       : '';
-    // Only show VIP badge if no equipped flair (avoids duplicate ⭐)
     const vipBadge = a.is_vip && !a.flair_emoji
       ? `<span class="text-xs text-purple-300 font-semibold ml-1" title="Early Tester">⭐</span>`
       : '';
@@ -289,7 +296,7 @@ function renderPostCard(post, options = {}) {
     : '';
 
   return `
-    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card cursor-pointer" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}" data-game-tag-name="${escapePost(post.game_tag_name || '')}" data-game-tag-steam-id="${post.game_tag_steam_id || ''}" data-game-tag-id="${post.game_tag_id || ''}" onclick="postCardClick(event, ${post.id}, '${post.public_id || post.id}')">
+    <div class="bg-neutral-900 rounded-xl border border-neutral-800 p-4 post-card cursor-pointer" data-post-id="${post.id}" data-author-id="${post.author ? post.author.id : ''}" data-current-user-id="${currentUserId || ''}" data-game-tag-name="${escapePost(post.game_tag_name || '')}" data-game-tag-steam-id="${post.game_tag_steam_id || ''}" data-game-tag-id="${post.game_tag_id || ''}" onclick="postCardClick(event, ${post.id}, '${post.public_id || post.id}')">
       ${authorHtml}
       <div class="post-game-tag-wrap" data-post-id="${post.id}">${gameTagHtml}</div>
       <div class="post-content-wrap">
@@ -349,6 +356,10 @@ function renderPostCard(post, options = {}) {
           <!-- Bottom bar -->
           <div class="flex items-center justify-between gap-1">
             <div class="flex items-center gap-0.5">
+              <button type="button" onmousedown="event.preventDefault();_postEditFmt(${post.id},'bold')" class="px-1.5 py-1 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition font-bold" title="Bold">B</button>
+              <button type="button" onmousedown="event.preventDefault();_postEditFmt(${post.id},'italic')" class="px-1.5 py-1 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition italic" title="Italic">I</button>
+              <button type="button" onmousedown="event.preventDefault();_postEditFmt(${post.id},'underline')" class="px-1.5 py-1 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition underline" title="Underline">U</button>
+              <span class="w-px h-4 bg-neutral-600 mx-1"></span>
               <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition">
                 <i class="fas fa-image"></i><span>Photo</span>
                 <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden" onchange="handleEditImageSelect(${post.id}, this)">
@@ -446,12 +457,15 @@ function startPostEdit(event, postId, btn) {
   textarea.focus();
   textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
   autoExpandTextarea(textarea);
-  // char count
+  // char count - guard against stacking listeners on repeat opens
   const counter = document.getElementById(`edit-char-count-${postId}`);
   if (counter) counter.textContent = `${textarea.value.length} / 3000`;
-  textarea.addEventListener('input', () => {
-    if (counter) counter.textContent = `${textarea.value.length} / 3000`;
-  });
+  if (!textarea._charCountBound) {
+    textarea._charCountBound = true;
+    textarea.addEventListener('input', () => {
+      if (counter) counter.textContent = `${textarea.value.length} / 3000`;
+    });
+  }
   // Pre-populate game tag from post data if present
   const state = _editStateFor(postId);
   state.gameTagCleared = false;
@@ -466,6 +480,21 @@ function startPostEdit(event, postId, btn) {
     const tagNameEl = document.getElementById(`edit-game-tag-name-${postId}`);
     if (tagEl && tagNameEl) { tagNameEl.textContent = existingTagName; tagEl.classList.remove('hidden'); }
   }
+}
+
+function _postEditFmt(postId, type) {
+  const ta = document.getElementById(`edit-textarea-${postId}`);
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  const map = { bold: ['**','**'], italic: ['*','*'], underline: ['<u>','</u>'] };
+  const [pre, post] = map[type];
+  const ins = sel || (type === 'bold' ? 'bold' : type === 'italic' ? 'italic' : 'underline');
+  ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+  ta.selectionStart = s + pre.length;
+  ta.selectionEnd = s + pre.length + ins.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
 }
 
 function cancelPostEdit(postId) {
@@ -756,9 +785,7 @@ function _finishEditUpdate(postId, post) {
   const contentWrap = card.querySelector('.post-content-wrap');
   const textEl = contentWrap?.querySelector('.post-content-text');
   if (textEl) {
-    const div = document.createElement('div');
-    div.textContent = post.content || '';
-    textEl.innerHTML = div.innerHTML.replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" class="text-blue-400 hover:underline">$1</a>');
+    textEl.innerHTML = formatContent(post.content || '');
     if (window._customEmojiMap) {
       textEl.innerHTML = textEl.innerHTML.replace(/:([a-zA-Z0-9_-]+):/g, (m, code) => {
         const url = window._customEmojiMap[code];
@@ -779,7 +806,7 @@ function _finishEditUpdate(postId, post) {
   card.dataset.gameTagId = post.game_tag_id || '';
   const badgeSlot = card.querySelector('.edited-badge-slot');
   if (badgeSlot && post.edited_at) {
-    badgeSlot.innerHTML = `<button onclick="showEditHistory(event, ${postId})" class="text-gray-500 hover:text-gray-300 text-xs transition"><i class="fas fa-pencil-alt text-[10px] mr-0.5"></i>edited just now</button>`;
+    badgeSlot.innerHTML = `<button onclick="showEditHistory(event, ${postId})" class="text-gray-500 hover:text-gray-300 text-xs transition"><i class="fas fa-pencil-alt text-[10px] mr-0.5"></i>edited ${timeAgo(post.edited_at)}</button>`;
   }
 }
 
@@ -906,7 +933,14 @@ async function loadComments(postId) {
     const res = await fetch(`/api/posts/${postId}/comments/`);
     const data = await res.json();
 
-    let html = buildCommentComposer(postId);
+    const _card = document.querySelector(`.post-card[data-post-id="${postId}"]`);
+    const _loggedIn = _card && _card.dataset.currentUserId && _card.dataset.currentUserId !== '';
+    let html = _loggedIn
+      ? buildCommentComposer(postId)
+      : `<div class="bg-neutral-800/40 border border-neutral-700 rounded-xl p-4 mb-3 text-center">
+           <p class="text-gray-400 text-sm mb-2">Sign in to leave a comment</p>
+           <a href="/login/?next=${encodeURIComponent(window.location.pathname)}" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2 rounded-lg transition">Sign In</a>
+         </div>`;
 
     if (data.comments && data.comments.length > 0) {
       function renderTree(c) {
@@ -939,7 +973,6 @@ function renderComment(comment, isReply = false) {
   const cmtRankBadge = author.rank_title
     ? `<span class="text-xs text-amber-400/60 ml-0.5">· ${esc(author.rank_title)}</span>`
     : '';
-  // Only show VIP badge if no equipped flair (avoids duplicate ⭐)
   const cmtVipBadge = author.is_vip && !author.flair_emoji
     ? `<span class="text-xs text-purple-300 ml-0.5" title="Early Tester">⭐</span>`
     : '';
@@ -968,9 +1001,16 @@ function renderComment(comment, isReply = false) {
           ${cmtMediaHtml}
           <div class="comment-edit-area hidden mt-1">
             <textarea class="comment-edit-textarea w-full bg-neutral-700 border border-neutral-600 rounded-lg px-2 py-1.5 text-sm text-white resize-none focus:outline-none focus:border-indigo-500" rows="2" maxlength="500">${esc(comment.content)}</textarea>
-            <div class="flex gap-2 mt-1">
-              <button onclick="saveCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white transition">Save</button>
-              <button onclick="cancelCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-neutral-700 hover:bg-neutral-600 text-gray-300 transition">Cancel</button>
+            <div class="flex items-center justify-between mt-1">
+              <div class="flex items-center gap-0.5">
+                <button type="button" onmousedown="event.preventDefault();_cmtEditFmt(${comment.id},'bold')" class="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition font-bold" title="Bold">B</button>
+                <button type="button" onmousedown="event.preventDefault();_cmtEditFmt(${comment.id},'italic')" class="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition italic" title="Italic">I</button>
+                <button type="button" onmousedown="event.preventDefault();_cmtEditFmt(${comment.id},'underline')" class="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition underline" title="Underline">U</button>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="saveCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white transition">Save</button>
+                <button onclick="cancelCommentEdit(${comment.id})" class="text-xs px-2.5 py-1 rounded bg-neutral-700 hover:bg-neutral-600 text-gray-300 transition">Cancel</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1043,6 +1083,10 @@ function buildCommentComposer(postId, opts) {
     </div>
     <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-neutral-700/50">
       <div class="flex items-center gap-0.5">
+        <button type="button" onmousedown="event.preventDefault();_cmtFmt('${cid}','bold')" class="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition font-bold" title="Bold">B</button>
+        <button type="button" onmousedown="event.preventDefault();_cmtFmt('${cid}','italic')" class="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition italic" title="Italic">I</button>
+        <button type="button" onmousedown="event.preventDefault();_cmtFmt('${cid}','underline')" class="px-1.5 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-neutral-700 rounded transition underline" title="Underline">U</button>
+        <span class="w-px h-4 bg-neutral-600 mx-1"></span>
         <label class="cursor-pointer flex items-center gap-1 text-gray-500 hover:text-green-400 px-2 py-1 rounded-lg hover:bg-neutral-700/50 text-xs transition" title="Photo">
           <i class="fas fa-image"></i><span class="hidden sm:inline">Photo</span>
           <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="_cmtImageSelect('${cid}', this, ${postId})">
@@ -1066,6 +1110,36 @@ function _closeCmtComposer(cid) {
   const el = document.getElementById(`composer-${cid}`);
   if (el) el.remove();
   delete _cmtState[cid];
+}
+
+function _cmtFmt(cid, type) {
+  const ta = document.getElementById(`cmt-text-${cid}`);
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  const map = { bold: ['**','**'], italic: ['*','*'], underline: ['<u>','</u>'] };
+  const [pre, post] = map[type];
+  const ins = sel || (type === 'bold' ? 'bold' : type === 'italic' ? 'italic' : 'underline');
+  ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+  ta.selectionStart = s + pre.length;
+  ta.selectionEnd = s + pre.length + ins.length;
+  ta.focus();
+  _cmtCharCount(cid);
+}
+
+function _cmtEditFmt(commentId, type) {
+  const editArea = document.querySelector(`[data-comment-id="${commentId}"] .comment-edit-area`);
+  const ta = editArea ? editArea.querySelector('.comment-edit-textarea') : null;
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  const map = { bold: ['**','**'], italic: ['*','*'], underline: ['<u>','</u>'] };
+  const [pre, post] = map[type];
+  const ins = sel || (type === 'bold' ? 'bold' : type === 'italic' ? 'italic' : 'underline');
+  ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+  ta.selectionStart = s + pre.length;
+  ta.selectionEnd = s + pre.length + ins.length;
+  ta.focus();
 }
 
 function _cmtCharCount(cid) {

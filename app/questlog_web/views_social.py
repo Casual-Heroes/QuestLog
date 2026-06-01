@@ -262,7 +262,10 @@ def api_followers(request, user_id):
         follower_ids = [f.follower_id for f in follows]
         users = {}
         if follower_ids:
-            for u in db.query(WebUser).filter(WebUser.id.in_(follower_ids)).all():
+            for u in db.query(WebUser).filter(
+                WebUser.id.in_(follower_ids),
+                WebUser.is_hidden == False,
+            ).all():
                 users[u.id] = u
 
         # Find which of these followers the viewer also follows back
@@ -316,7 +319,10 @@ def api_following(request, user_id):
         following_ids = [f.following_id for f in follows]
         users = {}
         if following_ids:
-            for u in db.query(WebUser).filter(WebUser.id.in_(following_ids)).all():
+            for u in db.query(WebUser).filter(
+                WebUser.id.in_(following_ids),
+                WebUser.is_hidden == False,
+            ).all():
                 users[u.id] = u
 
         # Mark which of these accounts follow the user back (mutual)
@@ -803,6 +809,7 @@ def _get_recent_activity(request):
         total_users = db.query(WebUser).filter(
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
         ).count()
 
         # Exclude posts from banned/disabled authors in all counts
@@ -832,6 +839,7 @@ def _get_recent_activity(request):
         suggested_q = db.query(WebUser).filter(
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
             WebUser.email_verified == True,
             WebUser.allow_discovery == True,
             ~WebUser.id.in_(EXCLUDED_USER_IDS),
@@ -897,6 +905,7 @@ def _get_recent_activity(request):
             WebUser.created_at >= week_ago,
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
             WebUser.email_verified == True,
             WebUser.allow_discovery == True,
             ~WebUser.id.in_(EXCLUDED_USER_IDS),
@@ -1084,6 +1093,7 @@ def _get_recent_activity(request):
             WebUser.created_at >= day_ago,
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
             WebUser.email_verified == True,
             WebUser.allow_discovery == True,
         ).order_by(WebUser.created_at.desc()).limit(5).all()
@@ -1103,6 +1113,7 @@ def _get_recent_activity(request):
             WebUser.live_checked_at >= two_days_ago,
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
             WebUser.allow_discovery == True,
         ).order_by(WebUser.live_checked_at.desc()).limit(8).all()
         for u in live_users:
@@ -1137,6 +1148,7 @@ def _get_recent_activity(request):
             WebUser.show_playing_status == True,
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
             WebUser.allow_discovery == True,
         ).order_by(WebUser.id.desc()).limit(10).all()
         for u in playing_users:
@@ -1383,10 +1395,28 @@ def _get_recent_activity(request):
                 'event_title': event.title,
             })
 
-        # Site announcements (last 1 day) - show as platform news in ticker
+        # Indie Heroes - random published games in ticker
+        from .models import WebIndieGame
+        import random as _random
+        indie_games = db.query(WebIndieGame).filter_by(is_published=True).all()
+        if indie_games:
+            sample = _random.sample(indie_games, min(3, len(indie_games)))
+            for g in sample:
+                ticker.append({
+                    'type': 'indie_hero',
+                    'username': '',
+                    'display_name': g.name,
+                    'avatar_url': g.cover_url or '',
+                    'message': g.spotlight_quote or 'Featured on Indie Heroes',
+                    'timestamp': g.created_at,
+                    'indie_slug': g.slug,
+                    'indie_name': g.name,
+                })
+
+        # Site announcements (last 12 hours) - show as platform news in ticker
         from .models import WebSiteAnnouncement
         recent_announcements = db.query(WebSiteAnnouncement).filter(
-            WebSiteAnnouncement.created_at >= day_ago,
+            WebSiteAnnouncement.created_at >= now - 43200,
         ).order_by(WebSiteAnnouncement.created_at.desc()).limit(3).all()
         for ann in recent_announcements:
             ann_author = db.query(WebUser).filter_by(id=ann.author_id).first()

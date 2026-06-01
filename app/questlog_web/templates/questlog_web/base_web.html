@@ -147,7 +147,7 @@
 <div style="margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); width: 100vw; position: relative;">
 {% if web_user and not web_user.email_verified %}
 <div id="ql-email-banner" class="lg:ml-64 bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between gap-4 text-sm">
-  <span class="text-amber-300"><i class="fas fa-envelope mr-2"></i>Please verify your email to unlock all features. Check your inbox for a link from us.</span>
+  <span class="text-amber-300"><i class="fas fa-envelope mr-2"></i>Please verify your email to unlock all features. Check your inbox - and your spam folder - for a link from us.</span>
   <form method="post" action="resend-verification/" class="shrink-0">
     {% csrf_token %}
     <button type="submit" class="text-amber-400 hover:text-amber-200 underline whitespace-nowrap">Resend email</button>

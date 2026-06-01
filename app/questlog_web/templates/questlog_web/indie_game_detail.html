@@ -1,0 +1,1390 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+
+{% block title %}{{ game_name }} - Indie Heroes | QuestLog{% endblock %}
+{% block og_title %}{{ og_title }}{% endblock %}
+{% block og_description %}{{ og_desc }}{% endblock %}
+{% block og_image %}{% if og_image %}{{ og_image }}{% endif %}{% endblock %}
+
+{% block web_content %}
+{% if not_found %}
+<div class="max-w-2xl mx-auto px-4 py-20 text-center">
+  <i class="fas fa-ghost text-5xl text-gray-700 mb-4 block"></i>
+  <h1 class="text-white font-bold text-xl mb-2">Game not found</h1>
+  <p class="text-gray-500 text-sm mb-5">This game may have been removed or isn't published yet.</p>
+  <a href="/indie-heroes/" class="text-indigo-400 hover:text-indigo-300 text-sm transition">Back to Indie Heroes</a>
+</div>
+{% else %}
+{{ game_json|json_script:"ih-game-data" }}
+
+<style>
+.ih-detail-hero {
+  position: relative;
+  overflow: hidden;
+  background: rgb(10 10 10);
+  min-height: 280px;
+}
+.ih-detail-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 20%;
+  filter: blur(18px) brightness(0.25);
+  transform: scale(1.12);
+}
+.ih-detail-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(10,10,10,0.1) 0%, rgba(10,10,10,0.7) 60%, rgba(10,10,10,1) 100%);
+}
+.ih-status-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; padding: 3px 8px; border-radius: 20px;
+}
+.ih-status-featured  { background: rgba(99,102,241,0.2);  color:#818cf8; border:1px solid rgba(99,102,241,0.3); }
+.ih-status-new       { background: rgba(34,197,94,0.2);   color:#4ade80; border:1px solid rgba(34,197,94,0.3); }
+.ih-status-spotlight { background: rgba(245,158,11,0.2);  color:#fbbf24; border:1px solid rgba(245,158,11,0.3); }
+.ih-status-alumni    { background: rgba(107,114,128,0.15);color:#9ca3af; border:1px solid rgba(107,114,128,0.2); }
+.ih-tab-btn {
+  padding: 8px 16px; font-size: 13px; font-weight: 600;
+  border-radius: 8px; cursor: pointer; transition: all 0.15s;
+  color: #6b7280; background: transparent; border: none;
+}
+.ih-tab-btn.active { background: white; color: rgb(15,15,15); }
+.ih-tab-btn:hover:not(.active) { color: white; }
+.wall-post { border-bottom: 1px solid rgb(38,38,38); }
+.wall-post:last-child { border-bottom: none; }
+</style>
+
+<div id="ih-detail-root">
+
+  <!-- Hero Banner -->
+  <div class="ih-detail-hero" id="ih-hero">
+    <div class="ih-detail-hero-bg" id="ih-hero-bg"></div>
+    <div class="ih-detail-hero-overlay"></div>
+    <div class="relative max-w-5xl mx-auto px-6 pt-8 pb-6">
+      <a href="/indie-heroes/" class="inline-flex items-center gap-2 text-gray-500 hover:text-white text-xs mb-6 transition">
+        <i class="fas fa-arrow-left"></i> Indie Heroes
+      </a>
+      <div class="flex flex-col sm:flex-row items-end gap-6">
+        <!-- Cover art -->
+        <div class="flex-shrink-0 w-28 sm:w-36">
+          <img id="ih-cover-img" src="" alt="" class="w-full max-h-52 object-cover rounded-xl shadow-2xl border border-neutral-700 bg-neutral-800">
+        </div>
+        <!-- Info -->
+        <div class="flex-1 min-w-0 pb-2">
+          <div class="flex items-center gap-2 mb-2 flex-wrap">
+            <span id="ih-status-badge"></span>
+            <span id="ih-feat-badge" class="hidden text-xs text-amber-400"><i class="fas fa-bookmark"></i> Pinned</span>
+          </div>
+          <h1 id="ih-title" class="text-3xl sm:text-4xl font-extrabold text-white mb-2 leading-tight"></h1>
+          <div class="flex flex-wrap items-center gap-3 text-sm text-gray-400 mb-3">
+            <span id="ih-release"></span>
+            <span id="ih-price" class="text-indigo-400 font-semibold"></span>
+            <div id="ih-platforms" class="flex items-center gap-1.5"></div>
+          </div>
+          <div id="ih-genres" class="flex flex-wrap gap-1.5 mb-3"></div>
+          <!-- External links -->
+          <div id="ih-ext-links" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 pb-16">
+
+    <!-- Spotlight quote banner -->
+    <div id="ih-quote-banner" class="hidden my-5 bg-gradient-to-r from-indigo-950/60 to-neutral-900/60 border border-indigo-800/30 rounded-2xl p-5">
+      <p id="ih-quote-text" class="text-indigo-200 text-base sm:text-lg font-medium italic leading-relaxed"></p>
+      <p class="text-indigo-500 text-xs mt-2 font-semibold uppercase tracking-wider">- Curated by Casual Heroes</p>
+    </div>
+
+    <!-- Dev submission status bar (for self-submitted games awaiting review) -->
+    {% if is_dev and not is_admin %}
+    <div id="ih-submission-status-bar" class="mb-4 hidden rounded-xl p-3 flex flex-wrap items-center gap-3 text-xs font-semibold"></div>
+    {% endif %}
+
+    <!-- Admin controls bar -->
+    {% if is_admin %}
+    <div class="mb-4 bg-amber-950/30 border border-amber-800/30 rounded-xl p-3 flex flex-wrap items-center gap-3">
+      <span class="text-xs text-amber-400 font-semibold"><i class="fas fa-shield-alt mr-1"></i>Admin Controls</span>
+      <button onclick="openAdminEditModal()" class="text-xs px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 rounded-lg transition">Edit</button>
+      <button id="ih-publish-btn" onclick="togglePublish()" class="text-xs px-3 py-1.5 rounded-lg border transition"></button>
+      <button id="ih-feature-btn" onclick="toggleFeature()" class="text-xs px-3 py-1.5 rounded-lg border transition"></button>
+      <button onclick="adminDeleteGame()" class="text-xs px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 border border-red-800/40 text-red-400 hover:text-red-300 rounded-lg transition ml-auto">
+        <i class="fas fa-trash mr-1"></i>Remove
+      </button>
+      <div id="ih-claim-review-bar" class="hidden flex items-center gap-2 ml-auto">
+        <span class="text-xs text-indigo-400 font-semibold"><i class="fas fa-flag mr-1"></i>Dev Claim Pending</span>
+        <button onclick="reviewClaim('approve')" class="text-xs px-3 py-1.5 bg-green-900/40 border border-green-700/40 text-green-400 hover:bg-green-800/60 rounded-lg transition">Approve Claim</button>
+        <button onclick="reviewClaim('deny')" class="text-xs px-3 py-1.5 bg-red-900/40 border border-red-700/40 text-red-400 hover:bg-red-800/60 rounded-lg transition">Deny</button>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabs + Content -->
+    <div x-data="{ tab: (window.location.hash === '#manage' && ({{ is_dev|yesno:'true,false' }} || {{ is_admin|yesno:'true,false' }})) ? 'manage' : window.location.hash === '#wall' ? 'wall' : window.location.hash === '#dev' ? 'dev' : 'about', _wallLoaded: window.location.hash === '#wall' }" class="mt-2">
+      <div class="flex gap-1 bg-neutral-900 border border-neutral-800 rounded-xl p-1 mb-5 overflow-x-auto">
+        <button @click="tab='about'"   :class="tab==='about'   ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'" class="ih-tab-btn flex-1 whitespace-nowrap">About</button>
+        <button @click="tab='wall'; if(!_wallLoaded) { _wallLoaded=true; loadWall(); }" :class="tab==='wall' ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'" class="ih-tab-btn flex-1 whitespace-nowrap">Wall <span id="ih-wall-count" class="text-xs opacity-60 ml-0.5"></span></button>
+        <button @click="tab='dev'"     :class="tab==='dev'     ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'" class="ih-tab-btn flex-1 whitespace-nowrap">Dev</button>
+        {% if is_dev or is_admin %}
+        <button @click="tab='manage'"  :class="tab==='manage'  ? 'bg-white text-neutral-900' : 'text-gray-400 hover:text-white'" class="ih-tab-btn flex-1 whitespace-nowrap">
+          <i class="fas fa-pen text-xs mr-1"></i>Manage
+        </button>
+        {% endif %}
+      </div>
+
+      <!-- ABOUT TAB -->
+      <div x-show="tab==='about'" class="space-y-5">
+        <!-- Review score -->
+        <div id="ih-review-section" class="hidden bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Steam Reviews</h3>
+          <div class="flex items-center gap-3">
+            <div class="flex-1 h-2.5 bg-neutral-700 rounded-full overflow-hidden">
+              <div id="ih-review-bar" class="h-full rounded-full transition-all" style="width:0%"></div>
+            </div>
+            <span id="ih-review-label" class="text-sm font-semibold text-white w-24 text-right"></span>
+          </div>
+        </div>
+        <!-- Spotlight write-up -->
+        <div id="ih-spotlight-section" class="hidden bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <img src="{% static 'img/siteassets/homepage/CHLogoFinal.png' %}" class="w-5 h-5 rounded" alt="CH">
+            <h3 class="text-sm font-semibold text-white">Casual Heroes Spotlight</h3>
+          </div>
+          <div id="ih-spotlight-text" class="text-gray-300 text-sm leading-relaxed prose prose-invert max-w-none"></div>
+        </div>
+        <!-- No spotlight fallback -->
+        <div id="ih-no-spotlight" class="hidden text-center py-10 text-gray-600">
+          <i class="fas fa-pen text-3xl mb-3 block"></i>
+          <p class="text-sm">Spotlight write-up coming soon.</p>
+        </div>
+      </div>
+
+      <!-- WALL TAB -->
+      <div x-show="tab==='wall'">
+        <div id="ih-wall-container">
+          <div class="text-center py-10 text-gray-600 text-sm">
+            <i class="fas fa-circle-notch fa-spin mr-2"></i>Loading...
+          </div>
+        </div>
+      </div>
+
+      <!-- DEV TAB -->
+      <div x-show="tab==='dev'" class="space-y-5">
+        <div id="ih-dev-section">
+          <div class="text-center py-10 text-gray-600 text-sm">Loading dev info...</div>
+        </div>
+      </div>
+
+      {% if is_dev or is_admin %}
+      <!-- MANAGE TAB (dev/admin only) -->
+      <div x-show="tab==='manage'" class="space-y-5">
+        {% if not is_dev %}
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 text-center">
+          <i class="fas fa-user-slash text-2xl text-amber-400/60 mb-2 block"></i>
+          <p class="text-sm font-semibold text-amber-300 mb-1">No dev account linked yet</p>
+          <p class="text-xs text-gray-500">Use <strong class="text-gray-400">Edit Spotlight</strong> to assign a QuestLog username as the developer. Once assigned, they'll see this form.</p>
+        </div>
+        {% endif %}
+        <div {% if not is_dev %}class="opacity-40 pointer-events-none select-none"{% endif %}>
+        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-4"><i class="fas fa-pen mr-2 text-indigo-400"></i>Your Dev Profile for this Game</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Dev Bio</label>
+              <textarea id="dev-bio" rows="3" placeholder="Tell the community about you and your game..."
+                        class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Devlog / Updates <span class="text-gray-600 normal-case">(supports basic markdown)</span></label>
+              <textarea id="dev-devlog" rows="5" placeholder="Share development updates, patch notes, upcoming features..."
+                        class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Website</label>
+                <input type="url" id="dev-website" placeholder="https://..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Twitter / X</label>
+                <input type="text" id="dev-twitter" placeholder="@handle or full URL"
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Discord Server</label>
+                <input type="url" id="dev-discord" placeholder="https://discord.gg/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Fluxer Server</label>
+                <input type="url" id="dev-fluxer" placeholder="https://..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">itch.io</label>
+                <input type="url" id="dev-itch" placeholder="https://..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">YouTube</label>
+                <input type="url" id="dev-youtube" placeholder="https://youtube.com/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Twitch</label>
+                <input type="url" id="dev-twitch" placeholder="https://twitch.tv/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Steam Page</label>
+                <input type="url" id="dev-steam" placeholder="https://store.steampowered.com/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">TikTok</label>
+                <input type="url" id="dev-tiktok" placeholder="https://tiktok.com/@..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Instagram</label>
+                <input type="url" id="dev-instagram" placeholder="https://instagram.com/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Facebook</label>
+                <input type="url" id="dev-facebook" placeholder="https://facebook.com/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Bluesky</label>
+                <input type="url" id="dev-bsky" placeholder="https://bsky.app/profile/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Kick</label>
+                <input type="url" id="dev-kick" placeholder="https://kick.com/..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+            </div>
+            <div class="border-t border-neutral-700 pt-4 mt-2 space-y-3">
+              <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider"><i class="fas fa-star mr-1.5 text-amber-400"></i>Spotlight Content</h4>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotlight Quote</label>
+                <input type="text" id="dev-spotlight-quote" placeholder="A short tagline for your game..."
+                       class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotlight Write-up</label>
+                <textarea id="dev-spotlight-text" rows="5" placeholder="Tell the community about your game..."
+                          class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+              </div>
+            </div>
+            <div id="dev-save-error" class="hidden text-red-400 text-sm"></div>
+            <div class="flex items-center justify-between">
+              <p id="dev-edited-note" class="text-xs text-gray-600 hidden"><i class="fas fa-pen mr-1"></i>Your edits are shown on the Dev tab with an "edited" note.</p>
+              <button onclick="saveDevEdit()"
+                      class="ml-auto px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+{% if is_admin %}
+<!-- Admin Edit Modal -->
+<div id="adminEditModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAdminEditModal()"></div>
+  <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h2 class="text-lg font-bold text-white">Edit Spotlight</h2>
+      <button onclick="closeAdminEditModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotlight Quote</label>
+        <input type="text" id="admin-quote" maxlength="500"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotlight Write-up</label>
+        <textarea id="admin-spotlight" rows="6"
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Status</label>
+          <select id="admin-status" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition">
+            <option value="featured">Featured</option>
+            <option value="new">New</option>
+            <option value="spotlight">Spotlight</option>
+            <option value="alumni">Alumni</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Assign Dev Account</label>
+          <div class="flex gap-2">
+            <input type="text" id="admin-dev-username" placeholder="Search username..."
+                   class="flex-1 bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition"
+                   oninput="ihAdminDevSearch(this.value)">
+            <button onclick="ihAdminDevLookup()" class="px-3 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-xl transition">Find</button>
+            <button onclick="ihAdminDevClear()" class="px-3 py-2 bg-red-900/50 hover:bg-red-800/60 text-red-400 text-sm rounded-xl transition" title="Remove dev link">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <input type="hidden" id="admin-dev-id">
+          <div id="admin-dev-result" class="mt-1.5 text-xs text-gray-500"></div>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-3 p-5 border-t border-neutral-800 justify-end">
+      <button onclick="closeAdminEditModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+      <button onclick="saveAdminEdit()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition">Save</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if web_user and not is_dev and not is_admin %}
+<!-- Claim Game Modal -->
+<div id="claimGameModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeClaimModal()"></div>
+  <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h2 class="text-lg font-bold text-white"><i class="fas fa-flag text-indigo-400 mr-2"></i>Claim This Game</h2>
+      <button onclick="closeClaimModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-5 space-y-4">
+      <p class="text-gray-400 text-sm">Tell us how to verify you're the developer. Include links (Steam page, itch.io profile, social accounts) or any other proof you can provide.</p>
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Verification Details</label>
+        <textarea id="claim-note" rows="4" placeholder="e.g. I'm the dev - my Steam publisher page is... my itch.io is... my Twitter is..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+      </div>
+      <div id="claim-error" class="hidden text-red-400 text-sm bg-red-950/30 border border-red-800/30 rounded-lg px-3 py-2"></div>
+    </div>
+    <div class="flex items-center justify-end gap-3 p-5 border-t border-neutral-800">
+      <button onclick="closeClaimModal()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+      <button onclick="submitClaim()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition">
+        <i class="fas fa-paper-plane mr-1.5"></i>Submit Claim
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+{% if not not_found %}
+<script>
+const _ihSlug = '{{ game_slug|escapejs }}';
+const _ihUserId = {{ web_user.id|default:"null" }};
+const _ihIsAdmin = {{ is_admin|yesno:"true,false" }};
+const _ihIsDev = {{ is_dev|yesno:"true,false" }};
+const _ihIsLoggedIn = {{ web_user|yesno:"true,false" }};
+function timeAgo(ts) {
+  const diff = Math.floor(Date.now() / 1000) - ts;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+let _ihGame = null;
+let _ihWallPage = 1;
+let _ihWallHasMore = false;
+let _ihWallPosts = [];
+
+// Load custom emoji map
+if (!window._customEmojiMap) window._customEmojiMap = {};
+if (!window._customEmojiCache) {
+  fetch('/api/emoji/').then(function(r) { return r.json(); }).then(function(data) {
+    window._customEmojiCache = data.emoji || [];
+    data.emoji.forEach(function(e) { window._customEmojiMap[e.shortcode] = e.image_url; });
+    const lolUrl = window._customEmojiMap['lol'];
+    const tabBtn = document.querySelector('.ih-wall-emoji-cat[onclick*="custom"]');
+    if (lolUrl && tabBtn) {
+      tabBtn.innerHTML = '<img src="' + lolUrl + '" class="w-4 h-4 object-contain inline-block" alt=":lol:" style="vertical-align:-2px"> Custom';
+    }
+  }).catch(function() {});
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const raw = document.getElementById('ih-game-data');
+  if (raw) {
+    _ihGame = JSON.parse(raw.textContent);
+    renderHero();
+    renderDevTab();
+    if (_ihIsDev || _ihIsAdmin) prefillManageTab();
+    if (window.location.hash === '#wall') loadWall();
+  }
+});
+
+function renderHero() {
+  const g = _ihGame;
+  if (!g) return;
+
+  const heroBg = document.getElementById('ih-hero-bg');
+  const bgUrl = g.banner_url || (g.steam_app_id ? `https://cdn.akamai.steamstatic.com/steam/apps/${g.steam_app_id}/header.jpg` : g.cover_url);
+  if (bgUrl) heroBg.style.backgroundImage = `url('${bgUrl}')`;
+
+  const cover = document.getElementById('ih-cover-img');
+  cover.src = g.cover_url || '';
+  cover.alt = g.name;
+  if (!g.cover_url) cover.classList.add('hidden');
+
+  document.getElementById('ih-title').textContent = g.name;
+
+  const statusMap = {
+    featured: ['ih-status-featured', '<i class="fas fa-star"></i> Featured'],
+    new:      ['ih-status-new',      '<i class="fas fa-bolt"></i> New'],
+    spotlight:['ih-status-spotlight','<i class="fas fa-fire"></i> Spotlight'],
+    alumni:   ['ih-status-alumni',   '<i class="fas fa-medal"></i> Alumni'],
+  };
+  const [sc, sl] = statusMap[g.status] || statusMap['featured'];
+  document.getElementById('ih-status-badge').innerHTML = `<span class="ih-status-badge ${sc}">${sl}</span>`;
+  if (g.is_featured) document.getElementById('ih-feat-badge').classList.remove('hidden');
+
+  if (g.release_date) document.getElementById('ih-release').textContent = g.release_date;
+  if (g.price) document.getElementById('ih-price').textContent = g.price;
+
+  const platEl = document.getElementById('ih-platforms');
+  const platIconMap = {
+    'PC':'<i class="fas fa-desktop"></i>','Windows':'<i class="fas fa-desktop"></i>',
+    'Mac':'<i class="fab fa-apple"></i>','Linux':'<i class="fab fa-linux"></i>',
+    'PS5':'<i class="fab fa-playstation"></i>','PS4':'<i class="fab fa-playstation"></i>',
+    'Xbox Series X|S':'<i class="fab fa-xbox"></i>','Xbox One':'<i class="fab fa-xbox"></i>',
+    'Nintendo Switch':'<i class="fas fa-gamepad"></i>',
+    'iOS':'<i class="fab fa-apple"></i>','Android':'<i class="fab fa-android"></i>',
+  };
+  platEl.innerHTML = (g.platforms||[]).map(p =>
+    `<span class="inline-flex items-center justify-center w-6 h-6 rounded bg-neutral-800 text-gray-400 text-xs" title="${escapeHtml(p)}">${platIconMap[p]||'<i class="fas fa-microchip"></i>'}</span>`
+  ).join('');
+
+  const genreEl = document.getElementById('ih-genres');
+  genreEl.innerHTML = (g.genres||[]).slice(0,5).map(t =>
+    `<span class="text-xs text-gray-400 bg-neutral-800 border border-neutral-700 px-2 py-0.5 rounded-full">${escapeHtml(t)}</span>`
+  ).join('');
+
+  // External links
+  const links = [];
+  if (g.steam_url) links.push(`<a href="${escapeHtml(g.steam_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-steam"></i>Steam</a>`);
+  if (g.igdb_url) links.push(`<a href="${escapeHtml(g.igdb_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-gamepad"></i>IGDB</a>`);
+  document.getElementById('ih-ext-links').innerHTML = links.join('');
+
+  // Dev submission status bar
+  if (_ihIsDev && !_ihIsAdmin) {
+    const statusBar = document.getElementById('ih-submission-status-bar');
+    if (statusBar && g.submission_status && g.submission_status !== 'approved') {
+      const statusMap = {
+        pending:     ['bg-amber-950/40 border border-amber-800/30 text-amber-300', '<i class="fas fa-clock mr-1.5"></i>Your submission is pending review by Casual Heroes admins.'],
+        resubmitted: ['bg-blue-950/40 border border-blue-800/30 text-blue-300', '<i class="fas fa-redo mr-1.5"></i>Your resubmission is pending review.'],
+        rejected:    ['bg-red-950/40 border border-red-800/30 text-red-300', '<i class="fas fa-times-circle mr-1.5"></i>Your submission was not accepted.' + (g.submission_note ? ` Note from admin: ${escapeHtml(g.submission_note)}` : '')],
+      };
+      const [cls, msg] = statusMap[g.submission_status] || ['bg-neutral-800 text-gray-400', g.submission_status];
+      statusBar.className = `mb-4 ${cls} rounded-xl p-3 flex flex-wrap items-center gap-3 text-xs font-semibold`;
+      statusBar.innerHTML = msg;
+      statusBar.classList.remove('hidden');
+    }
+  }
+
+  renderAboutSpotlight();
+
+  // Review score
+  if (g.review_score !== null && g.review_score !== undefined) {
+    const score = g.review_score;
+    const color = score >= 75 ? 'bg-green-500' : score >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+    const label = score >= 75 ? `Very Positive (${score}%)` : score >= 50 ? `Mixed (${score}%)` : `Negative (${score}%)`;
+    document.getElementById('ih-review-bar').className = `h-full rounded-full transition-all ${color}`;
+    document.getElementById('ih-review-bar').style.width = score + '%';
+    document.getElementById('ih-review-label').textContent = label;
+    document.getElementById('ih-review-section').classList.remove('hidden');
+  }
+
+
+  // Admin buttons
+  if (_ihIsAdmin) {
+    const pubBtn = document.getElementById('ih-publish-btn');
+    const featBtn = document.getElementById('ih-feature-btn');
+    if (pubBtn) {
+      pubBtn.textContent = g.is_published ? 'Unpublish' : 'Publish';
+      pubBtn.className = `text-xs px-3 py-1.5 rounded-lg border transition ${g.is_published ? 'bg-green-950/40 border-green-800/40 text-green-400 hover:bg-red-950/40 hover:border-red-800/40 hover:text-red-400' : 'bg-neutral-800 border-neutral-700 text-gray-400 hover:text-green-400'}`;
+    }
+    if (featBtn) {
+      featBtn.textContent = g.is_featured ? 'Unpin' : 'Pin to Top';
+      featBtn.className = `text-xs px-3 py-1.5 rounded-lg border transition ${g.is_featured ? 'bg-amber-950/40 border-amber-800/40 text-amber-400' : 'bg-neutral-800 border-neutral-700 text-gray-400 hover:text-amber-400'}`;
+    }
+    const claimBar = document.getElementById('ih-claim-review-bar');
+    if (claimBar) {
+      if (g.claim_status === 'pending_claim') {
+        claimBar.classList.remove('hidden');
+      } else {
+        claimBar.classList.add('hidden');
+      }
+    }
+  }
+}
+
+function renderDevTab() {
+  const g = _ihGame;
+  const el = document.getElementById('ih-dev-section');
+  if (!el) return;
+
+  const dev = g.dev;
+  const hasDev = dev && dev.user_id;
+  const hasDevContent = g.dev_bio || g.dev_devlog || g.dev_website || g.dev_twitter || g.dev_discord_url || g.dev_fluxer_url || g.dev_itch_url || g.dev_youtube_url || g.dev_twitch_url || g.dev_steam_url || g.dev_tiktok_url || g.dev_instagram_url || g.dev_facebook_url || g.dev_bsky_url || g.dev_kick_url;
+
+  const devLinks = [];
+  if (g.dev_website) devLinks.push(`<a href="${escapeHtml(g.dev_website)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-globe"></i>Website</a>`);
+  if (g.dev_twitter) devLinks.push(`<a href="${g.dev_twitter.startsWith('http') ? escapeHtml(g.dev_twitter) : 'https://twitter.com/'+escapeHtml(g.dev_twitter.replace('@',''))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-sky-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-twitter"></i>Twitter / X</a>`);
+  if (g.dev_bsky_url) devLinks.push(`<a href="${escapeHtml(g.dev_bsky_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-sky-300 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-cloud"></i>Bluesky</a>`);
+  if (g.dev_discord_url) devLinks.push(`<a href="${escapeHtml(g.dev_discord_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-discord"></i>Discord</a>`);
+  if (g.dev_fluxer_url) devLinks.push(`<a href="${escapeHtml(g.dev_fluxer_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-server"></i>Fluxer</a>`);
+  if (g.dev_itch_url) devLinks.push(`<a href="${escapeHtml(g.dev_itch_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-rose-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-gamepad"></i>itch.io</a>`);
+  if (g.dev_youtube_url) devLinks.push(`<a href="${escapeHtml(g.dev_youtube_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-youtube"></i>YouTube</a>`);
+  if (g.dev_twitch_url) devLinks.push(`<a href="${escapeHtml(g.dev_twitch_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-purple-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-twitch"></i>Twitch</a>`);
+  if (g.dev_kick_url) devLinks.push(`<a href="${escapeHtml(g.dev_kick_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-green-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-bolt"></i>Kick</a>`);
+  if (g.dev_tiktok_url) devLinks.push(`<a href="${escapeHtml(g.dev_tiktok_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-pink-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-tiktok"></i>TikTok</a>`);
+  if (g.dev_instagram_url) devLinks.push(`<a href="${escapeHtml(g.dev_instagram_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-pink-500 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-instagram"></i>Instagram</a>`);
+  if (g.dev_facebook_url) devLinks.push(`<a href="${escapeHtml(g.dev_facebook_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-500 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-facebook"></i>Facebook</a>`);
+  if (g.dev_steam_url) devLinks.push(`<a href="${escapeHtml(g.dev_steam_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-steam"></i>Steam</a>`);
+
+  const editedNote = g.dev_edited_at ? `<p class="text-xs text-gray-600 mt-2"><i class="fas fa-pen mr-1"></i>Dev last updated ${timeAgo(g.dev_edited_at)}</p>` : '';
+
+  if (!hasDev && !hasDevContent) {
+    const isSpotlight = g.source === 'ch_spotlight';
+    const claimStatus = g.claim_status || '';
+    let claimHtml = '';
+    if (isSpotlight) {
+      if (claimStatus === 'pending_claim') {
+        claimHtml = `<div class="mt-4 bg-amber-950/30 border border-amber-800/30 rounded-xl p-4 text-center">
+          <i class="fas fa-clock text-amber-400 text-lg mb-1 block"></i>
+          <p class="text-sm font-semibold text-amber-300 mb-1">Claim request pending</p>
+          <p class="text-xs text-gray-500">A developer has requested to claim this game. Awaiting admin review.</p>
+        </div>`;
+      } else if (_ihIsLoggedIn && !_ihIsDev && !_ihIsAdmin) {
+        claimHtml = `<div class="mt-4 bg-indigo-950/30 border border-indigo-800/30 rounded-xl p-4">
+          <p class="text-sm font-semibold text-indigo-300 mb-1"><i class="fas fa-hand-pointer mr-1.5"></i>Are you this game's developer?</p>
+          <p class="text-xs text-gray-400 mb-3">Claim this page to manage your dev profile, post devlogs, and connect with the Casual Heroes community.</p>
+          <button onclick="openClaimModal()" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+            <i class="fas fa-flag"></i> Claim This Game
+          </button>
+        </div>`;
+      } else if (!_ihIsLoggedIn) {
+        claimHtml = `<div class="mt-4 text-center">
+          <p class="text-xs text-gray-500">Are you this game's developer? <a href="/login/?next=${encodeURIComponent(window.location.pathname)}" class="text-indigo-400 hover:underline">Sign in</a> to claim this page.</p>
+        </div>`;
+      }
+    }
+    el.innerHTML = `<div class="text-center py-8 text-gray-600">
+      <i class="fas fa-rocket text-4xl mb-3 block text-amber-500/40"></i>
+      <p class="text-sm font-semibold text-gray-500 mb-1">No dev profile yet</p>
+    </div>${claimHtml}`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="space-y-4">
+      ${hasDev ? `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+        <div class="flex items-center gap-4">
+          ${dev.avatar ? `<img src="${escapeHtml(dev.avatar)}" class="w-14 h-14 rounded-xl border border-neutral-700 flex-shrink-0" alt="">` : `<div class="w-14 h-14 rounded-xl bg-neutral-700 flex items-center justify-center text-xl font-bold text-gray-400 flex-shrink-0">${escapeHtml((dev.display_name||'?').slice(0,1).toUpperCase())}</div>`}
+          <div>
+            <a href="/u/${escapeHtml(dev.username)}/" class="text-white font-bold text-lg hover:text-indigo-300 transition">${escapeHtml(dev.display_name||dev.username)}</a>
+            <p class="text-gray-500 text-sm">@${escapeHtml(dev.username)}</p>
+            <p class="text-indigo-400 text-xs mt-0.5 font-semibold"><i class="fas fa-code mr-1"></i>Indie Developer</p>
+          </div>
+        </div>
+        ${g.dev_bio ? `<p class="text-gray-300 text-sm leading-relaxed mt-4">${escapeHtml(g.dev_bio).replace(/\n/g,'<br>')}</p>` : ''}
+        ${editedNote}
+      </div>` : ''}
+      ${devLinks.length ? `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Find the Dev</h3>
+        <div class="flex flex-wrap gap-2">${devLinks.join('')}</div>
+      </div>` : ''}
+      ${g.community ? `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Community</h3>
+        <a href="/ql/communities/${g.community.id}/" class="flex items-center gap-3 hover:bg-neutral-800 rounded-xl p-2 transition -mx-2">
+          ${g.community.icon_url ? `<img src="${escapeHtml(g.community.icon_url)}" class="w-10 h-10 rounded-lg flex-shrink-0" alt="">` : `<div class="w-10 h-10 rounded-lg bg-neutral-700 flex items-center justify-center text-gray-500 flex-shrink-0"><i class="fas fa-shield-alt"></i></div>`}
+          <div>
+            <p class="text-white font-semibold text-sm">${escapeHtml(g.community.name)}</p>
+            <p class="text-gray-500 text-xs capitalize">${escapeHtml(g.community.platform)} community</p>
+          </div>
+          <i class="fas fa-chevron-right text-gray-600 text-xs ml-auto"></i>
+        </a>
+      </div>` : ''}
+      ${g.dev_devlog ? `
+      <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-3"><i class="fas fa-scroll mr-2 text-amber-400"></i>Devlog</h3>
+        <div class="text-gray-300 text-sm leading-relaxed">${escapeHtml(g.dev_devlog).replace(/\n/g,'<br>')}</div>
+      </div>` : ''}
+    </div>`;
+}
+
+function renderAboutSpotlight() {
+  const g = _ihGame;
+  if (!g) return;
+  const quoteBanner = document.getElementById('ih-quote-banner');
+  const quoteText = document.getElementById('ih-quote-text');
+  const spotlightSection = document.getElementById('ih-spotlight-section');
+  const spotlightText = document.getElementById('ih-spotlight-text');
+  const noSpotlight = document.getElementById('ih-no-spotlight');
+  if (g.spotlight_quote) {
+    quoteText.textContent = g.spotlight_quote;
+    quoteBanner.classList.remove('hidden');
+  } else {
+    quoteBanner.classList.add('hidden');
+  }
+  if (g.spotlight_text) {
+    let _st = escapeHtml(g.spotlight_text).replace(/\n/g, '<br>');
+    _st = _st.replace(/(https?:\/\/[^\s<"']+)/g, function(url) {
+      var clean = url.replace(/[.,;:!?)]+$/, '');
+      var trail = url.slice(clean.length);
+      return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline break-all">' + clean + '</a>' + trail;
+    });
+    spotlightText.innerHTML = _st;
+    spotlightSection.classList.remove('hidden');
+    if (noSpotlight) noSpotlight.classList.add('hidden');
+  } else {
+    spotlightSection.classList.add('hidden');
+    if (noSpotlight) noSpotlight.classList.remove('hidden');
+  }
+}
+
+function prefillManageTab() {
+  const g = _ihGame;
+  if (!g) return;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('dev-bio', g.dev_bio);
+  set('dev-devlog', g.dev_devlog);
+  set('dev-spotlight-quote', g.spotlight_quote);
+  set('dev-spotlight-text', g.spotlight_text);
+  set('dev-website', g.dev_website);
+  set('dev-twitter', g.dev_twitter);
+  set('dev-discord', g.dev_discord_url);
+  set('dev-fluxer', g.dev_fluxer_url);
+  set('dev-itch', g.dev_itch_url);
+  set('dev-youtube', g.dev_youtube_url);
+  set('dev-twitch', g.dev_twitch_url);
+  set('dev-steam', g.dev_steam_url);
+  set('dev-tiktok', g.dev_tiktok_url);
+  set('dev-instagram', g.dev_instagram_url);
+  set('dev-facebook', g.dev_facebook_url);
+  set('dev-bsky', g.dev_bsky_url);
+  set('dev-kick', g.dev_kick_url);
+}
+
+async function saveDevEdit() {
+  const errEl = document.getElementById('dev-save-error');
+  errEl.classList.add('hidden');
+  const payload = {
+    dev_bio: document.getElementById('dev-bio').value,
+    dev_devlog: document.getElementById('dev-devlog').value,
+    spotlight_quote: document.getElementById('dev-spotlight-quote').value,
+    spotlight_text: document.getElementById('dev-spotlight-text').value,
+    dev_website: document.getElementById('dev-website').value,
+    dev_twitter: document.getElementById('dev-twitter').value,
+    dev_discord_url: document.getElementById('dev-discord').value,
+    dev_fluxer_url: document.getElementById('dev-fluxer').value,
+    dev_itch_url: document.getElementById('dev-itch').value,
+    dev_youtube_url: document.getElementById('dev-youtube').value,
+    dev_twitch_url: document.getElementById('dev-twitch').value,
+    dev_steam_url: document.getElementById('dev-steam').value,
+    dev_tiktok_url: document.getElementById('dev-tiktok').value,
+    dev_instagram_url: document.getElementById('dev-instagram').value,
+    dev_facebook_url: document.getElementById('dev-facebook').value,
+    dev_bsky_url: document.getElementById('dev-bsky').value,
+    dev_kick_url: document.getElementById('dev-kick').value,
+  };
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/dev-edit/`, { method: 'POST', body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.ok) {
+      _ihGame.dev_bio = payload.dev_bio;
+      _ihGame.dev_devlog = payload.dev_devlog;
+      _ihGame.spotlight_quote = payload.spotlight_quote;
+      _ihGame.spotlight_text = payload.spotlight_text;
+      _ihGame.dev_website = payload.dev_website;
+      _ihGame.dev_twitter = payload.dev_twitter;
+      _ihGame.dev_discord_url = payload.dev_discord_url;
+      _ihGame.dev_fluxer_url = payload.dev_fluxer_url;
+      _ihGame.dev_itch_url = payload.dev_itch_url;
+      _ihGame.dev_youtube_url = payload.dev_youtube_url;
+      _ihGame.dev_twitch_url = payload.dev_twitch_url;
+      _ihGame.dev_steam_url = payload.dev_steam_url;
+      _ihGame.dev_tiktok_url = payload.dev_tiktok_url;
+      _ihGame.dev_instagram_url = payload.dev_instagram_url;
+      _ihGame.dev_facebook_url = payload.dev_facebook_url;
+      _ihGame.dev_bsky_url = payload.dev_bsky_url;
+      _ihGame.dev_kick_url = payload.dev_kick_url;
+      _ihGame.dev_edited_at = data.dev_edited_at;
+      if (data.spotlight_quote !== undefined) _ihGame.spotlight_quote = data.spotlight_quote;
+      if (data.spotlight_text !== undefined) _ihGame.spotlight_text = data.spotlight_text;
+      renderDevTab();
+      renderAboutSpotlight();
+      document.getElementById('dev-edited-note').classList.remove('hidden');
+    } else {
+      errEl.textContent = data.error || 'Save failed.';
+      errEl.classList.remove('hidden');
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+// ---- WALL ----
+async function loadWall(reset) {
+  if (reset) { _ihWallPage = 1; _ihWallPosts = []; }
+  const res = await fetch(`/api/indie-heroes/${_ihSlug}/wall/?page=${_ihWallPage}`);
+  const data = await res.json();
+  _ihWallHasMore = data.has_more;
+
+  const cnt = document.getElementById('ih-wall-count');
+  if (cnt) cnt.textContent = _ihWallPosts.length || '';
+
+  const container = document.getElementById('ih-wall-container');
+  if (!container) return;
+
+  if (reset || _ihWallPage === 1) {
+    let html = '';
+    // Composer
+    if (data.can_post) {
+      html += buildWallComposer();
+    } else if (!_ihUserId) {
+      html += `<div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 mb-4 text-center">
+        <p class="text-gray-400 text-sm mb-2">Sign in to post on the wall</p>
+        <a href="/login/?next=${encodeURIComponent(window.location.pathname)}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-sm transition">Sign In</a>
+      </div>`;
+    }
+    html += `<div id="ih-wall-posts" class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden"></div>`;
+    html += `<div id="ih-wall-more-wrap" class="hidden text-center mt-4"><button onclick="loadMoreWall()" class="px-5 py-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 rounded-xl text-sm transition">Load More</button></div>`;
+    container.innerHTML = html;
+  }
+
+  const postsEl = document.getElementById('ih-wall-posts');
+  if (!postsEl) return;
+
+  if (!data.posts || !data.posts.length) {
+    if (_ihWallPage === 1) {
+      postsEl.innerHTML = `<div class="text-center py-10 text-gray-600 text-sm"><i class="fas fa-comments text-3xl mb-3 block"></i>No posts yet. Be the first!</div>`;
+    }
+  } else {
+    data.posts.forEach(p => postsEl.insertAdjacentHTML('beforeend', renderWallPost(p, data.is_admin || data.is_dev)));
+    _ihWallPosts = _ihWallPosts.concat(data.posts);
+    if (cnt) cnt.textContent = _ihWallPosts.length;
+  }
+
+  document.getElementById('ih-wall-more-wrap').classList.toggle('hidden', !_ihWallHasMore);
+}
+
+function loadMoreWall() {
+  _ihWallPage++;
+  loadWall(false);
+}
+
+// ---- Wall composer state ----
+let ihWallUploadedImage = null;
+let ihWallSelectedGif = null;
+let ihWallSelectedGame = null;
+let ihWallGifTimeout = null;
+let ihWallGameTimeout = null;
+
+const IH_WALL_EMOJIS = {
+  gaming:  ['🎮','🕹️','🎯','🏆','⚔️','🛡️','🎲','👾','🤖','💀','🔥','⭐','💎','🗡️','🏹','🧙','🐉','💣','🎪','🧩','🎰','🃏','♟️','🏅','🥇','🎖️','🏴‍☠️','👑','💪','🦾'],
+  smileys: ['😀','😂','🤣','😍','🥰','😎','🤔','😤','😭','🥺','😱','🤯','😈','👀','🫡','😴','🤮','🥶','🥵','😏','🤩','😇','🙄','😬','🤪','😵','🫠','🤡','💩','👻'],
+  hands:   ['👍','👎','✌️','🤞','👊','✊','🫡','👋','🖐️','🤙','🫶','👏','🙌','🤝','🙏','🫰','🤘','🤟','🖖','✋','👆','👇','👈','👉','💪','🦾','🫵','✍️','🤳','💅'],
+  hearts:  ['❤️','💜','💙','💚','🧡','💛','🖤','🤍','💔','❤️‍🔥','💯','✅','❌','⭕','💢','💥','✨','🌟','💫','🎉','🎊','🏳️‍🌈','🫂','💤','💭','💬','👁️‍🗨️','🔔','📢','🚀'],
+  objects: ['⚡','🔫','💰','🍕','🍺','🎵','🎧','📱','💻','🖥️','⌨️','🖱️','🕐','📸','🎬','📺','🔧','⚙️','🧪','🗺️','🌍','🌙','☀️','🌈','❄️','🔑','🏠','🚗','✈️','🛸'],
+};
+
+function ihWallFmt(type) {
+  const ta = document.getElementById('ih-wall-input');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.substring(s, e);
+  const map = {bold:['**','**'], italic:['*','*'], underline:['<u>','</u>']};
+  const [pre, post] = map[type];
+  const ins = sel || type;
+  ta.value = ta.value.substring(0, s) + pre + ins + post + ta.value.substring(e);
+  ta.selectionStart = s + pre.length;
+  ta.selectionEnd = s + pre.length + ins.length;
+  ta.focus();
+  ihWallUpdatePost();
+}
+
+function ihWallUpdatePost() {
+  const content = (document.getElementById('ih-wall-input')||{}).value || '';
+  const btn = document.getElementById('ih-wall-post-btn');
+  if (btn) btn.disabled = !content.trim() && !ihWallUploadedImage && !ihWallSelectedGif;
+}
+
+function ihWallToggleEmoji() {
+  document.getElementById('ih-wall-gif-picker').classList.add('hidden');
+  document.getElementById('ih-wall-game-search').classList.add('hidden');
+  document.getElementById('ih-wall-game-results').classList.add('hidden');
+  const ep = document.getElementById('ih-wall-emoji-picker');
+  ep.classList.toggle('hidden');
+  if (!ep.classList.contains('hidden')) ihWallShowEmojiCat('gaming', null);
+}
+
+function ihWallShowEmojiCat(cat, evt) {
+  document.querySelectorAll('.ih-wall-emoji-cat').forEach(b => {
+    b.className = 'ih-wall-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700';
+  });
+  if (evt) evt.target.closest('.ih-wall-emoji-cat').className = 'ih-wall-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white';
+  const grid = document.getElementById('ih-wall-emoji-grid');
+  const customGrid = document.getElementById('ih-wall-custom-emoji-grid');
+  if (cat === 'custom') {
+    grid.classList.add('hidden');
+    customGrid.classList.remove('hidden');
+    if (!customGrid.children.length) {
+      const cache = window._customEmojiCache || [];
+      customGrid.innerHTML = !cache.length
+        ? '<p class="col-span-8 text-center text-gray-500 text-xs py-3">No custom emoji yet.</p>'
+        : cache.map(e => `<button onclick="ihWallInsertEmoji(':${escapeHtml(e.shortcode)}:')" title=":${escapeHtml(e.shortcode)}:" class="p-1 rounded hover:bg-neutral-700 transition flex items-center justify-center"><img src="${escapeHtml(e.image_url)}" class="w-6 h-6 object-contain"></button>`).join('');
+    }
+  } else {
+    customGrid.classList.add('hidden');
+    grid.classList.remove('hidden');
+    const emojis = IH_WALL_EMOJIS[cat] || [];
+    grid.innerHTML = emojis.map(e => `<button onclick="ihWallInsertEmoji('${e}')" class="w-7 h-7 flex items-center justify-center text-lg rounded hover:bg-neutral-700 transition">${e}</button>`).join('');
+  }
+}
+
+function ihWallInsertEmoji(emoji) {
+  const ta = document.getElementById('ih-wall-input');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + emoji + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  ihWallUpdatePost();
+}
+
+function ihWallToggleGif() {
+  document.getElementById('ih-wall-emoji-picker').classList.add('hidden');
+  document.getElementById('ih-wall-game-search').classList.add('hidden');
+  document.getElementById('ih-wall-game-results').classList.add('hidden');
+  const gp = document.getElementById('ih-wall-gif-picker');
+  gp.classList.toggle('hidden');
+  if (!gp.classList.contains('hidden') && !document.getElementById('ih-wall-gif-results').children.length) {
+    ihWallFetchGifs('');
+  }
+}
+
+function ihWallSearchGifs(q) {
+  clearTimeout(ihWallGifTimeout);
+  ihWallGifTimeout = setTimeout(() => ihWallFetchGifs(q), 400);
+}
+
+function ihWallFetchGifs(q) {
+  const container = document.getElementById('ih-wall-gif-results');
+  container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Loading...</p>';
+  const url = q ? '/api/gifs/search/?q=' + encodeURIComponent(q) : '/api/gifs/trending/';
+  fetch(url).then(r => r.json()).then(d => {
+    const gifs = d.gifs || d.results || [];
+    if (!gifs.length) { container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">No results</p>'; return; }
+    container.innerHTML = gifs.map(g => {
+      const preview = g.preview || g.url;
+      return `<img src="${escapeHtml(preview)}" class="w-full h-20 object-cover rounded cursor-pointer hover:opacity-80 transition" onclick="ihWallSelectGif('${escapeHtml(g.url)}','${escapeHtml(preview)}')" loading="lazy">`;
+    }).join('');
+  }).catch(() => { container.innerHTML = '<p class="col-span-3 text-gray-500 text-xs text-center py-4">Failed to load GIFs</p>'; });
+}
+
+function ihWallSelectGif(url, preview) {
+  ihWallSelectedGif = { url };
+  ihWallUploadedImage = null;
+  document.getElementById('ih-wall-gif-picker').classList.add('hidden');
+  const mp = document.getElementById('ih-wall-media-preview');
+  mp.classList.remove('hidden');
+  mp.innerHTML = `<div class="relative inline-block"><img src="${escapeHtml(preview)}" class="max-h-40 rounded-lg"><button onclick="ihWallClearMedia()" class="absolute top-1 right-1 bg-black/60 rounded-full p-1 hover:bg-red-600/80 transition"><i class="fas fa-times text-white text-xs"></i></button></div>`;
+  ihWallUpdatePost();
+}
+
+function ihWallClearMedia() {
+  ihWallUploadedImage = null;
+  ihWallSelectedGif = null;
+  const mp = document.getElementById('ih-wall-media-preview');
+  mp.classList.add('hidden'); mp.innerHTML = '';
+  ihWallUpdatePost();
+}
+
+async function ihWallHandleImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  ihWallSelectedGif = null;
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const r = await csrfFetch('/api/upload/image/', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.success) {
+      ihWallUploadedImage = d;
+      const mp = document.getElementById('ih-wall-media-preview');
+      mp.classList.remove('hidden');
+      mp.innerHTML = `<div class="relative inline-block"><img src="${escapeHtml(d.image_url)}" class="max-h-40 rounded-lg"><button onclick="ihWallClearMedia()" class="absolute top-1 right-1 bg-black/60 rounded-full p-1 hover:bg-red-600/80 transition"><i class="fas fa-times text-white text-xs"></i></button></div>`;
+      ihWallUpdatePost();
+    }
+  } catch(e) {}
+  input.value = '';
+}
+
+function ihWallToggleGame() {
+  document.getElementById('ih-wall-emoji-picker').classList.add('hidden');
+  document.getElementById('ih-wall-gif-picker').classList.add('hidden');
+  const gs = document.getElementById('ih-wall-game-search');
+  gs.classList.toggle('hidden');
+  if (!gs.classList.contains('hidden')) {
+    document.getElementById('ih-wall-game-input').focus();
+  } else {
+    document.getElementById('ih-wall-game-results').classList.add('hidden');
+  }
+}
+
+function ihWallSearchGame(q) {
+  clearTimeout(ihWallGameTimeout);
+  if (!q.trim()) { document.getElementById('ih-wall-game-results').classList.add('hidden'); return; }
+  ihWallGameTimeout = setTimeout(() => {
+    fetch('/api/igdb/search/?q=' + encodeURIComponent(q)).then(r => r.json()).then(d => {
+      const results = d.results || d.games || [];
+      const container = document.getElementById('ih-wall-game-results');
+      if (!results.length) { container.classList.add('hidden'); return; }
+      container.classList.remove('hidden');
+      container.innerHTML = '';
+      results.slice(0, 8).forEach(g => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'w-full flex items-center gap-2.5 px-3 py-2 hover:bg-neutral-800 text-left text-sm text-white transition';
+        btn.dataset.name = g.name;
+        btn.dataset.steamId = g.steam_id || '';
+        btn.innerHTML = (g.cover_url ? `<img src="${escapeHtml(g.cover_url)}" class="w-6 h-8 object-cover rounded flex-shrink-0">` : '<div class="w-6 h-8 bg-neutral-700 rounded flex-shrink-0"></div>')
+          + `<span class="truncate">${escapeHtml(g.name)}</span>`;
+        btn.addEventListener('mousedown', e => {
+          e.preventDefault();
+          ihWallSelectGame(btn.dataset.name, btn.dataset.steamId ? parseInt(btn.dataset.steamId) : null);
+        });
+        container.appendChild(btn);
+      });
+    }).catch(() => {});
+  }, 300);
+}
+
+function ihWallSelectGame(name, steamId) {
+  ihWallSelectedGame = { name, steam_id: steamId };
+  document.getElementById('ih-wall-game-search').classList.add('hidden');
+  document.getElementById('ih-wall-game-input').value = '';
+  document.getElementById('ih-wall-game-results').classList.add('hidden');
+  document.getElementById('ih-wall-game-tag-name').textContent = name;
+  document.getElementById('ih-wall-game-tag-display').classList.remove('hidden');
+  ihWallUpdatePost();
+}
+
+function ihWallClearGameTag() {
+  ihWallSelectedGame = null;
+  document.getElementById('ih-wall-game-tag-display').classList.add('hidden');
+  ihWallUpdatePost();
+}
+
+function renderWallContent(p) {
+  let html = '';
+  if (p.content) {
+    let text = escapeHtml(p.content);
+    text = text.replace(/:([a-zA-Z0-9_]+):/g, function(match, code) {
+      const url = window._customEmojiMap && window._customEmojiMap[code];
+      if (url) return '<img src="' + escapeHtml(url) + '" alt=":' + escapeHtml(code) + ':" class="inline-block w-5 h-5 object-contain align-middle" style="vertical-align:-3px">';
+      return match;
+    });
+    // bold / italic / underline
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    text = text.replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, '<u>$1</u>');
+    // linkify URLs
+    text = text.replace(/(https?:\/\/[^\s<"']+)/g, function(url) {
+      var clean = url.replace(/[.,;:!?)]+$/, '');
+      var trail = url.slice(clean.length);
+      return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:underline break-all">' + clean + '</a>' + trail;
+    });
+    html += '<p class="text-sm text-gray-300 mt-1.5 leading-relaxed whitespace-pre-wrap break-words">' + text + '</p>';
+  }
+  if (p.game_tag_name) {
+    const gameHref = p.game_tag_steam_id
+      ? `https://store.steampowered.com/app/${p.game_tag_steam_id}/`
+      : `/lfg/browse/?game=${encodeURIComponent(p.game_tag_name)}`;
+    const gameTarget = p.game_tag_steam_id ? ' target="_blank" rel="noopener noreferrer"' : '';
+    html += `<div class="mt-2"><a href="${gameHref}"${gameTarget} class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 rounded-full text-xs font-medium transition"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>${escapeHtml(p.game_tag_name)}</a></div>`;
+  }
+  if (p.media_url) {
+    html += `<div class="mt-3"><img src="${escapeHtml(p.media_url)}" class="rounded-xl max-w-full max-h-80 object-contain" loading="lazy" alt=""></div>`;
+  }
+  return html;
+}
+
+
+function buildWallComposer() {
+  return `<div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden mb-4" id="ih-composer">
+    <div id="ih-wall-game-tag-display" class="hidden px-4 pt-3">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-medium">
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>
+        <span id="ih-wall-game-tag-name"></span>
+        <button onclick="ihWallClearGameTag()" class="ml-0.5 hover:text-red-400"><i class="fas fa-times text-xs"></i></button>
+      </span>
+    </div>
+    <textarea id="ih-wall-input" rows="2" placeholder="Post on the wall..."
+              class="w-full bg-transparent px-4 pt-3 pb-2 text-white text-sm focus:outline-none resize-none"
+              oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';ihWallUpdatePost()"></textarea>
+    <div id="ih-wall-media-preview" class="hidden px-4 pb-2"></div>
+    <div class="px-4 py-2.5 border-t border-neutral-800">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-0.5">
+          <button type="button" onmousedown="event.preventDefault();ihWallFmt('bold')" class="px-2 py-1 text-xs font-bold text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition" title="Bold">B</button>
+          <button type="button" onmousedown="event.preventDefault();ihWallFmt('italic')" class="px-2 py-1 text-xs italic text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition" title="Italic">I</button>
+          <button type="button" onmousedown="event.preventDefault();ihWallFmt('underline')" class="px-2 py-1 text-xs underline text-gray-500 hover:text-white hover:bg-neutral-800 rounded transition" title="Underline">U</button>
+          <div class="w-px h-4 bg-neutral-700 mx-1"></div>
+          <label class="cursor-pointer flex items-center gap-1.5 text-gray-500 hover:text-green-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-medium transition" title="Photo">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span class="hidden sm:inline">Photo</span>
+            <input type="file" id="ih-wall-image-input" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" onchange="ihWallHandleImage(this)">
+          </label>
+          <button onclick="ihWallToggleGif()" class="flex items-center gap-1.5 text-gray-500 hover:text-purple-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs font-bold transition" title="GIF">GIF</button>
+          <button onclick="ihWallToggleEmoji()" class="flex items-center gap-1.5 text-gray-500 hover:text-yellow-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition" title="Emoji">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span class="hidden sm:inline ml-0.5">Emoji</span>
+          </button>
+          <button onclick="ihWallToggleGame()" class="flex items-center gap-1.5 text-gray-500 hover:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 text-xs transition" title="Tag a game">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5S14.67 12 15.5 12s1.5.67 1.5 1.5S16.33 15 15.5 15zm3-3c-.83 0-1.5-.67-1.5-1.5S17.67 10 18.5 10s1.5.67 1.5 1.5S19.33 12 18.5 12z"/></svg>
+            <span class="hidden sm:inline ml-0.5">Game</span>
+          </button>
+        </div>
+        <button id="ih-wall-post-btn" onclick="submitWallPost()" disabled
+          class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition">Post</button>
+      </div>
+      <div id="ih-wall-emoji-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl p-3 max-h-52 overflow-y-auto">
+        <div class="flex gap-1 mb-2 border-b border-neutral-700 pb-2 flex-wrap">
+          <button onclick="ihWallShowEmojiCat('gaming',event)" class="ih-wall-emoji-cat text-xs px-2 py-1 rounded bg-neutral-700 text-white">🎮 Gaming</button>
+          <button onclick="ihWallShowEmojiCat('smileys',event)" class="ih-wall-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">😀 Faces</button>
+          <button onclick="ihWallShowEmojiCat('hands',event)" class="ih-wall-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">👍 Hands</button>
+          <button onclick="ihWallShowEmojiCat('hearts',event)" class="ih-wall-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">❤️ React</button>
+          <button onclick="ihWallShowEmojiCat('objects',event)" class="ih-wall-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">⚡ Misc</button>
+          <button onclick="ihWallShowEmojiCat('custom',event)" class="ih-wall-emoji-cat text-xs px-2 py-1 rounded text-gray-400 hover:bg-neutral-700">✨ Custom</button>
+        </div>
+        <div id="ih-wall-emoji-grid" class="grid grid-cols-10 gap-0.5"></div>
+        <div id="ih-wall-custom-emoji-grid" class="hidden grid grid-cols-8 gap-1"></div>
+      </div>
+      <div id="ih-wall-gif-picker" class="hidden mt-2 bg-neutral-800 border border-neutral-700 rounded-xl overflow-hidden">
+        <div class="p-2 border-b border-neutral-700">
+          <input type="text" id="ih-wall-gif-search" placeholder="Search GIFs..."
+            class="w-full bg-neutral-900 border border-neutral-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            oninput="ihWallSearchGifs(this.value)">
+        </div>
+        <div id="ih-wall-gif-results" class="grid grid-cols-3 gap-1 p-2 max-h-56 overflow-y-auto">
+          <p class="col-span-3 text-gray-500 text-xs text-center py-4">Search or browse trending GIFs</p>
+        </div>
+        <div class="px-2 py-1 border-t border-neutral-700 text-right"><span class="text-gray-600 text-xs">Powered by GIPHY</span></div>
+      </div>
+      <div id="ih-wall-game-search" class="hidden mt-2">
+        <input type="text" id="ih-wall-game-input" placeholder="Search for a game to tag..."
+          class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+          oninput="ihWallSearchGame(this.value)">
+      </div>
+      <div id="ih-wall-game-results" class="hidden bg-neutral-900 border border-neutral-700 rounded-lg mt-1 max-h-48 overflow-y-auto z-50"></div>
+    </div>
+  </div>`;
+}
+
+function renderWallPost(p, canManage) {
+  const replies = (p.replies||[]).map(r => renderWallPost(r, canManage)).join('');
+  const isReply = !!p.parent_id;
+  const deleteBtn = (p.is_mine || canManage) ? `<button onclick="deleteWallPost(${p.id},${p.parent_id||'null'})" class="text-gray-600 hover:text-red-400 transition text-xs"><i class="fas fa-trash"></i></button>` : '';
+  const pinBtn = canManage && !isReply ? `<button onclick="pinWallPost(${p.id}, ${!p.is_pinned})" class="text-gray-600 hover:text-amber-400 transition text-xs" title="${p.is_pinned ? 'Unpin' : 'Pin'}"><i class="fas fa-thumbtack"></i></button>` : '';
+  return `
+    <div class="wall-post px-4 py-3 ${isReply ? 'pl-10 bg-neutral-800/30' : ''}" id="ih-post-${p.id}">
+      <div class="flex items-start gap-3">
+        ${p.author_avatar ? `<img src="${escapeHtml(p.author_avatar)}" class="w-8 h-8 rounded-full flex-shrink-0 mt-0.5">` : `<div class="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center text-xs font-bold text-gray-400 flex-shrink-0 mt-0.5">${escapeHtml((p.author_display_name||'?').slice(0,1).toUpperCase())}</div>`}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <a href="/u/${escapeHtml(p.author_username)}/" class="text-white font-semibold text-sm hover:text-indigo-300 transition">${escapeHtml(p.author_display_name||p.author_username)}</a>
+            ${p.is_pinned ? `<span class="text-[10px] text-amber-400 font-bold"><i class="fas fa-thumbtack mr-0.5"></i>Pinned</span>` : ''}
+            <span class="text-gray-600 text-xs ml-auto">${timeAgo(p.created_at)}</span>
+          </div>
+          ${renderWallContent(p)}
+          <div class="flex items-center gap-3 mt-2">
+            <button onclick="likeWallPost(${p.id}, ${p.liked ? 'false' : 'true'})" id="ih-like-${p.id}"
+                    class="text-xs flex items-center gap-1 ${p.liked ? 'text-rose-400' : 'text-gray-600 hover:text-rose-400'} transition">
+              <i class="fas fa-heart"></i><span id="ih-like-count-${p.id}">${p.like_count||0}</span>
+            </button>
+            <button onclick="showReplyBox(${p.id})" class="text-xs text-gray-600 hover:text-indigo-400 transition"><i class="fas fa-reply mr-1"></i>Reply</button>
+            ${deleteBtn}
+            ${pinBtn}
+          </div>
+          <div id="ih-reply-box-${p.id}" class="hidden mt-2">
+            <textarea id="ih-reply-text-${p.id}" rows="2" placeholder="Write a reply..."
+                      class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none transition resize-none"></textarea>
+            <div class="flex gap-2 mt-1.5">
+              <button onclick="submitReply(${p.id})" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition">Reply</button>
+              <button onclick="document.getElementById('ih-reply-box-${p.id}').classList.add('hidden')" class="px-3 py-1 text-gray-500 hover:text-white text-xs transition">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      ${replies ? `<div class="mt-1">${replies}</div>` : ''}
+    </div>`;
+}
+
+async function submitWallPost() {
+  const ta = document.getElementById('ih-wall-input');
+  const content = (ta ? ta.value : '').trim();
+  if (!content && !ihWallUploadedImage && !ihWallSelectedGif) return;
+  const payload = { content };
+  if (ihWallSelectedGif) { payload.gif_url = ihWallSelectedGif.url; }
+  else if (ihWallUploadedImage) { payload.image_url = ihWallUploadedImage.image_url; payload.thumbnail_url = ihWallUploadedImage.thumbnail_url; }
+  if (ihWallSelectedGame) { payload.game_tag_name = ihWallSelectedGame.name; payload.game_tag_steam_id = ihWallSelectedGame.steam_id; }
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/wall/`, {
+      method: 'POST', body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+      ihWallClearMedia();
+      ihWallClearGameTag();
+      ihWallSelectedGame = null;
+      document.getElementById('ih-wall-post-btn').disabled = true;
+      const postsEl = document.getElementById('ih-wall-posts');
+      if (postsEl) {
+        postsEl.innerHTML = renderWallPost(data.post, _ihIsAdmin || _ihIsDev) + postsEl.innerHTML;
+        postsEl.querySelector('.text-center')?.remove();
+      }
+      _ihWallPosts.unshift(data.post);
+      const cnt = document.getElementById('ih-wall-count');
+      if (cnt) cnt.textContent = _ihWallPosts.length;
+    }
+  } catch(e) {}
+}
+
+function showReplyBox(postId) {
+  document.getElementById(`ih-reply-box-${postId}`)?.classList.remove('hidden');
+  document.getElementById(`ih-reply-text-${postId}`)?.focus();
+}
+
+async function submitReply(parentId) {
+  const ta = document.getElementById(`ih-reply-text-${parentId}`);
+  const content = (ta.value || '').trim();
+  if (!content) return;
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/wall/`, {
+      method: 'POST', body: JSON.stringify({ content, parent_id: parentId })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      ta.value = '';
+      document.getElementById(`ih-reply-box-${parentId}`)?.classList.add('hidden');
+      const parentEl = document.getElementById(`ih-post-${parentId}`);
+      if (parentEl) {
+        const replyHtml = renderWallPost(data.post, _ihIsAdmin || _ihIsDev);
+        parentEl.insertAdjacentHTML('beforeend', replyHtml);
+      }
+    }
+  } catch(e) {}
+}
+
+async function likeWallPost(postId, like) {
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/wall/${postId}/action/`, {
+      method: 'POST', body: JSON.stringify({ action: like ? 'like' : 'unlike' })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const btn = document.getElementById(`ih-like-${postId}`);
+      const cnt = document.getElementById(`ih-like-count-${postId}`);
+      if (btn) btn.className = `text-xs flex items-center gap-1 ${like ? 'text-rose-400' : 'text-gray-600 hover:text-rose-400'} transition`;
+      if (btn) btn.setAttribute('onclick', `likeWallPost(${postId}, ${!like})`);
+      if (cnt) cnt.textContent = data.like_count;
+    }
+  } catch(e) {}
+}
+
+async function deleteWallPost(postId, parentId) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/wall/${postId}/action/`, {
+      method: 'POST', body: JSON.stringify({ action: 'delete' })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById(`ih-post-${postId}`)?.remove();
+    }
+  } catch(e) {}
+}
+
+async function pinWallPost(postId, pin) {
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/wall/${postId}/action/`, {
+      method: 'POST', body: JSON.stringify({ action: pin ? 'pin' : 'unpin' })
+    });
+    const data = await res.json();
+    if (data.ok) loadWall(true);
+  } catch(e) {}
+}
+
+// ---- ADMIN ----
+{% if is_admin %}
+function openAdminEditModal() {
+  const g = _ihGame;
+  document.getElementById('admin-quote').value = g.spotlight_quote || '';
+  document.getElementById('admin-spotlight').value = g.spotlight_text || '';
+  document.getElementById('admin-status').value = g.status || 'featured';
+  document.getElementById('admin-dev-id').value = g.dev ? g.dev.user_id || '' : '';
+  const devUsername = g.dev ? g.dev.username || '' : '';
+  document.getElementById('admin-dev-username').value = devUsername;
+  document.getElementById('admin-dev-result').textContent = devUsername ? 'Currently assigned: @' + devUsername : '';
+  document.getElementById('adminEditModal').classList.remove('hidden');
+}
+let _ihDevSearchTimer = null;
+function ihAdminDevSearch(val) {
+  clearTimeout(_ihDevSearchTimer);
+  if (!val.trim()) { document.getElementById('admin-dev-id').value = ''; document.getElementById('admin-dev-result').textContent = ''; return; }
+  _ihDevSearchTimer = setTimeout(() => ihAdminDevLookup(), 500);
+}
+function ihAdminDevClear() {
+  document.getElementById('admin-dev-id').value = '';
+  document.getElementById('admin-dev-username').value = '';
+  document.getElementById('admin-dev-result').innerHTML = '<span class="text-amber-400"><i class="fas fa-times mr-1"></i>Dev will be unlinked on Save</span>';
+}
+async function ihAdminDevLookup() {
+  const username = document.getElementById('admin-dev-username').value.trim().replace('@','');
+  if (!username) return;
+  const res = document.getElementById('admin-dev-result');
+  res.textContent = 'Searching...';
+  try {
+    const r = await csrfFetch(`/api/user-lookup/?username=${encodeURIComponent(username)}`);
+    const data = await r.json();
+    if (data.user) {
+      document.getElementById('admin-dev-id').value = data.user.id;
+      res.innerHTML = '<span class="text-green-400"><i class="fas fa-check mr-1"></i>Found: ' + escapeHtml(data.user.display_name || data.user.username) + ' (ID ' + data.user.id + ')</span>';
+    } else {
+      document.getElementById('admin-dev-id').value = '';
+      res.innerHTML = '<span class="text-red-400">User not found</span>';
+    }
+  } catch(e) {
+    res.innerHTML = '<span class="text-red-400">Lookup failed</span>';
+  }
+}
+function closeAdminEditModal() {
+  document.getElementById('adminEditModal').classList.add('hidden');
+}
+async function saveAdminEdit() {
+  const payload = {
+    spotlight_quote: document.getElementById('admin-quote').value,
+    spotlight_text: document.getElementById('admin-spotlight').value,
+    status: document.getElementById('admin-status').value,
+    dev_user_id: parseInt(document.getElementById('admin-dev-id').value) || null,
+  };
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/update/`, { method: 'POST', body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.ok) {
+      const devChanged = payload.dev_user_id !== (_ihGame.dev ? _ihGame.dev.user_id || null : null);
+      Object.assign(_ihGame, data.game);
+      closeAdminEditModal();
+      if (devChanged) {
+        window.location.reload();
+      } else {
+        renderHero();
+        renderDevTab();
+      }
+    }
+  } catch(e) {}
+}
+async function togglePublish() {
+  const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/update/`, {
+    method: 'POST', body: JSON.stringify({ is_published: !_ihGame.is_published })
+  });
+  const data = await res.json();
+  if (data.ok) { Object.assign(_ihGame, data.game); renderHero(); }
+}
+async function toggleFeature() {
+  const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/update/`, {
+    method: 'POST', body: JSON.stringify({ is_featured: !_ihGame.is_featured })
+  });
+  const data = await res.json();
+  if (data.ok) { Object.assign(_ihGame, data.game); renderHero(); }
+}
+async function adminDeleteGame() {
+  if (!confirm(`Permanently remove "${_ihGame.name}" from Indie Heroes? This cannot be undone.`)) return;
+  const res = await csrfFetch(`/ql/api/indie-heroes/${_ihSlug}/delete/`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.ok) {
+    window.location.href = '/ql/indie-heroes/';
+  } else {
+    alert(data.error || 'Delete failed.');
+  }
+}
+{% endif %}
+
+// ---- CLAIM FLOW ----
+function openClaimModal() {
+  const modal = document.getElementById('claimGameModal');
+  if (modal) modal.classList.remove('hidden');
+}
+function closeClaimModal() {
+  const modal = document.getElementById('claimGameModal');
+  if (modal) modal.classList.add('hidden');
+}
+async function submitClaim() {
+  const note = (document.getElementById('claim-note')?.value || '').trim();
+  const errEl = document.getElementById('claim-error');
+  if (errEl) errEl.classList.add('hidden');
+  if (!note) {
+    if (errEl) { errEl.textContent = 'Please provide verification details.'; errEl.classList.remove('hidden'); }
+    return;
+  }
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/claim/`, { method: 'POST', body: JSON.stringify({ note }) });
+    const data = await res.json();
+    if (data.ok) {
+      closeClaimModal();
+      _ihGame.claim_status = 'pending_claim';
+      renderDevTab();
+    } else {
+      if (errEl) { errEl.textContent = data.error || 'Failed to submit claim.'; errEl.classList.remove('hidden'); }
+    }
+  } catch(e) {
+    if (errEl) { errEl.textContent = 'Network error.'; errEl.classList.remove('hidden'); }
+  }
+}
+{% if is_admin %}
+async function reviewClaim(action) {
+  const label = action === 'approve' ? 'approve this dev claim' : 'deny this claim request';
+  if (!confirm(`Are you sure you want to ${label}?`)) return;
+  try {
+    const res = await csrfFetch(`/api/indie-heroes/${_ihSlug}/claim-review/`, { method: 'POST', body: JSON.stringify({ action }) });
+    const data = await res.json();
+    if (data.ok) {
+      if (action === 'approve') {
+        window.location.reload();
+      } else {
+        _ihGame.claim_status = '';
+        document.getElementById('ih-claim-review-bar')?.classList.add('hidden');
+        renderDevTab();
+      }
+    }
+  } catch(e) {}
+}
+{% endif %}
+</script>
+{% endif %}
+{% endblock %}

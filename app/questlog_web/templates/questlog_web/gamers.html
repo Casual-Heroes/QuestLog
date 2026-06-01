@@ -530,7 +530,9 @@ function loadCommunityPanel(g) {
           <a href="/u/${esc(p.username)}/" class="text-white text-sm font-medium hover:text-indigo-300 transition block truncate">${esc(p.display_name||p.username)}</a>
           ${p.playtime_hours ? `<p class="text-gray-500 text-[10px]">${Math.round(p.playtime_hours)} hrs</p>` : ''}
         </div>
-        <a href="/lfg/create/?game=${encodeURIComponent(g.name)}" class="text-[11px] px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition flex-shrink-0">Invite</a>
+        ${p.can_dm
+          ? `<a href="/ql/messages/new/${p.user_id}/" class="text-[11px] px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 hover:bg-indigo-600/30 transition flex-shrink-0"><i class="fas fa-lock text-[9px] mr-0.5"></i>DM</a>`
+          : ''}
       </div>`
     ).join('') || '<p class="text-gray-600 text-xs">No one has flagged Play Together yet.</p>';
 

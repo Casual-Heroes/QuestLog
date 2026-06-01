@@ -424,13 +424,13 @@ function annSearchGifs(q) {
   _annGifTimer = setTimeout(async function() {
     if (!q) return;
     try {
-      const r = await fetch('/api/giphy/search/?q=' + encodeURIComponent(q) + '&limit=9');
+      const r = await fetch('/ql/api/gifs/search/?q=' + encodeURIComponent(q) + '&limit=9');
       const d = await r.json();
       const grid = document.getElementById('annGifResults');
       grid.innerHTML = '';
-      (d.gifs || []).forEach(function(g) {
+      (d.results || []).forEach(function(g) {
         const img = document.createElement('img');
-        img.src = g.preview_url || g.url;
+        img.src = g.preview || g.url;
         img.className = 'rounded cursor-pointer hover:opacity-80 transition w-full h-20 object-cover';
         img.onclick = function() {
           _annMediaItems.push({url: g.url, type: 'gif'});

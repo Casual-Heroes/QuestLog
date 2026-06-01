@@ -267,11 +267,42 @@
         </div>
       </div>
 
+      <!-- Indie dev toggle -->
+      <div style="margin: 18px 0 6px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;">
+          <div id="dev-toggle-track" onclick="toggleDevSection()"
+            style="width:44px;height:24px;border-radius:12px;background:{% if is_dev %}#6d28d9{% else %}#3f3f46{% endif %};position:relative;transition:background 0.2s;flex-shrink:0;cursor:pointer;">
+            <div id="dev-toggle-thumb"
+              style="width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:3px;left:{% if is_dev %}23px{% else %}3px{% endif %};transition:left 0.2s;"></div>
+          </div>
+          <span style="font-size:0.88rem;color:#d4d4d8;font-weight:500;">I'm an indie game developer</span>
+        </label>
+        <input type="hidden" name="is_dev" id="is_dev_input" value="{% if is_dev %}1{% else %}0{% endif %}">
+      </div>
+
+      <!-- Dev game submission section (revealed when toggle is on) -->
+      <div id="dev-game-section" style="display:{% if is_dev %}block{% else %}none{% endif %};background:#1c1c27;border:1px solid #4c1d95;border-radius:12px;padding:16px;margin-bottom:12px;">
+        <p style="font-size:0.8rem;color:#a78bfa;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.08em;">Your Game</p>
+        <div class="ql-field" style="margin-bottom:10px;">
+          <label for="dev_game_name" style="font-size:0.75rem;">Game Name</label>
+          <input type="text" id="dev_game_name" name="dev_game_name" value="{{ dev_game_name|default:'' }}" placeholder="e.g. Hollow Knight, Celeste..." maxlength="200">
+        </div>
+        <div class="ql-field" style="margin-bottom:10px;">
+          <label for="dev_game_pitch" style="font-size:0.75rem;">Short Pitch <span style="color:#6b7280;font-weight:400;">(what makes it special?)</span></label>
+          <textarea id="dev_game_pitch" name="dev_game_pitch" placeholder="1-2 sentences. What is your game and what makes it stand out?" maxlength="1000" rows="3" style="width:100%;background:#0a0a0f;border:1px solid #3f3f46;border-radius:8px;padding:10px 12px;color:#f4f4f5;font-size:0.88rem;resize:vertical;">{{ dev_game_pitch|default:'' }}</textarea>
+        </div>
+        <div class="ql-field" style="margin-bottom:0;">
+          <label for="dev_game_link" style="font-size:0.75rem;">Steam or itch.io Link</label>
+          <input type="url" id="dev_game_link" name="dev_game_link" value="{{ dev_game_link|default:'' }}" placeholder="https://store.steampowered.com/app/... or https://yourname.itch.io/..." maxlength="500">
+        </div>
+        <p style="font-size:0.75rem;color:#6b7280;margin:10px 0 0;">Your game page goes live once approved. Fill it out fully after sign-up.</p>
+      </div>
+
       {% if turnstile_site_key %}
       <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" style="margin: 14px 0 6px;"></div>
       {% endif %}
 
-      <button type="submit" class="ql-btn-primary">Create Account</button>
+      <button type="submit" class="ql-btn-primary" id="reg-submit-btn">Create Account</button>
     </form>
 
     {% endif %}{# registrations_disabled #}
@@ -366,6 +397,28 @@
       });
     }
   });
+
+  function toggleDevSection() {
+    var input   = document.getElementById('is_dev_input');
+    var section = document.getElementById('dev-game-section');
+    var track   = document.getElementById('dev-toggle-track');
+    var thumb   = document.getElementById('dev-toggle-thumb');
+    var btn     = document.getElementById('reg-submit-btn');
+    var isOn    = input.value === '1';
+    if (isOn) {
+      input.value = '0';
+      track.style.background = '#3f3f46';
+      thumb.style.left = '3px';
+      section.style.display = 'none';
+      btn.textContent = 'Create Account';
+    } else {
+      input.value = '1';
+      track.style.background = '#6d28d9';
+      thumb.style.left = '23px';
+      section.style.display = 'block';
+      btn.textContent = 'Create Account & Submit Game';
+    }
+  }
 </script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {

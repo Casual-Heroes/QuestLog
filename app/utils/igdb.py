@@ -129,11 +129,31 @@ class IGDBClient:
                     headers=headers,
                     data=query_body
                 ) as resp:
-                    if resp.status != 200:
+                    if resp.status == 401:
+                        # Token expired - clear it and retry once
+                        self.access_token = None
+                        self.token_expires_at = None
+                        token = await self.get_access_token()
+                        headers['Authorization'] = f'Bearer {token}'
+                    elif resp.status != 200:
                         error_text = await resp.text()
                         logger.error(f"IGDB search failed: {resp.status} - {error_text}")
                         return []
+                    else:
+                        data = await resp.json()
+                        return [IGDBGame(game) for game in data]
 
+            # Retry after token refresh
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.BASE_URL}/games",
+                    headers=headers,
+                    data=query_body
+                ) as resp:
+                    if resp.status != 200:
+                        error_text = await resp.text()
+                        logger.error(f"IGDB search retry failed: {resp.status} - {error_text}")
+                        return []
                     data = await resp.json()
                     return [IGDBGame(game) for game in data]
 

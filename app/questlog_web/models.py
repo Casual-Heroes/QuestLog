@@ -194,9 +194,12 @@ class WebUser(Base):
     is_ffxiv_member = Column(Boolean, default=False)     # CH FFXIV crew - can write to FC progression
     is_eso_member = Column(Boolean, default=False)       # CH ESO crew
     is_contributor = Column(Boolean, default=False)      # Blog/article contributor - can create/edit articles
+    is_indie_dev        = Column(Boolean, default=False)  # Indie game developer - can submit/manage games on Indie Heroes
+    indie_dev_pending   = Column(Boolean, default=False)  # Applied for dev account, awaiting admin approval
     is_banned = Column(Boolean, default=False)
     ban_reason = Column(Text, nullable=True)
     is_disabled = Column(Boolean, default=False)  # Account locked (soft ban - no login)
+    is_hidden = Column(Boolean, default=False)    # Hidden from all public pages (admin/mod only visible)
     posting_timeout_until = Column(BigInteger, nullable=True)  # Unix ts: cannot post/comment until this time
 
     # Timestamps
@@ -440,6 +443,7 @@ class WebCommunityPost(Base):
     parent_id     = Column(Integer, ForeignKey('web_community_posts.id', ondelete='CASCADE'), nullable=True)
     event_id      = Column(Integer, ForeignKey('web_community_events.id', ondelete='SET NULL'), nullable=True)
     lfg_group_id  = Column(Integer, ForeignKey('web_lfg_groups.id', ondelete='CASCADE'), nullable=True)
+    indie_game_id = Column(Integer, ForeignKey('web_indie_games.id', ondelete='CASCADE'), nullable=True)
     reply_count   = Column(Integer, default=0)
     created_at    = Column(BigInteger, nullable=False)
     updated_at    = Column(BigInteger, nullable=False)
@@ -451,6 +455,7 @@ class WebCommunityPost(Base):
         Index('idx_cp_community', 'community_id', 'is_deleted', 'created_at'),
         Index('idx_cp_parent', 'parent_id'),
         Index('idx_cp_lfg_group', 'lfg_group_id', 'is_deleted', 'created_at'),
+        Index('idx_cp_indie_game', 'indie_game_id', 'is_deleted', 'created_at'),
     )
 
 
@@ -1390,6 +1395,7 @@ class WebFlair(Base):
     hp_cost = Column(Integer, default=0)
     equippable = Column(SmallInteger, nullable=False, default=1, server_default='1')  # 0 = trophy only, cannot equip
     enabled = Column(Boolean, default=True)
+    admin_only = Column(SmallInteger, default=0)  # 1 = admin-assign only, hidden from shop
     display_order = Column(Integer, default=0)
     available_from = Column(BigInteger, nullable=True)   # Unix ts: flair not claimable before this date (None = always)
     available_until = Column(BigInteger, nullable=True)  # Unix ts: flair not claimable after this date (None = always)
@@ -4245,3 +4251,144 @@ class WebDMReadState(Base):
         UniqueConstraint('conversation_id', 'user_id', name='uq_read_state'),
         Index('idx_dm_read_user', 'user_id'),
     )
+
+
+class WebIndieGame(Base):
+    """
+    Indie Heroes - curated indie game spotlight.
+    Admin adds the game (Steam/IGDB linked). Dev account can edit their own listing.
+    Wall posts reuse WebCommunityPost with indie_game_id set and community_id=None.
+    """
+    __tablename__ = 'web_indie_games'
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    slug            = Column(String(220), nullable=False, unique=True, index=True)
+
+    # Game identity - mirrors WebFoundGame fields
+    name            = Column(String(500), nullable=False)
+    steam_app_id    = Column(Integer, nullable=True, unique=True)
+    steam_url       = Column(String(500), nullable=True)
+    igdb_id         = Column(Integer, nullable=True)
+    igdb_url        = Column(String(500), nullable=True)
+
+    # Cover / banner - prefer Steam, fall back to IGDB
+    cover_url       = Column(String(500), nullable=True)   # Steam header or IGDB cover
+    banner_url      = Column(String(500), nullable=True)   # Wide banner for detail page hero
+
+    # Platforms (JSON array: ["PC", "PS5", "Xbox Series X|S", "Nintendo Switch"])
+    platforms       = Column(Text, default='[]')
+
+    # Genres / tags (JSON arrays)
+    genres          = Column(Text, default='[]')
+    steam_tags      = Column(Text, default='[]')
+
+    # Admin spotlight content
+    spotlight_text  = Column(Text, nullable=True)          # Admin's review/why this matters
+    spotlight_quote = Column(String(500), nullable=True)   # Pull quote shown on the card
+
+    # Dev-editable fields (dev can update these after being assigned)
+    dev_bio         = Column(Text, nullable=True)          # Dev's own description
+    dev_devlog      = Column(Text, nullable=True)          # Dev's devlog/updates (Markdown)
+    dev_website     = Column(String(500), nullable=True)
+    dev_twitter     = Column(String(200), nullable=True)
+    dev_discord_url = Column(String(500), nullable=True)
+    dev_fluxer_url  = Column(String(500), nullable=True)
+    dev_steam_url   = Column(String(500), nullable=True)   # can differ from steam_url
+    dev_itch_url    = Column(String(500), nullable=True)
+    dev_youtube_url = Column(String(500), nullable=True)
+    dev_twitch_url  = Column(String(500), nullable=True)
+    dev_tiktok_url  = Column(String(500), nullable=True)
+    dev_instagram_url = Column(String(500), nullable=True)
+    dev_facebook_url  = Column(String(500), nullable=True)
+    dev_bsky_url      = Column(String(500), nullable=True)
+    dev_kick_url      = Column(String(500), nullable=True)
+
+    # Community link (if the dev has a registered QuestLog community)
+    community_id    = Column(Integer, ForeignKey('web_communities.id', ondelete='SET NULL'), nullable=True)
+
+    # Release info
+    release_date    = Column(String(100), nullable=True)
+    price           = Column(String(50), nullable=True)    # e.g. "Free", "$14.99"
+    review_score    = Column(Integer, nullable=True)       # 0-100 Steam review score
+
+    # Status / visibility
+    status          = Column(String(20), default='featured')   # featured | new | spotlight | alumni
+    is_published    = Column(Boolean, default=False, nullable=False)
+    is_featured     = Column(Boolean, default=False, nullable=False)   # pinned to top of listing
+
+    # Ownership
+    added_by        = Column(Integer, ForeignKey('web_users.id'), nullable=False)  # admin who added it
+    dev_user_id     = Column(Integer, ForeignKey('web_users.id'), nullable=True)   # assigned dev account
+
+    # Dev edit tracking
+    dev_edited_at   = Column(BigInteger, nullable=True)    # last time dev edited their section
+
+    # Source track: how this game entered the system
+    # 'ch_spotlight' = admin added it (curated), 'self_submitted' = dev submitted it
+    source            = Column(String(20), nullable=True, default='ch_spotlight')
+
+    # Claim flow (for ch_spotlight games where dev hasn't been assigned yet)
+    # claim_status: None | 'pending_claim' | 'claimed'
+    claim_status      = Column(String(20), nullable=True)
+    claim_user_id     = Column(Integer, ForeignKey('web_users.id'), nullable=True)  # who requested claim
+    claim_note        = Column(Text, nullable=True)        # dev's message with claim request
+
+    # Dev submission flow (dev-submitted games pending admin review)
+    # submission_status: None (admin-added) | 'pending' | 'approved' | 'rejected' | 'resubmitted'
+    submission_status = Column(String(20), nullable=True)
+    submission_pitch  = Column(Text, nullable=True)        # dev's pitch / why it fits CH
+    submission_link   = Column(String(500), nullable=True) # Steam/itch link to verify game is real
+    submission_note   = Column(Text, nullable=True)        # admin's rejection note back to dev
+    submitted_by      = Column(Integer, ForeignKey('web_users.id'), nullable=True)
+
+    # Wall post count (denormalized)
+    post_count      = Column(Integer, default=0, nullable=False)
+
+    # Timestamps
+    created_at      = Column(BigInteger, nullable=False)
+    updated_at      = Column(BigInteger, nullable=False)
+
+    added_by_user   = relationship("WebUser", foreign_keys=[added_by])
+    dev_user        = relationship("WebUser", foreign_keys=[dev_user_id])
+    claim_user      = relationship("WebUser", foreign_keys=[claim_user_id])
+    community       = relationship("WebCommunity", foreign_keys=[community_id])
+
+    __table_args__ = (
+        Index('ix_web_indie_games_published', 'is_published', 'is_featured', 'created_at'),
+        Index('ix_web_indie_games_status', 'status', 'is_published'),
+        Index('ix_web_indie_games_dev', 'dev_user_id'),
+    )
+
+    def __repr__(self):
+        return f"<WebIndieGame id={self.id} slug={self.slug!r}>"
+
+
+class WebIndieSuggestion(Base):
+    """Community suggestions for indie games to curate on Indie Heroes."""
+    __tablename__ = 'web_indie_suggestions'
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    game_name    = Column(String(200), nullable=False)
+    steam_url    = Column(String(500), nullable=True)
+    itch_url     = Column(String(500), nullable=True)
+    other_url    = Column(String(500), nullable=True)
+    note         = Column(Text, nullable=True)        # why they think it belongs
+    suggested_by = Column(Integer, ForeignKey('web_users.id'), nullable=True)  # null = anonymous
+    status       = Column(String(20), default='pending')  # pending | approved | dismissed
+    created_at   = Column(BigInteger, nullable=False)
+
+    suggester = relationship("WebUser", foreign_keys=[suggested_by])
+
+
+class WebSpotlightSlot(Base):
+    """Spotlight slots for front page and discovery page widgets."""
+    __tablename__ = 'web_spotlight_slots'
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    category   = Column(String(20), nullable=False)   # 'indie' | 'community' | 'creator'
+    slot_type  = Column(String(20), nullable=False)   # 'week' | 'month' | 'pool'
+    ref_id     = Column(Integer, nullable=False)      # game.id / community.id / user.id
+    starts_at  = Column(BigInteger, nullable=False)
+    expires_at = Column(BigInteger, nullable=True)    # NULL = no expiry (pool entries)
+    set_by     = Column(Integer, ForeignKey('web_users.id'), nullable=False)
+    created_at = Column(BigInteger, nullable=False)

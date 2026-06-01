@@ -61,6 +61,8 @@
           {% if profile_user.is_contributor %}<span class="px-2 py-0.5 bg-violet-600/20 text-violet-300 text-xs rounded-full font-medium"><i class="fas fa-pen mr-1"></i>Contributor</span>{% endif %}
           {% if profile_user.is_ffxiv_member %}<span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH FFXIV FC"><img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-3 h-3 object-contain"> FFXIV</span>{% endif %}
           {% if profile_user.is_eso_member %}<span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH ESO Crew"><img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-3 h-3 object-contain"> ESO</span>{% endif %}
+          {% if is_founder %}<span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-300 text-xs rounded-full font-medium">🏛 Founding Member</span>{% endif %}
+          {% if is_vip %}<span class="px-2 py-0.5 bg-purple-600/20 text-purple-300 text-xs rounded-full font-medium">⭐ Early Tester</span>{% endif %}
           {% if flair_emoji %}<span class="text-sm text-yellow-300 font-medium">{{ flair_emoji }} {{ flair_name }}</span>{% endif %}
         </div>
         <p class="text-gray-500 text-sm">@{{ profile_user.username }}</p>
@@ -160,6 +162,12 @@
             class="pub-tab flex-1 py-2 rounded-lg text-sm font-semibold transition text-gray-400 hover:text-white">
       <i class="fas fa-trophy mr-1.5"></i>Achievements
     </button>
+    {% if indie_games %}
+    <button id="pub-tab-dev" onclick="pubTab('dev')"
+            class="pub-tab flex-1 py-2 rounded-lg text-sm font-semibold transition text-gray-400 hover:text-white">
+      <i class="fas fa-rocket mr-1.5"></i>Dev
+    </button>
+    {% endif %}
   </div>
 
   <!-- Tab: Profile -->
@@ -346,6 +354,26 @@
     <div id="lib-wtp-covers" class="grid grid-cols-5 sm:grid-cols-8 gap-2"></div>
   </div>
 
+  <!-- Currently Playing -->
+  <div id="lib-playing-section" class="hidden bg-neutral-900/50 rounded-lg border border-green-700/30 p-5 mb-5">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>
+      <h3 class="text-sm font-semibold text-white uppercase tracking-wider">Currently Playing</h3>
+      <span id="lib-playing-count" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full"></span>
+    </div>
+    <div id="lib-playing-covers" class="grid grid-cols-5 sm:grid-cols-8 gap-2"></div>
+  </div>
+
+  <!-- Played -->
+  <div id="lib-played-section" class="hidden bg-neutral-900/50 rounded-lg border border-blue-700/30 p-5 mb-5">
+    <div class="flex items-center gap-2 mb-3">
+      <i class="fas fa-check text-blue-400 text-xs"></i>
+      <h3 class="text-sm font-semibold text-white uppercase tracking-wider">Played</h3>
+      <span id="lib-played-count" class="text-xs text-gray-500 bg-neutral-800 px-2 py-0.5 rounded-full"></span>
+    </div>
+    <div id="lib-played-covers" class="grid grid-cols-5 sm:grid-cols-8 gap-2"></div>
+  </div>
+
   <!-- Full Library -->
   <div id="lib-shelf-section" class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-5 mb-5">
     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -422,6 +450,95 @@
     {% endif %}
 
   </div><!-- /pub-panel-achievements -->
+
+  {% if indie_games %}
+  <!-- Tab: Dev -->
+  <div id="pub-panel-dev" class="hidden">
+    {% for game in indie_games %}
+    <!-- Dev profile card for {{ game.name }} -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden mb-5">
+
+      <!-- Header: game cover + name + status + edit button -->
+      <div class="flex items-center gap-4 p-5 border-b border-neutral-800">
+        {% if game.cover_url %}
+        <img src="{{ game.cover_url }}" alt="{{ game.name }}" class="w-14 h-18 rounded-xl object-cover flex-shrink-0" style="height:4.5rem">
+        {% else %}
+        <div class="w-14 rounded-xl bg-neutral-800 flex items-center justify-center flex-shrink-0" style="height:4.5rem">
+          <i class="fas fa-gamepad text-gray-600 text-xl"></i>
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-0.5">
+            <span class="text-white font-bold text-base">{{ game.name }}</span>
+            {% if game.status == 'featured' %}<span class="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 px-2 py-0.5 rounded-full">Featured</span>{% endif %}
+            {% if game.status == 'spotlight' %}<span class="text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full">Spotlight</span>{% endif %}
+            {% if game.status == 'new' %}<span class="text-[10px] font-bold text-green-300 bg-green-500/20 border border-green-500/30 px-2 py-0.5 rounded-full">New</span>{% endif %}
+          </div>
+          <p class="text-xs text-amber-400/80 font-semibold"><i class="fas fa-rocket mr-1"></i>Indie Heroes</p>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <a href="/indie-heroes/{{ game.slug }}/" class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-gray-300 hover:text-white text-xs font-semibold rounded-lg transition">
+            <i class="fas fa-external-link-alt mr-1"></i>View Page
+          </a>
+          {% if is_own_profile %}
+          <a href="/indie-heroes/{{ game.slug }}/#manage" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition">
+            <i class="fas fa-pen mr-1"></i>Edit
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <!-- Dev bio -->
+        {% if game.dev_bio %}
+        <div>
+          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">About the Developer</p>
+          <p class="text-sm text-gray-300 leading-relaxed">{{ game.dev_bio }}</p>
+        </div>
+        {% elif is_own_profile %}
+        <div class="text-center py-4 border border-dashed border-neutral-700 rounded-xl">
+          <p class="text-xs text-gray-600 mb-2">No dev bio yet</p>
+          <a href="/indie-heroes/{{ game.slug }}/#manage" class="text-xs text-indigo-400 hover:text-indigo-300 transition">Add your bio &rarr;</a>
+        </div>
+        {% endif %}
+
+        <!-- Devlog -->
+        {% if game.dev_devlog %}
+        <div>
+          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Latest from the Dev</p>
+          <div class="text-sm text-gray-400 leading-relaxed line-clamp-4 whitespace-pre-line">{{ game.dev_devlog }}</div>
+          <a href="/indie-heroes/{{ game.slug }}/" class="text-xs text-indigo-400 hover:text-indigo-300 mt-1 inline-block transition">Read more on game page &rarr;</a>
+        </div>
+        {% endif %}
+
+        <!-- Social links -->
+        {% with g=game %}
+        {% if g.dev_website or g.dev_twitter or g.dev_bsky_url or g.dev_discord_url or g.dev_fluxer_url or g.dev_itch_url or g.dev_youtube_url or g.dev_twitch_url or g.dev_kick_url or g.dev_tiktok_url or g.dev_instagram_url or g.dev_facebook_url or g.dev_steam_url %}
+        <div>
+          <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Find the Dev</p>
+          <div class="flex flex-wrap gap-2">
+            {% if g.dev_website %}<a href="{{ g.dev_website }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-globe"></i>Website</a>{% endif %}
+            {% if g.dev_twitter %}<a href="{% if g.dev_twitter|slice:':4' == 'http' %}{{ g.dev_twitter }}{% else %}https://twitter.com/{{ g.dev_twitter|cut:'@' }}{% endif %}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-sky-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-twitter"></i>Twitter / X</a>{% endif %}
+            {% if g.dev_bsky_url %}<a href="{{ g.dev_bsky_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-sky-300 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-cloud"></i>Bluesky</a>{% endif %}
+            {% if g.dev_tiktok_url %}<a href="{{ g.dev_tiktok_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-pink-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-tiktok"></i>TikTok</a>{% endif %}
+            {% if g.dev_instagram_url %}<a href="{{ g.dev_instagram_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-pink-500 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-instagram"></i>Instagram</a>{% endif %}
+            {% if g.dev_youtube_url %}<a href="{{ g.dev_youtube_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-youtube"></i>YouTube</a>{% endif %}
+            {% if g.dev_twitch_url %}<a href="{{ g.dev_twitch_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-purple-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-twitch"></i>Twitch</a>{% endif %}
+            {% if g.dev_kick_url %}<a href="{{ g.dev_kick_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-green-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-bolt"></i>Kick</a>{% endif %}
+            {% if g.dev_discord_url %}<a href="{{ g.dev_discord_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-discord"></i>Discord</a>{% endif %}
+            {% if g.dev_fluxer_url %}<a href="{{ g.dev_fluxer_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-server"></i>Fluxer</a>{% endif %}
+            {% if g.dev_itch_url %}<a href="{{ g.dev_itch_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-rose-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fas fa-gamepad"></i>itch.io</a>{% endif %}
+            {% if g.dev_steam_url %}<a href="{{ g.dev_steam_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-400 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-steam"></i>Steam</a>{% endif %}
+            {% if g.dev_facebook_url %}<a href="{{ g.dev_facebook_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-500 bg-neutral-800 border border-neutral-700 px-3 py-1.5 rounded-lg transition"><i class="fab fa-facebook"></i>Facebook</a>{% endif %}
+          </div>
+        </div>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+    {% endfor %}
+  </div><!-- /pub-panel-dev -->
+  {% endif %}
 
 </div><!-- /max-w-4xl -->
 
@@ -553,6 +670,34 @@ function loadAchShowcase() {
     }).catch(function() {});
 }
 
+function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _gameUrl(g) {
+  return g.steam_app_id
+    ? 'https://store.steampowered.com/app/' + g.steam_app_id + '/'
+    : 'https://www.igdb.com/search?type=1&q=' + encodeURIComponent(g.name);
+}
+function _gameCoverImg(g, extraClass) {
+  var cls = 'w-full h-full object-cover' + (extraClass ? ' ' + extraClass : '');
+  var ph = '<div class="no-cover-ph w-full h-full flex-col items-center justify-center gap-1 p-2 absolute inset-0 bg-neutral-800" style="display:none">'
+    + '<i class="fas fa-gamepad text-neutral-600 text-xl"></i>'
+    + '<span class="text-neutral-500 text-[9px] text-center leading-tight line-clamp-3">' + _esc(g.name) + '</span></div>';
+  var phStatic = '<div class="no-cover-ph w-full h-full flex flex-col items-center justify-center gap-1 p-2">'
+    + '<i class="fas fa-gamepad text-neutral-600 text-xl"></i>'
+    + '<span class="text-neutral-500 text-[9px] text-center leading-tight line-clamp-3">' + _esc(g.name) + '</span></div>';
+
+  // Build fallback chain: stored URL -> IGDB proxy (fetches cover server-side) -> placeholder
+  var src = g.cover_url;
+  if (!src && g.steam_app_id) {
+    src = 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/' + g.steam_app_id + '/library_600x900.jpg';
+  }
+  if (!src) return phStatic;
+
+  var igdbProxy = '/api/library/cover-fallback/?name=' + encodeURIComponent(g.name) + (g.steam_app_id ? '&sid=' + g.steam_app_id : '');
+  // Step 1: primary src fails -> try IGDB proxy; Step 2: proxy fails -> placeholder
+  var onerror = 'if(this._step===2){this.onerror=null;this.style.display=\'none\';var ph=this.parentElement.querySelector(\'.no-cover-ph\');if(ph)ph.style.display=\'flex\';}else if(this._step===1){this._step=2;this.src=\'' + igdbProxy + '\';}else{this._step=1;this.src=\'' + igdbProxy + '\';}';
+  return '<img src="' + _esc(src) + '" alt="' + _esc(g.name) + '" class="' + cls + '" loading="lazy" onerror="' + onerror + '">' + ph;
+}
+
 function loadGameShelf() {
   var username = '{{ profile_user.username|escapejs }}';
   fetch('/api/library/u/' + encodeURIComponent(username) + '/')
@@ -577,14 +722,42 @@ function loadGameShelf() {
         if (libWtp && libWtpCovers) {
           if (libWtpCount) libWtpCount.textContent = ptGames.length + ' game' + (ptGames.length === 1 ? '' : 's');
           libWtpCovers.innerHTML = ptGames.map(function(g) {
-            var cover = g.cover_url || '';
-            return '<a href="/ql/lfg/create/?game=' + encodeURIComponent(g.name) + '" class="relative group block" title="Create LFG for ' + esc(g.name) + '">'
-              + (cover ? '<img src="' + esc(cover) + '" class="w-full aspect-[2/3] object-cover rounded-lg border border-orange-500/50" loading="lazy" alt="' + esc(g.name) + '">'
-                       : '<div class="w-full aspect-[2/3] bg-neutral-800 rounded-lg border border-orange-500/50 flex items-center justify-center"><i class="fas fa-gamepad text-gray-600"></i></div>')
-              + '<div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition rounded-lg flex flex-col items-center justify-center gap-1 p-1"><i class="fas fa-users text-orange-300 text-sm"></i><span class="text-white text-[10px] font-bold text-center leading-tight">' + esc(g.name) + '</span><span class="text-orange-300 text-[9px]">Create LFG</span></div></a>';
+            return '<a href="/ql/lfg/create/?game=' + encodeURIComponent(g.name) + '" class="relative group block rounded-lg border border-orange-500/50 bg-neutral-800 overflow-hidden aspect-[2/3]" title="Create LFG for ' + _esc(g.name) + '">'
+              + _gameCoverImg(g)
+              + '<div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center gap-1 p-1"><i class="fas fa-users text-orange-300 text-sm"></i><span class="text-white text-[10px] font-bold text-center leading-tight">' + _esc(g.name) + '</span><span class="text-orange-300 text-[9px]">Create LFG</span></div></a>';
           }).join('');
           libWtp.classList.remove('hidden');
         }
+      }
+
+      // Currently Playing section
+      var libPlayingSection = document.getElementById('lib-playing-section');
+      var libPlayingCovers = document.getElementById('lib-playing-covers');
+      var libPlayingCount = document.getElementById('lib-playing-count');
+      var playingGames = data.games.filter(function(g) { return g.status === 'playing'; });
+      if (libPlayingSection && libPlayingCovers && playingGames.length) {
+        if (libPlayingCount) libPlayingCount.textContent = playingGames.length + ' game' + (playingGames.length === 1 ? '' : 's');
+        libPlayingCovers.innerHTML = playingGames.map(function(g) {
+          return '<a href="' + _gameUrl(g) + '" target="_blank" rel="noopener" title="' + _esc(g.name) + '" class="relative group block rounded-lg border border-green-600/40 bg-neutral-800 overflow-hidden aspect-[2/3] hover:border-green-500/70 transition">'
+            + _gameCoverImg(g)
+            + '<div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-end p-1.5"><span class="text-white text-[9px] font-medium leading-tight line-clamp-2">' + _esc(g.name) + '</span></div></a>';
+        }).join('');
+        libPlayingSection.classList.remove('hidden');
+      }
+
+      // Played section
+      var libPlayedSection = document.getElementById('lib-played-section');
+      var libPlayedCovers = document.getElementById('lib-played-covers');
+      var libPlayedCount = document.getElementById('lib-played-count');
+      var playedGames = data.games.filter(function(g) { return g.status === 'played'; });
+      if (libPlayedSection && libPlayedCovers && playedGames.length) {
+        if (libPlayedCount) libPlayedCount.textContent = playedGames.length + ' game' + (playedGames.length === 1 ? '' : 's');
+        libPlayedCovers.innerHTML = playedGames.map(function(g) {
+          return '<a href="' + _gameUrl(g) + '" target="_blank" rel="noopener" title="' + _esc(g.name) + '" class="relative group block rounded-lg border border-blue-600/40 bg-neutral-800 overflow-hidden aspect-[2/3] hover:border-blue-500/70 transition">'
+            + _gameCoverImg(g)
+            + '<div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-end p-1.5"><span class="text-white text-[9px] font-medium leading-tight line-clamp-2">' + _esc(g.name) + '</span></div></a>';
+        }).join('');
+        libPlayedSection.classList.remove('hidden');
       }
 
       // Library tab favorites (mirror)
@@ -593,15 +766,14 @@ function loadGameShelf() {
       var favGames = data.games.filter(function(g) { return g.is_favorite; });
       if (libFavSection && libFavRow && favGames.length) {
         libFavRow.innerHTML = favGames.map(function(g) {
-          return g.cover_url
-            ? '<div class="w-full aspect-[2/3] cursor-default rounded-lg border border-yellow-500/30 bg-neutral-800 overflow-hidden flex items-center justify-center" title="' + esc(g.name) + '"><img src="' + esc(g.cover_url) + '" class="w-full h-full object-cover" loading="lazy" alt="' + esc(g.name) + '" onerror="this.style.display=\'none\'"></div>'
-            : '<div class="w-full aspect-[2/3] bg-neutral-800 border border-yellow-500/30 rounded-lg flex items-center justify-center" title="' + esc(g.name) + '"><i class="fas fa-gamepad text-gray-600"></i></div>';
+          return '<a href="' + _gameUrl(g) + '" target="_blank" rel="noopener" title="' + _esc(g.name) + '" class="relative w-full aspect-[2/3] rounded-lg border border-yellow-500/30 bg-neutral-800 overflow-hidden flex items-center justify-center block hover:border-yellow-400/60 transition">'
+            + _gameCoverImg(g) + '</a>';
         }).join('');
         libFavSection.classList.remove('hidden');
       }
 
       // Full library grid (Library tab)
-      var allShelfGames = data.games.filter(function(g) { return !!g.cover_url; }).sort(function(a,b) {
+      var allShelfGames = data.games.slice().sort(function(a,b) {
         var o = {play_together:0,playing:1,played:2,backlog:3};
         return (o[a.status]||9)-(o[b.status]||9);
       });
@@ -612,8 +784,25 @@ function loadGameShelf() {
       renderShelfGrid('', '');
 
       if (data.in_common && data.in_common.length) {
+        // in_common is a list of game name strings from the API
+        var inCommonNames = new Set(data.in_common);
+        window._inCommonIds = inCommonNames;
         var ic = document.getElementById('lib-in-common');
-        if (ic) { ic.textContent = data.in_common.length + ' game' + (data.in_common.length===1?'':'s') + ' in common'; ic.classList.remove('hidden'); }
+        if (ic) {
+          ic.innerHTML = '<button onclick="activateInCommonTab()" class="text-xs text-violet-400 font-semibold hover:text-violet-300 transition">' + data.in_common.length + ' game' + (data.in_common.length===1?'':'s') + ' in common</button>';
+          ic.classList.remove('hidden');
+        }
+        // Add In Common tab
+        var tabBar = document.querySelector('.lib-shelf-tab')?.parentElement;
+        if (tabBar && !document.getElementById('tab-in-common')) {
+          var t = document.createElement('button');
+          t.id = 'tab-in-common';
+          t.className = 'lib-shelf-tab px-3 py-1 rounded-lg text-xs font-semibold bg-neutral-800 text-gray-400 border border-neutral-700 hover:text-violet-300 transition';
+          t.dataset.s = 'in_common';
+          t.innerHTML = '<i class="fas fa-link text-[10px]"></i> In Common';
+          t.addEventListener('click', function() { activateInCommonTab(); });
+          tabBar.appendChild(t);
+        }
       }
 
       document.querySelectorAll('.lib-shelf-tab').forEach(function(btn) {
@@ -633,6 +822,20 @@ function loadGameShelf() {
 /* shelf tab style injected here */
 document.head.insertAdjacentHTML('beforeend', '<style>.active-shelf-tab{background:#fff!important;color:#111827!important;border-color:#fff!important;}</style>');
 
+function activateInCommonTab() {
+  pubTab('library');
+  var tab = document.getElementById('tab-in-common');
+  document.querySelectorAll('.lib-shelf-tab').forEach(function(b) {
+    b.classList.remove('active-shelf-tab');
+    b.classList.add('bg-neutral-800', 'text-gray-400', 'border-neutral-700');
+  });
+  if (tab) {
+    tab.classList.add('active-shelf-tab');
+    tab.classList.remove('bg-neutral-800', 'text-gray-400', 'border-neutral-700');
+  }
+  renderShelfGrid('in_common', '');
+}
+
 function filterLibShelf() {
   var search = (document.getElementById('lib-shelf-search')||{}).value || '';
   var activeTab = document.querySelector('.lib-shelf-tab.active-shelf-tab');
@@ -644,12 +847,15 @@ function renderShelfGrid(status, search) {
   var grid = document.getElementById('lib-shelf-grid');
   var empty = null;
   if (!grid || !window._shelfGames) return;
-  var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
   var SC = window._shelfStatusColors || {};
   var borderMap = {playing:'border-green-600/60',played:'border-blue-600/60',backlog:'border-purple-600/40',play_together:'border-orange-500/60'};
   var q = search.trim().toLowerCase();
   var games = window._shelfGames.filter(function(g) {
-    if (status && g.status !== status) return false;
+    if (status === 'in_common') {
+      if (!window._inCommonIds || !window._inCommonIds.has(g.name)) return false;
+    } else if (status && g.status !== status) {
+      return false;
+    }
     if (q && g.name.toLowerCase().indexOf(q) === -1) return false;
     return true;
   });
@@ -661,20 +867,17 @@ function renderShelfGrid(status, search) {
   if (empty) empty.classList.add('hidden');
   grid.innerHTML = games.map(function(g) {
     var border = borderMap[g.status] || 'border-neutral-700';
-    var steamUrl = g.steam_app_id
-      ? 'https://store.steampowered.com/app/' + g.steam_app_id + '/'
-      : 'https://store.steampowered.com/search/?term=' + encodeURIComponent(g.name);
-    var linkable = g.status !== 'play_together';
-    var inner = '<img src="' + esc(g.cover_url) + '" onerror="this.onerror=null;this.src=\'https://cdn.cloudflare.steamstatic.com/steam/apps/' + (g.steam_app_id||0) + '/header.jpg\'" alt="' + esc(g.name) + '" class="w-full h-full object-cover" loading="lazy">'
+    var inner = _gameCoverImg(g)
       + '<div class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex items-end p-1.5">'
-      + '<span class="text-white text-[10px] font-medium leading-tight line-clamp-2">' + esc(g.name) + '</span>'
+      + '<span class="text-white text-[10px] font-medium leading-tight line-clamp-2">' + _esc(g.name) + '</span>'
       + '</div>';
-    if (linkable) {
-      return '<a href="' + steamUrl + '" target="_blank" rel="noopener" class="relative group rounded-xl border-2 ' + border + ' overflow-hidden bg-neutral-800 aspect-[2/3] block" title="' + esc(g.name) + ' - View on Steam">'
-        + inner + '</a>';
+    // play_together = wishlist/want to play - no external page to link, show as non-clickable
+    if (g.status === 'play_together') {
+      return '<div class="relative group rounded-xl border-2 ' + border + ' overflow-hidden bg-neutral-800 cursor-default aspect-[2/3]" title="' + _esc(g.name) + '">'
+        + inner + '</div>';
     }
-    return '<div class="relative group rounded-xl border-2 ' + border + ' overflow-hidden bg-neutral-800 cursor-default aspect-[2/3]" title="' + esc(g.name) + '">'
-      + inner + '</div>';
+    return '<a href="' + _gameUrl(g) + '" target="_blank" rel="noopener" class="relative group rounded-xl border-2 ' + border + ' overflow-hidden bg-neutral-800 aspect-[2/3] block" title="' + _esc(g.name) + '">'
+      + inner + '</a>';
   }).join('');
 }
 

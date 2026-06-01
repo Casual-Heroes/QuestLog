@@ -1,7 +1,7 @@
 {% load static %}
 
 <!-- Web QuestLog Sidebar Navigation (No Discord dependency) -->
-<div id="web-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col overflow-hidden">
+<div id="web-sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col overflow-hidden">
   <!-- Collapse button -->
   <button onclick="collapseSidebar()" title="Hide sidebar"
           class="absolute top-3 right-2 z-10 text-gray-600 hover:text-gray-300 transition p-1 rounded hover:bg-neutral-800">
@@ -215,10 +215,10 @@
       </div>
     </div>
 
-    <!-- Discovery Section -->
+    <!-- Discover Section -->
     <div>
       <div class="flex items-center justify-between px-3 mb-1">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Discovery</h3>
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Discover</h3>
       </div>
       <div class="space-y-1">
         <a href="{% url 'questlog_web_communities' %}"
@@ -231,10 +231,10 @@
           <i class="fas fa-star text-gray-400 group-hover:text-yellow-400"></i>
           <span>Featured Creators</span>
         </a>
-        <a href="{% url 'questlog_web_network' %}"
-           class="nav-item {% if active_page == 'network' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-globe text-gray-400 group-hover:text-indigo-400"></i>
-          <span>Network</span>
+        <a href="/indie-heroes/"
+           class="nav-item {% if active_page == 'indie_heroes' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-rocket text-yellow-500 group-hover:text-yellow-400"></i>
+          <span>Indie Heroes</span>
         </a>
         <a href="{% url 'questlog_web_gamers' %}"
            class="nav-item {% if active_page == 'gamers' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
@@ -246,20 +246,6 @@
           <i class="fab fa-steam text-gray-400 group-hover:text-blue-400"></i>
           <span>SteamQuest</span>
         </a>
-        <a href="/gamesuggest/"
-           class="nav-item {% if active_page == 'gamesuggest' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-lightbulb text-gray-400 group-hover:text-yellow-400"></i>
-          <span>Suggest a Game</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- RSS Articles (public) -->
-    <div>
-      <div class="flex items-center justify-between px-3 mb-1">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">News</h3>
-      </div>
-      <div class="space-y-1">
         <a href="{% url 'questlog_web_articles' %}"
            class="nav-item {% if active_page == 'articles' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
           <i class="fas fa-newspaper text-gray-400 group-hover:text-orange-400"></i>
@@ -393,20 +379,6 @@
       </div>
     </div>
 
-    <!-- Community Section -->
-    <div>
-      <div class="flex items-center justify-between px-3 mb-1">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Community</h3>
-      </div>
-      <div class="space-y-1">
-        <!-- Register Community -->
-        <a href="{% if web_user %}{% url 'questlog_web_community_register' %}{% else %}{% url 'questlog_web_register' %}{% endif %}"
-           class="nav-item {% if active_page == 'community_register' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if not web_user %}text-gray-500{% endif %}">
-          <i class="fas fa-plus-circle text-gray-400 group-hover:text-purple-400"></i>
-          <span>Register Community</span>{% if not web_user %}<i class="fas fa-lock ml-auto text-gray-700 text-xs"></i>{% endif %}
-        </a>
-      </div>
-    </div>
 
     {% if web_user %}
 
@@ -665,6 +637,7 @@
     </div>
     {% endif %}
   </nav>
+
   </div><!-- /scrollable area -->
 
   <!-- Footer - always visible at bottom -->
@@ -718,13 +691,13 @@
 
 <!-- Mobile Menu Button (desktop-tablet only - mobile uses header hamburger) -->
 <button onclick="toggleSidebar()" type="button"
-        class="fixed top-4 left-4 z-50 hidden md:block lg:hidden bg-neutral-900 border border-neutral-800 text-white p-2 rounded-lg shadow-lg hover:bg-neutral-800 transition">
+        class="fixed top-4 left-4 z-40 hidden md:block lg:hidden bg-neutral-900 border border-neutral-800 text-white p-2 rounded-lg shadow-lg hover:bg-neutral-800 transition">
   <i class="fas fa-bars"></i>
 </button>
 
 <!-- Sidebar expand tab (shown when sidebar is collapsed on desktop) -->
 <button id="sidebar-expand-tab" onclick="expandSidebar()" title="Show sidebar"
-        class="hidden fixed top-1/2 -translate-y-1/2 left-0 z-40 lg:flex flex-col items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 border-l-0 text-gray-400 hover:text-white transition rounded-r-lg px-1 py-4 gap-1.5 shadow-lg">
+        class="hidden fixed top-1/2 -translate-y-1/2 left-0 z-40 flex-col items-center justify-center bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 border-l-0 text-gray-400 hover:text-white transition rounded-r-lg px-1 py-4 gap-1.5 shadow-lg">
   <i class="fas fa-chevron-right text-xs"></i>
 </button>
 
@@ -987,7 +960,7 @@ function collapseSidebar() {
   var main = document.getElementById('ql-main-content');
   var banner = document.getElementById('ql-email-banner');
   if (sidebar) sidebar.style.transform = 'translateX(-100%)';
-  if (tab) tab.classList.remove('hidden');
+  if (tab) { tab.classList.remove('hidden'); tab.style.display = 'flex'; }
   if (main) main.style.marginLeft = '0';
   if (banner) banner.style.marginLeft = '0';
   try { localStorage.setItem('ql_sidebar_collapsed', '1'); } catch(e) {}
@@ -999,7 +972,7 @@ function expandSidebar() {
   var main = document.getElementById('ql-main-content');
   var banner = document.getElementById('ql-email-banner');
   if (sidebar) sidebar.style.transform = '';
-  if (tab) tab.classList.add('hidden');
+  if (tab) { tab.classList.add('hidden'); tab.style.display = 'none'; }
   if (main) main.style.marginLeft = '';
   if (banner) banner.style.marginLeft = '';
   try { localStorage.setItem('ql_sidebar_collapsed', '0'); } catch(e) {}

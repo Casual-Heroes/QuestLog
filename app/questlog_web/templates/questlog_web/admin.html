@@ -109,117 +109,145 @@
     <!-- Mobile dropdown -->
     <div class="sm:hidden">
       <select id="tabDropdown" onchange="switchTab(this.value)" class="w-full bg-neutral-900 border border-neutral-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-yellow-500">
+        {% if not is_mod_only %}<option value="announcements">Announcements</option>{% endif %}
         <option value="audit">Audit Log</option>
         {% if not is_mod_only %}<option value="bot-network">Bot Network</option>{% endif %}
+        {% if not is_mod_only %}<option value="bot-stats">Bot Stats</option>{% endif %}
+        {% if not is_mod_only %}<option value="broadcasts">Broadcasts</option>{% endif %}
         <option value="communities">Communities</option>
         <option value="posts">Content Mod</option>
         <option value="creators">Creators</option>
         {% if not is_mod_only %}<option value="early-access">Early Access</option>{% endif %}
-        <option value="emoji">Emoji &amp; Stickers</option>
-        {% if not is_mod_only %}
-        <option value="testimonials">Voices</option>
-        <option value="flairs">Flairs &amp; XP</option>
-        <option value="games">Found Games</option>
-        {% endif %}
+        <option value="emoji">Emoji</option>
+        <option value="eso-applications">ESO Apps</option>
+        <option value="ffxiv-applications">FFXIV Apps</option>
+        {% if not is_mod_only %}<option value="feedback">Feedback</option>{% endif %}
+        {% if not is_mod_only %}<option value="flairs">Flairs</option>{% endif %}
+        {% if not is_mod_only %}<option value="games">Found Games</option>{% endif %}
+        <option value="games-we-play">Games We Play</option>
         <option value="giveaways">Giveaways</option>
-        {% if not is_mod_only %}
-        <option value="hero-subs">Hero Subs</option>
-        <option value="rss">RSS Feeds</option>
-        {% endif %}
-        <option value="polls">Server Polls</option>
-        {% if not is_mod_only %}<option value="steam">Steam Searches</option>{% endif %}
+        {% if not is_mod_only %}<option value="hero-subs">Hero Subs</option>{% endif %}
+        {% if not is_mod_only %}<option value="indie-submissions">Indie Claims</option>{% endif %}
+        {% if not is_mod_only %}<option value="dev-applications">Dev Apps</option>{% endif %}
         <option value="users">Members</option>
-        {% if not is_mod_only %}
-        <option value="bot-stats">Bot Stats</option>
-        <option value="broadcasts">Broadcasts</option>
-        {% endif %}
-        <option value="ffxiv-applications">FFXIV Applications</option>
-        <option value="eso-applications">ESO Applications</option>
+        <option value="polls">Polls</option>
+        {% if not is_mod_only %}<option value="rss">RSS Feeds</option>{% endif %}
+        {% if not is_mod_only %}<option value="steam">Steam</option>{% endif %}
+        {% if not is_mod_only %}<option value="testimonials">Voices</option>{% endif %}
       </select>
     </div>
-    <!-- Desktop pill bar -->
-    <div class="hidden sm:flex flex-wrap gap-1 bg-neutral-900/50 rounded-lg border border-neutral-800 p-1">
-      <button onclick="switchTab('audit')" id="tab-audit" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-clipboard-list mr-1"></i>Audit Log
-      </button>
+    <!-- Desktop grouped tab bar -->
+    <div class="hidden sm:block space-y-2">
+
+      <!-- COMMUNITY -->
+      <div class="flex flex-wrap gap-1 items-center">
+        <span class="text-[10px] font-bold text-gray-600 uppercase tracking-widest w-20 flex-shrink-0">Community</span>
+        <div class="flex flex-wrap gap-1">
+          <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-user-shield mr-1"></i>Members
+          </button>
+          <button onclick="switchTab('communities')" id="tab-communities" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-server mr-1"></i>Communities
+          </button>
+          <button onclick="switchTab('creators')" id="tab-creators" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-star mr-1"></i>Creators
+          </button>
+          <button onclick="switchTab('posts')" id="tab-posts" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-scroll mr-1"></i>Content Mod
+          </button>
+          <button onclick="switchTab('feedback')" id="tab-feedback" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-comment-dots mr-1"></i>Feedback
+          </button>
+          <button onclick="switchTab('audit')" id="tab-audit" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-clipboard-list mr-1"></i>Audit Log
+          </button>
+          <button onclick="switchTab('polls')" id="tab-polls" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-vote-yea mr-1"></i>Polls
+          </button>
+          <button onclick="switchTab('giveaways')" id="tab-giveaways" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-gift mr-1"></i>Giveaways
+          </button>
+          <button onclick="switchTab('testimonials')" id="tab-testimonials" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-quote-left mr-1"></i>Voices
+          </button>
+        </div>
+      </div>
+
+      <!-- INDIE HEROES -->
       {% if not is_mod_only %}
-      <button onclick="switchTab('bot-network')" id="tab-bot-network" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-network-wired mr-1"></i>Bot Network
-      </button>
+      <div class="flex flex-wrap gap-1 items-center">
+        <span class="text-[10px] font-bold text-gray-600 uppercase tracking-widest w-20 flex-shrink-0">Indie</span>
+        <div class="flex flex-wrap gap-1">
+          <button onclick="switchTab('dev-applications')" id="tab-dev-applications" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-rocket mr-1 text-emerald-400"></i>Dev Apps
+          </button>
+          <button onclick="switchTab('indie-submissions')" id="tab-indie-submissions" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-flag mr-1 text-amber-400"></i>Indie Claims
+          </button>
+        </div>
+      </div>
       {% endif %}
-      <button onclick="switchTab('communities')" id="tab-communities" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-server mr-1"></i>Communities
-      </button>
-      <button onclick="switchTab('posts')" id="tab-posts" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-scroll mr-1"></i>Content Mod
-      </button>
-      <button onclick="switchTab('creators')" id="tab-creators" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-star mr-1"></i>Creators
-      </button>
+
+      <!-- GAMES & PLATFORM -->
+      <div class="flex flex-wrap gap-1 items-center">
+        <span class="text-[10px] font-bold text-gray-600 uppercase tracking-widest w-20 flex-shrink-0">Games</span>
+        <div class="flex flex-wrap gap-1">
+          <button onclick="switchTab('eso-applications')" id="tab-eso-applications" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-file-alt mr-1 text-amber-400"></i>ESO Apps
+          </button>
+          <button onclick="switchTab('ffxiv-applications')" id="tab-ffxiv-applications" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-file-alt mr-1 text-rose-400"></i>FFXIV Apps
+          </button>
+          {% if not is_mod_only %}
+          <button onclick="switchTab('games')" id="tab-games" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-gamepad mr-1"></i>Found Games
+          </button>
+          <a href="/admin/games-tracker/" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition inline-flex items-center">
+            <i class="fas fa-gamepad mr-1"></i>Games We Play
+          </a>
+          <button onclick="switchTab('steam')" id="tab-steam" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fab fa-steam mr-1"></i>Steam
+          </button>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- PLATFORM & BOTS -->
       {% if not is_mod_only %}
-      <button onclick="switchTab('early-access')" id="tab-early-access" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-ticket-alt mr-1"></i>Early Access
-      </button>
+      <div class="flex flex-wrap gap-1 items-center">
+        <span class="text-[10px] font-bold text-gray-600 uppercase tracking-widest w-20 flex-shrink-0">Platform</span>
+        <div class="flex flex-wrap gap-1">
+          <button onclick="switchTab('announcements')" id="tab-announcements" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-bullhorn mr-1"></i>Announcements
+          </button>
+          <button onclick="switchTab('broadcasts')" id="tab-broadcasts" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-broadcast-tower mr-1"></i>Broadcasts
+          </button>
+          <button onclick="switchTab('bot-network')" id="tab-bot-network" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-network-wired mr-1"></i>Bot Network
+          </button>
+          <button onclick="switchTab('bot-stats')" id="tab-bot-stats" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-chart-bar mr-1"></i>Bot Stats
+          </button>
+          <button onclick="switchTab('rss')" id="tab-rss" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-rss mr-1"></i>RSS
+          </button>
+          <button onclick="switchTab('early-access')" id="tab-early-access" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-ticket-alt mr-1"></i>Early Access
+          </button>
+          <button onclick="switchTab('hero-subs')" id="tab-hero-subs" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-crown mr-1"></i>Hero Subs
+          </button>
+          <button onclick="switchTab('flairs')" id="tab-flairs" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-palette mr-1"></i>Flairs
+          </button>
+          <button onclick="switchTab('emoji')" id="tab-emoji" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-smile mr-1"></i>Emoji
+          </button>
+        </div>
+      </div>
       {% endif %}
-      <button onclick="switchTab('emoji')" id="tab-emoji" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-smile mr-1"></i>Emoji
-      </button>
-      {% if not is_mod_only %}
-      <button onclick="switchTab('testimonials')" id="tab-testimonials" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-quote-left mr-1"></i>Voices
-      </button>
-      <button onclick="switchTab('feedback')" id="tab-feedback" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-comment-dots mr-1"></i>Feedback
-      </button>
-      <button onclick="switchTab('announcements')" id="tab-announcements" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-bullhorn mr-1"></i>Announcements
-      </button>
-      <button onclick="switchTab('flairs')" id="tab-flairs" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-palette mr-1"></i>Flairs
-      </button>
-      <button onclick="switchTab('games')" id="tab-games" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-gamepad mr-1"></i>Found Games
-      </button>
-      {% endif %}
-      <a href="/admin/games-tracker/" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition inline-flex items-center">
-        <i class="fas fa-gamepad mr-1"></i>Games We Play
-      </a>
-      <button onclick="switchTab('giveaways')" id="tab-giveaways" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-gift mr-1"></i>Giveaways
-      </button>
-      {% if not is_mod_only %}
-      <button onclick="switchTab('hero-subs')" id="tab-hero-subs" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-crown mr-1"></i>Hero Subs
-      </button>
-      <button onclick="switchTab('rss')" id="tab-rss" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-rss mr-1"></i>RSS
-      </button>
-      {% endif %}
-      <button onclick="switchTab('polls')" id="tab-polls" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-vote-yea mr-1"></i>Polls
-      </button>
-      {% if not is_mod_only %}
-      <button onclick="switchTab('steam')" id="tab-steam" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fab fa-steam mr-1"></i>Steam
-      </button>
-      {% endif %}
-      <button onclick="switchTab('users')" id="tab-users" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-user-shield mr-1"></i>Members
-      </button>
-      {% if not is_mod_only %}
-      <button onclick="switchTab('bot-stats')" id="tab-bot-stats" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-chart-bar mr-1"></i>Bot Stats
-      </button>
-      <button onclick="switchTab('broadcasts')" id="tab-broadcasts" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-broadcast-tower mr-1"></i>Broadcasts
-      </button>
-      {% endif %}
-      <button onclick="switchTab('ffxiv-applications')" id="tab-ffxiv-applications" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-file-alt mr-1 text-rose-400"></i>FFXIV Apps
-      </button>
-      <button onclick="switchTab('eso-applications')" id="tab-eso-applications" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
-        <i class="fas fa-file-alt mr-1 text-amber-400"></i>ESO Apps
-      </button>
+
     </div>
   </div>
 
@@ -260,6 +288,82 @@
     <h3 class="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2"><i class="fas fa-list"></i>All Communities</h3>
     <div id="adminCommunitiesList" class="space-y-3">
       <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+
+    <!-- Spotlight Manager -->
+    <div class="mt-8 border-t border-neutral-800 pt-6">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+          <i class="fas fa-star text-amber-400"></i> Current Spotlights
+        </h3>
+        <button onclick="loadSpotlightStatus()" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-sync mr-1"></i>Refresh</button>
+      </div>
+      <p class="text-xs text-gray-500 mb-5">QuestLog randomly picks spotlights each week and month. Hit Re-roll on any slot to pick a different random one.</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="spotlight-display-grid">
+        <!-- Indie -->
+        <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
+          <p class="text-xs font-bold text-emerald-400 uppercase tracking-wider"><i class="fas fa-rocket mr-1"></i>Indie Game</p>
+          <div>
+            <p class="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Of the Week</p>
+            <div id="sp-indie-week-display" class="text-sm text-white font-medium mb-2">Loading...</div>
+            <div class="flex gap-1.5">
+              <button onclick="rerollSpotlight('indie','week')" class="flex-1 py-1.5 bg-neutral-700 hover:bg-emerald-800/50 border border-neutral-600 hover:border-emerald-700 text-gray-300 hover:text-emerald-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-dice mr-1"></i>Re-roll</button>
+              <button onclick="clearSpotlightSlot('indie','week')" class="px-3 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-500 hover:text-red-400 text-xs rounded-lg transition" title="Clear"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div>
+            <p class="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Of the Month</p>
+            <div id="sp-indie-month-display" class="text-sm text-white font-medium mb-2">Loading...</div>
+            <div class="flex gap-1.5">
+              <button onclick="rerollSpotlight('indie','month')" class="flex-1 py-1.5 bg-neutral-700 hover:bg-emerald-800/50 border border-neutral-600 hover:border-emerald-700 text-gray-300 hover:text-emerald-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-dice mr-1"></i>Re-roll</button>
+              <button onclick="clearSpotlightSlot('indie','month')" class="px-3 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-500 hover:text-red-400 text-xs rounded-lg transition" title="Clear"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Community -->
+        <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
+          <p class="text-xs font-bold text-purple-400 uppercase tracking-wider"><i class="fas fa-server mr-1"></i>Community</p>
+          <div>
+            <p class="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Of the Week</p>
+            <div id="sp-community-week-display" class="text-sm text-white font-medium mb-2">Loading...</div>
+            <div class="flex gap-1.5">
+              <button onclick="rerollSpotlight('community','week')" class="flex-1 py-1.5 bg-neutral-700 hover:bg-purple-800/50 border border-neutral-600 hover:border-purple-700 text-gray-300 hover:text-purple-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-dice mr-1"></i>Re-roll</button>
+              <button onclick="clearSpotlightSlot('community','week')" class="px-3 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-500 hover:text-red-400 text-xs rounded-lg transition" title="Clear"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div>
+            <p class="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Of the Month</p>
+            <div id="sp-community-month-display" class="text-sm text-white font-medium mb-2">Loading...</div>
+            <div class="flex gap-1.5">
+              <button onclick="rerollSpotlight('community','month')" class="flex-1 py-1.5 bg-neutral-700 hover:bg-purple-800/50 border border-neutral-600 hover:border-purple-700 text-gray-300 hover:text-purple-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-dice mr-1"></i>Re-roll</button>
+              <button onclick="clearSpotlightSlot('community','month')" class="px-3 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-500 hover:text-red-400 text-xs rounded-lg transition" title="Clear"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Creator -->
+        <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
+          <p class="text-xs font-bold text-red-400 uppercase tracking-wider"><i class="fas fa-broadcast-tower mr-1"></i>Creator</p>
+          <div>
+            <p class="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Of the Week</p>
+            <div id="sp-creator-week-display" class="text-sm text-white font-medium mb-2">Loading...</div>
+            <div class="flex gap-1.5">
+              <button onclick="rerollSpotlight('creator','week')" class="flex-1 py-1.5 bg-neutral-700 hover:bg-red-800/50 border border-neutral-600 hover:border-red-700 text-gray-300 hover:text-red-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-dice mr-1"></i>Re-roll</button>
+              <button onclick="clearSpotlightSlot('creator','week')" class="px-3 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-500 hover:text-red-400 text-xs rounded-lg transition" title="Clear"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div>
+            <p class="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Of the Month</p>
+            <div id="sp-creator-month-display" class="text-sm text-white font-medium mb-2">Loading...</div>
+            <div class="flex gap-1.5">
+              <button onclick="rerollSpotlight('creator','month')" class="flex-1 py-1.5 bg-neutral-700 hover:bg-red-800/50 border border-neutral-600 hover:border-red-700 text-gray-300 hover:text-red-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-dice mr-1"></i>Re-roll</button>
+              <button onclick="clearSpotlightSlot('creator','month')" class="px-3 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700 text-gray-500 hover:text-red-400 text-xs rounded-lg transition" title="Clear"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -932,7 +1036,7 @@ function switchTab(tab) {
 function loadTabData(tab) {
   const loaders = {
     lfg: loadLFGGames,
-    communities: loadAdminCommunities,
+    communities: () => { loadAdminCommunities(); loadSpotlightStatus(); },
     creators: loadAdminCreators,
     steam: loadSteamSearches,
     games: loadFoundGames,
@@ -952,8 +1056,10 @@ function loadTabData(tab) {
     'testimonials': loadTestimonials,
     'feedback': loadFeedbackTab,
     'announcements': loadAnnouncementsTab,
-    'ffxiv-applications': () => loadFfxivApplications('pending'),
-    'eso-applications':   () => loadEsoApplications('pending'),
+    'ffxiv-applications':   () => loadFfxivApplications('pending'),
+    'eso-applications':     () => loadEsoApplications('pending'),
+    'indie-submissions':    () => { loadIndieSubmissions(); },
+    'dev-applications':     () => { loadDevApplications(); },
   };
   if (loaders[tab]) loaders[tab]();
 }
@@ -1990,6 +2096,7 @@ async function loadUsers() {
     const r = await fetch(url);
     const d = await r.json();
     adminUsers = d.users || [];
+    window._adminFlairs = d.admin_flairs || [];
     renderUsers();
     if (!userSearchListenerAdded) {
       userSearchListenerAdded = true;
@@ -2056,6 +2163,7 @@ function renderUsers() {
           ? `<button onclick="userAction(${u.id},'grant_eso')" class="text-xs bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2 py-1 rounded transition">+ESO</button>`
           : `<button onclick="userAction(${u.id},'revoke_eso')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition">-ESO</button>`) : ''}
         ${!IS_MOD_ONLY && !u.email_verified ? `<button onclick="userAction(${u.id},'verify_email')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition"><i class="fas fa-envelope-open-text"></i> Verify</button>` : ''}
+        ${!IS_MOD_ONLY && u.indie_dev_pending && !u.is_indie_dev ? `<span class="text-xs bg-emerald-900/40 text-emerald-300 border border-emerald-700/40 px-2 py-1 rounded font-semibold"><i class="fas fa-rocket mr-1"></i>Dev App</span><button onclick="userAction(${u.id},'approve_dev')" class="text-xs bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 px-2 py-1 rounded transition">Approve</button><button onclick="userAction(${u.id},'reject_dev')" class="text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 px-2 py-1 rounded transition">Reject</button>` : ''}
         ${!IS_MOD_ONLY ? (!u.is_contributor
           ? `<button onclick="userAction(${u.id},'grant_contributor')" class="text-xs bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 px-2 py-1 rounded transition">+Contrib</button>`
           : `<button onclick="userAction(${u.id},'revoke_contributor')" class="text-xs bg-neutral-700 text-gray-400 hover:bg-neutral-600 px-2 py-1 rounded transition">-Contrib</button>`) : ''}
@@ -2072,10 +2180,14 @@ function renderUsers() {
           ? `<button onclick="userAction(${u.id},'make_admin')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Make Admin"><i class="fas fa-crown"></i></button>`
           : `<button onclick="userAction(${u.id},'remove_admin')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition" title="Remove Admin"><i class="fas fa-crown text-yellow-400"></i></button>`) : ''}
         ${!IS_MOD_ONLY ? `<button onclick="setHeroPoints(${u.id},${u.hero_points})" class="text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 px-2 py-1 rounded transition" title="Set Hero Points"><i class="fas fa-gem"></i></button>` : ''}
+        ${!IS_MOD_ONLY && (window._adminFlairs||[]).length ? `<button onclick="openFlairPicker(${u.id})" class="text-xs bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 px-2 py-1 rounded transition" title="Grant/Revoke Admin Flair"><i class="fas fa-rocket"></i></button>` : ''}
         ${!IS_MOD_ONLY ? `<button onclick="awardMostHelpful(${u.id},'${escapeHtml(u.username)}')" class="text-xs bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30 px-2 py-1 rounded transition" title="Award Most Helpful"><i class="fas fa-dragon"></i></button>` : ''}
         ${!isTimedOut
           ? `<button onclick="timeoutUser(${u.id})" class="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 px-2 py-1 rounded transition" title="Timeout"><i class="fas fa-clock"></i></button>`
           : `<button onclick="userAction(${u.id},'clear_timeout')" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-2 py-1 rounded transition"><i class="fas fa-clock"></i> Untimeout</button>`}
+        ${!u.is_hidden
+          ? `<button onclick="userAction(${u.id},'hide_user')" class="text-xs bg-neutral-600/40 text-gray-400 hover:bg-neutral-600/60 px-2 py-1 rounded transition" title="Hide from public pages"><i class="fas fa-eye-slash mr-1"></i>Hide</button>`
+          : `<button onclick="userAction(${u.id},'unhide_user')" class="text-xs bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 px-2 py-1 rounded transition" title="Make visible again"><i class="fas fa-eye mr-1"></i>Unhide</button>`}
         ${!u.is_disabled
           ? `<button onclick="userAction(${u.id},'disable')" class="text-xs bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 px-2 py-1 rounded transition">Disable</button>`
           : `<button onclick="userAction(${u.id},'enable')" class="text-xs bg-green-600/20 text-green-400 hover:bg-green-600/30 px-2 py-1 rounded transition">Enable</button>`}
@@ -2089,7 +2201,7 @@ function renderUsers() {
   }).join('');
 }
 
-async function userAction(id, action) {
+async function userAction(id, action, fromDevApps) {
   const body = { action };
   if (action === 'ban') {
     const reason = prompt('Ban reason (optional):');
@@ -2100,6 +2212,7 @@ async function userAction(id, action) {
     const r = await csrfFetch(`/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const d = await r.json();
     if (!d.success) { alert(d.error || 'Action failed'); return; }
+    if (fromDevApps) { loadDevApplications(); return; }
     tabLoaded.users = false; loadUsers(); loadStats();
   } catch(e) { alert('Action failed: ' + e.message); }
 }
@@ -2138,6 +2251,47 @@ async function setHeroPoints(id, current) {
     await csrfFetch(`/api/admin/users/${id}/action/`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'set_hero_points', hero_points: parseInt(pts) || 0 }) });
     tabLoaded.users = false; loadUsers();
   } catch(e) { alert('Action failed'); }
+}
+
+function openFlairPicker(userId) {
+  const flairs = window._adminFlairs || [];
+  const user = adminUsers.find(u => u.id === userId);
+  if (!user || !flairs.length) return;
+  const ownedSet = new Set(user.owned_admin_flair_ids || []);
+  const rows = flairs.map(f => {
+    const owned = ownedSet.has(f.id);
+    return `<div class="flex items-center justify-between py-2 border-b border-neutral-800 last:border-0">
+      <span class="text-sm text-gray-200">${escapeHtml(f.emoji)} ${escapeHtml(f.name)}</span>
+      ${owned
+        ? `<button onclick="adminFlairAction(${userId},${f.id},'revoke_flair',this)" class="text-xs bg-red-800/40 hover:bg-red-700/50 text-red-300 px-3 py-1 rounded transition">Revoke</button>`
+        : `<button onclick="adminFlairAction(${userId},${f.id},'grant_flair',this)" class="text-xs bg-green-700/30 hover:bg-green-600/40 text-green-300 px-3 py-1 rounded transition">Grant</button>`
+      }
+    </div>`;
+  }).join('');
+  showModal(
+    `Flairs - ${escapeHtml(user.display_name || user.username)}`,
+    `<div class="divide-y divide-neutral-800">${rows}</div>`,
+    `<button onclick="closeModal()" class="bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-4 py-2 rounded-lg text-sm transition">Done</button>`
+  );
+}
+
+async function adminFlairAction(userId, flairId, action, btn) {
+  btn.disabled = true;
+  try {
+    const r = await csrfFetch(`/api/admin/users/${userId}/action/`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({action, flair_id: flairId}),
+    });
+    const d = await r.json();
+    if (d.success) {
+      tabLoaded.users = false;
+      await loadUsers();
+      openFlairPicker(userId);
+    } else {
+      alert(d.error || 'Action failed');
+      btn.disabled = false;
+    }
+  } catch(e) { alert('Network error'); btn.disabled = false; }
 }
 
 async function awardMostHelpful(id, username) {
@@ -2365,7 +2519,10 @@ async function loadFlairs() {
               <p class="text-xs text-gray-500 capitalize">${f.flair_type} · ${f.hp_cost} HP</p>
             </div>
           </div>
-          <span class="text-xs px-1.5 py-0.5 rounded ${f.enabled ? 'bg-green-800/50 text-green-400' : 'bg-neutral-700 text-gray-500'}">${f.enabled ? 'On' : 'Off'}</span>
+          <div class="flex flex-col items-end gap-1">
+            <span class="text-xs px-1.5 py-0.5 rounded ${f.enabled ? 'bg-green-800/50 text-green-400' : 'bg-neutral-700 text-gray-500'}">${f.enabled ? 'On' : 'Off'}</span>
+            ${f.admin_only ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-800/40 text-amber-400 border border-amber-700/40">Admin Only</span>' : ''}
+          </div>
         </div>
         ${f.description ? `<p class="text-xs text-gray-400 mb-3 flex-1">${escapeHtml(f.description)}</p>` : ''}
         <p class="text-xs text-gray-600 mb-3">${f.owner_count} owner(s)</p>
@@ -2402,9 +2559,12 @@ function showAddFlairModal() {
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-sm text-gray-400 mb-1">Display Order</label>
           <input id="fm-order" type="number" value="0" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
-        <div class="flex items-end pb-2">
+        <div class="flex flex-col gap-2 pb-2 justify-end">
           <label class="flex items-center gap-2 text-sm text-gray-300">
             <input id="fm-enabled" type="checkbox" checked class="rounded">Enabled
+          </label>
+          <label class="flex items-center gap-2 text-sm text-amber-300" title="Hidden from shop, admin assigns only">
+            <input id="fm-admin-only" type="checkbox" class="rounded">Admin Only
           </label>
         </div>
       </div>
@@ -2437,9 +2597,12 @@ function editFlairModal(id, f) {
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-sm text-gray-400 mb-1">Display Order</label>
           <input id="fm-order" type="number" value="${f.display_order}" class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-white text-sm"></div>
-        <div class="flex items-end pb-2">
+        <div class="flex flex-col gap-2 pb-2 justify-end">
           <label class="flex items-center gap-2 text-sm text-gray-300">
             <input id="fm-enabled" type="checkbox" ${f.enabled?'checked':''} class="rounded">Enabled
+          </label>
+          <label class="flex items-center gap-2 text-sm text-amber-300" title="Hidden from shop, admin assigns only">
+            <input id="fm-admin-only" type="checkbox" ${f.admin_only?'checked':''} class="rounded">Admin Only
           </label>
         </div>
       </div>
@@ -2460,6 +2623,7 @@ async function saveFlair(isEdit = false) {
     hp_cost: parseInt(document.getElementById('fm-cost').value) || 0,
     display_order: parseInt(document.getElementById('fm-order').value) || 0,
     enabled: document.getElementById('fm-enabled').checked,
+    admin_only: document.getElementById('fm-admin-only').checked,
   };
   if (!body.name) { document.getElementById('fm-error').textContent = 'Name required.'; document.getElementById('fm-error').classList.remove('hidden'); return; }
   const url = isEdit ? `/api/admin/flairs/${id}/` : '/api/admin/flairs/';
@@ -4167,6 +4331,46 @@ function renderBotStats(d) {
   </div>
 </div>
 
+<!-- Indie Submissions Tab -->
+<div id="panel-indie-submissions" class="admin-panel hidden max-w-4xl mx-auto px-4 pb-8">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-lg font-semibold text-white"><i class="fas fa-rocket text-amber-400 mr-2"></i>Indie Heroes - Dev Claim Requests</h2>
+    <button onclick="loadIndieSubmissions()" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-sync mr-1"></i>Refresh</button>
+  </div>
+  <div id="indieSubmissionsList" class="space-y-4">
+    <div class="text-gray-500 text-sm text-center py-8">Loading...</div>
+  </div>
+
+  <!-- Reject note modal -->
+  <div id="indieRejectModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70" onclick="document.getElementById('indieRejectModal').classList.add('hidden')"></div>
+    <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+      <h3 class="text-base font-bold text-white"><i class="fas fa-times-circle text-red-400 mr-2"></i>Reject Submission</h3>
+      <input type="hidden" id="indieRejectSlug">
+      <div>
+        <label class="text-xs font-bold text-gray-400 mb-1 block">Rejection Note (shown to dev)</label>
+        <textarea id="indieRejectNote" rows="3" class="w-full bg-neutral-800 border border-neutral-700 text-gray-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 resize-none" placeholder="Explain why the submission was rejected so the dev can fix it and resubmit..."></textarea>
+      </div>
+      <div id="indieRejectError" class="hidden text-xs text-red-400"></div>
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('indieRejectModal').classList.add('hidden')" class="flex-1 py-2 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-sm font-semibold rounded-xl transition">Cancel</button>
+        <button onclick="confirmIndieReject()" class="flex-1 py-2 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition">Reject</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Dev Applications Tab -->
+<div id="panel-dev-applications" class="admin-panel hidden max-w-4xl mx-auto px-4 pb-8">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-lg font-semibold text-white"><i class="fas fa-rocket text-emerald-400 mr-2"></i>Dev Account Applications</h2>
+    <button onclick="loadDevApplications()" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-sync mr-1"></i>Refresh</button>
+  </div>
+  <p class="text-gray-500 text-sm mb-5">Users who toggled "I'm an indie dev" at registration or clicked Apply from the Indie Heroes page. Approve to grant them a dev account and let them submit games.</p>
+  <div id="devApplicationsList" class="space-y-3"></div>
+</div>
+
 <!-- Broadcasts Tab -->
 <div id="panel-broadcasts" class="admin-panel hidden">
   <h2 class="text-lg font-semibold text-white mb-6"><i class="fas fa-broadcast-tower text-yellow-400 mr-2"></i>Post Broadcasts</h2>
@@ -5808,6 +6012,218 @@ async function esoReview(appId, action) {
   } else {
     alert(data.error || 'Failed to update application.');
   }
+}
+
+// ============================================================
+// INDIE HEROES SUBMISSIONS
+// ============================================================
+async function loadDevApplications() {
+  const list = document.getElementById('devApplicationsList');
+  list.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">Loading...</div>';
+  const r = await csrfFetch('/ql/api/admin/users/?search=&page=1&per_page=200');
+  const data = await r.json();
+  const pending = (data.users || []).filter(u => u.indie_dev_pending && !u.is_indie_dev);
+  if (!pending.length) {
+    list.innerHTML = '<div class="text-gray-500 text-sm text-center py-10"><i class="fas fa-check-circle text-green-500 text-2xl mb-2 block"></i>No pending dev applications</div>';
+    return;
+  }
+  list.innerHTML = pending.map(function(u) {
+    const avatar = u.avatar_url
+      ? `<img src="${escapeHtml(u.avatar_url)}" class="w-10 h-10 rounded-full object-cover flex-shrink-0">`
+      : `<div class="w-10 h-10 rounded-full bg-neutral-700 flex-shrink-0 flex items-center justify-center text-sm font-bold text-gray-400">${escapeHtml((u.username||'?')[0].toUpperCase())}</div>`;
+    return `<div class="bg-neutral-900 border border-emerald-800/30 rounded-xl p-4 flex items-center gap-4">
+      ${avatar}
+      <div class="flex-1 min-w-0">
+        <a href="/ql/u/${escapeHtml(u.username)}/" target="_blank" class="text-white font-semibold hover:text-emerald-300 transition">${escapeHtml(u.display_name || u.username)}</a>
+        <p class="text-xs text-gray-500">@${escapeHtml(u.username)} &middot; ID ${u.id} &middot; Lv${u.web_level} &middot; ${u.post_count} posts</p>
+      </div>
+      <div class="flex gap-2 flex-shrink-0">
+        <button onclick="userAction(${u.id},'approve_dev',true)" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition"><i class="fas fa-check mr-1"></i>Approve</button>
+        <button onclick="userAction(${u.id},'reject_dev',true)" class="px-3 py-1.5 bg-red-800 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition"><i class="fas fa-times mr-1"></i>Reject</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadIndieSubmissions() {
+  const list = document.getElementById('indieSubmissionsList');
+  list.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">Loading...</div>';
+  const r = await csrfFetch('/ql/api/indie-heroes/admin-submissions/');
+  const data = await r.json();
+  const submissions = data.submissions || [];
+  const claims = data.claims || [];
+
+  if (!claims.length) {
+    list.innerHTML = '<div class="text-gray-500 text-sm text-center py-10"><i class="fas fa-check-circle text-green-500 text-2xl mb-2 block"></i>No pending claim requests</div>';
+    return;
+  }
+
+  let html = '';
+
+  if (claims.length) {
+    html += `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3"><i class="fas fa-flag mr-1.5 text-amber-400"></i>Spotlight Claim Requests (${claims.length})</h3>`;
+    html += claims.map(function(c) {
+      var coverImg = c.cover_url ? `<img src="${escapeHtml(c.cover_url)}" class="w-10 h-10 object-cover rounded flex-shrink-0" alt="">` : `<div class="w-10 h-10 bg-neutral-700 rounded flex-shrink-0 flex items-center justify-center text-gray-600"><i class="fas fa-gamepad"></i></div>`;
+      return `<div class="bg-neutral-900 border border-amber-800/30 rounded-xl p-5 space-y-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-3 flex-1 min-w-0">
+            ${coverImg}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                <a href="/ql/indie-heroes/${escapeHtml(c.slug)}/" target="_blank" class="text-white font-bold hover:text-amber-300 transition">${escapeHtml(c.name)}</a>
+                <span class="text-[11px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded-full"><i class="fas fa-flag mr-1"></i>Claim Request</span>
+              </div>
+              <p class="text-xs text-gray-500">Claim by <a href="/ql/u/${escapeHtml(c.claimant_name || '')}/" class="text-indigo-400 hover:underline">${escapeHtml(c.claimant_name || 'Unknown')}</a></p>
+            </div>
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <button onclick="indieClaimReview('${escapeHtml(c.slug)}', 'approve')" class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-semibold rounded-lg transition"><i class="fas fa-check mr-1"></i>Approve Claim</button>
+            <button onclick="indieClaimReview('${escapeHtml(c.slug)}', 'deny')" class="px-3 py-1.5 bg-red-800 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition"><i class="fas fa-times mr-1"></i>Deny</button>
+          </div>
+        </div>
+        ${c.claim_note ? `<div class="text-sm text-gray-300 leading-relaxed bg-neutral-800/50 rounded-lg px-3 py-2">${escapeHtml(c.claim_note)}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  list.innerHTML = html;
+}
+
+function indieRejectOpen(slug) {
+  document.getElementById('indieRejectSlug').value = slug;
+  document.getElementById('indieRejectNote').value = '';
+  document.getElementById('indieRejectError').classList.add('hidden');
+  document.getElementById('indieRejectModal').classList.remove('hidden');
+}
+
+async function confirmIndieReject() {
+  var slug = document.getElementById('indieRejectSlug').value;
+  var note = document.getElementById('indieRejectNote').value.trim();
+  var errEl = document.getElementById('indieRejectError');
+  errEl.classList.add('hidden');
+  var r = await csrfFetch('/ql/api/indie-heroes/' + slug + '/admin-review/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: 'reject', note: note}),
+  });
+  var data = await r.json();
+  if (data.ok) {
+    document.getElementById('indieRejectModal').classList.add('hidden');
+    tabLoaded['indie-submissions'] = false;
+    loadIndieSubmissions();
+  } else {
+    errEl.textContent = data.error || 'Failed.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function indieReview(slug, action) {
+  var r = await csrfFetch('/ql/api/indie-heroes/' + slug + '/admin-review/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: action}),
+  });
+  var data = await r.json();
+  if (data.ok) {
+    tabLoaded['indie-submissions'] = false;
+    loadIndieSubmissions();
+  } else {
+    alert(data.error || 'Action failed.');
+  }
+}
+
+async function indieClaimReview(slug, action) {
+  var label = action === 'approve' ? 'approve this dev claim (this will assign the user as the game developer)' : 'deny this claim request';
+  if (!confirm('Are you sure you want to ' + label + '?')) return;
+  var r = await csrfFetch('/ql/api/indie-heroes/' + slug + '/claim-review/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: action}),
+  });
+  var data = await r.json();
+  if (data.ok) {
+    tabLoaded['indie-submissions'] = false;
+    loadIndieSubmissions();
+  } else {
+    alert(data.error || 'Action failed.');
+  }
+}
+
+// ---- Spotlight management ----
+function _spEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function loadSpotlightStatus() {
+  ['indie','community','creator'].forEach(cat => {
+    ['week','month'].forEach(slot => {
+      const el = document.getElementById('sp-' + cat + '-' + slot + '-display');
+      if (el) el.innerHTML = '<span class="text-gray-600 text-xs">Loading...</span>';
+    });
+  });
+
+  fetch('/api/spotlight/')
+    .then(r => r.json())
+    .then(data => {
+      ['indie','community','creator'].forEach(cat => {
+        const catData = data[cat] || {};
+        ['week','month'].forEach(slot => {
+          const el = document.getElementById('sp-' + cat + '-' + slot + '-display');
+          if (!el) return;
+          const item = catData[slot];
+          const name = item ? (item.name || item.username || item.display_name || 'Unknown') : null;
+          el.innerHTML = name
+            ? `<span class="text-green-400">${_spEsc(name)}</span>`
+            : '<span class="text-gray-600 text-xs italic">None - system will auto-pick</span>';
+        });
+      });
+    }).catch(() => {});
+}
+
+async function rerollSpotlight(cat, slotType) {
+  const btn = event.target.closest('button');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Rolling...';
+  try {
+    const res = await csrfFetch('/api/spotlight/reroll/', {
+      method: 'POST',
+      body: JSON.stringify({ category: cat, slot_type: slotType })
+    });
+    const d = await res.json();
+    if (d.ok) loadSpotlightStatus();
+    else alert(d.error || 'Failed to re-roll spotlight');
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-dice mr-1"></i>Re-roll';
+  }
+}
+
+async function clearSpotlightSlot(cat, slotType) {
+  const btn = event.target.closest('button');
+  btn.disabled = true;
+  try {
+    const res = await csrfFetch('/api/spotlight/remove/', {
+      method: 'DELETE',
+      body: JSON.stringify({ category: cat, slot_type: slotType })
+    });
+    const d = await res.json();
+    if (d.ok) loadSpotlightStatus();
+    else alert(d.error || 'Failed to clear spotlight');
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function removeFromPool(slotId) {
+  csrfFetch('/api/spotlight/remove-by-id/', {
+    method: 'DELETE',
+    body: JSON.stringify({ slot_id: slotId })
+  }).then(r => r.json()).then(d => {
+    if (d.ok) loadSpotlightStatus();
+    else alert(d.error || 'Failed');
+  });
 }
 </script>
 

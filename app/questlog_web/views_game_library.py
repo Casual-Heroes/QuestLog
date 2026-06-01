@@ -11,7 +11,7 @@ from django_ratelimit.decorators import ratelimit
 
 from app.db import get_db_session
 from sqlalchemy import text
-from .models import WebUserGame, WebUser, WebNotification, WebCommunity, WebSteamAchievement, WebSteamAchievementShowcase
+from .models import WebUserGame, WebUser, WebNotification, WebCommunity, WebSteamAchievement, WebSteamAchievementShowcase, WebFollow
 from .helpers import web_login_required, add_web_user_context, api_login_required, safe_int
 
 logger = logging.getLogger(__name__)
@@ -176,11 +176,19 @@ def api_library_add(request):
     if cover_url:
         from urllib.parse import urlparse as _up
         _parsed = _up(cover_url)
-        _allowed = ('images.igdb.com', 'shared.cloudflare.steamstatic.com', 'cdn.akamai.steamstatic.com')
+        _allowed = (
+            'images.igdb.com',
+            'shared.cloudflare.steamstatic.com',
+            'cdn.akamai.steamstatic.com',
+            'shared.steamstatic.com',
+            'shared.akamai.steamstatic.com',
+            'cdn.cloudflare.steamstatic.com',
+            'steamcdn-a.akamaihd.net',
+        )
         if _parsed.scheme != 'https' or not any(_parsed.netloc.endswith(h) for h in _allowed):
             cover_url = None
 
-    # Prefer Steam cover art
+    # Prefer IGDB cover if provided (exact URL), else fall back to Steam CDN
     if steam_app_id and not cover_url:
         cover_url = _steam_cover(steam_app_id)
 
@@ -361,20 +369,38 @@ def api_play_together(request):
         users = {u.id: u for u in db.query(WebUser).filter(
             WebUser.id.in_(user_ids),
             WebUser.is_banned == False,
+            WebUser.is_hidden == False,
         ).all()}
+
+        # Check mutual follow + allow_messages for the current viewer
+        current_uid = request.web_user.id if request.web_user else None
+        mutual_ids = set()
+        if current_uid and user_ids:
+            i_follow = {r.followee_id for r in db.query(WebFollow.followee_id).filter(
+                WebFollow.follower_id == current_uid,
+                WebFollow.followee_id.in_(user_ids),
+            ).all()}
+            they_follow = {r.follower_id for r in db.query(WebFollow.follower_id).filter(
+                WebFollow.follower_id.in_(user_ids),
+                WebFollow.followee_id == current_uid,
+            ).all()}
+            mutual_ids = i_follow & they_follow
 
         members = []
         for e in entries:
             u = users.get(e.web_user_id)
             if not u:
                 continue
+            is_mutual = u.id in mutual_ids
+            can_dm = bool(current_uid and current_uid != u.id and is_mutual and u.allow_messages)
             members.append({
-                'user_id':      u.id,
-                'username':     u.username,
-                'display_name': u.display_name or u.username,
-                'avatar_url':   u.avatar_url,
+                'user_id':        u.id,
+                'username':       u.username,
+                'display_name':   u.display_name or u.username,
+                'avatar_url':     u.avatar_url,
                 'playtime_hours': e.playtime_hours,
-                'added_at':     e.added_at,
+                'added_at':       e.added_at,
+                'can_dm':         can_dm,
             })
 
     return JsonResponse({'success': True, 'members': members, 'count': len(members)})
@@ -465,6 +491,7 @@ def api_find_players(request):
         users = {u.id: u for u in db.query(WebUser).filter(
             WebUser.id.in_(user_ids),
             WebUser.is_banned == False,
+            WebUser.is_hidden == False,
         ).all()}
 
         # Build one entry per user (take most relevant status)
@@ -534,6 +561,7 @@ def api_nudge_opportunities(request):
             users = db.query(WebUser).filter(
                 WebUser.id.in_(user_id_list),
                 WebUser.is_banned == False,
+                WebUser.is_hidden == False,
             ).all()
 
             avatars = [{'username': u.username, 'display_name': u.display_name or u.username,
@@ -647,6 +675,7 @@ def api_library_game_owners(request):
             ).filter(
                 WebUserGame.name.ilike(name),
                 WebUser.is_banned == False,
+                WebUser.is_hidden == False,
             )
             if current_uid:
                 q = q.filter(WebUserGame.web_user_id != current_uid)
@@ -1088,6 +1117,57 @@ def api_steam_showcase_save(request):
         db.commit()
 
     return JsonResponse({'ok': True, 'pinned': len(ach_ids)})
+
+
+_cover_fallback_cache = {}  # simple in-memory cache: name -> url
+
+
+@ratelimit(key='ip', rate='60/h', method='GET', block=True)
+@require_http_methods(["GET"])
+def api_cover_fallback(request):
+    """GET /api/library/cover-fallback/?name=X&sid=Y
+    Called by the frontend when a stored cover URL 404s.
+    Fetches from IGDB, caches in memory, updates the DB row, returns redirect to cover URL.
+    """
+    from django.http import HttpResponseRedirect
+    name = (request.GET.get('name') or '').strip()[:200]
+    steam_app_id = safe_int(request.GET.get('sid'), None)
+    if not name:
+        return JsonResponse({'error': 'name required'}, status=400)
+
+    cache_key = name.lower()
+    if cache_key in _cover_fallback_cache:
+        url = _cover_fallback_cache[cache_key]
+        if url:
+            return HttpResponseRedirect(url)
+        return JsonResponse({'error': 'no cover'}, status=404)
+
+    url = None
+    try:
+        loop = asyncio.new_event_loop()
+        from app.utils.igdb import search_games as _igdb_search
+        results = loop.run_until_complete(_igdb_search(name, limit=1))
+        loop.close()
+        if results and results[0].cover_url:
+            url = results[0].cover_url
+    except Exception:
+        pass
+
+    _cover_fallback_cache[cache_key] = url
+
+    if url:
+        # Backfill the DB so this game won't need a proxy call next time
+        try:
+            with get_db_session() as db:
+                db.execute(text(
+                    "UPDATE web_user_games SET cover_url = :url WHERE LOWER(name) = :name AND (cover_url IS NULL OR cover_url NOT LIKE 'https://images.igdb.com%')"
+                ), {'url': url, 'name': cache_key})
+                db.commit()
+        except Exception:
+            pass
+        return HttpResponseRedirect(url)
+
+    return JsonResponse({'error': 'no cover found'}, status=404)
 
 
 def _emit_ticker(user_id, name, status, steam_app_id):
