@@ -4,93 +4,104 @@
 {% block title %}{{ article.title }} - QuestLog Blog{% endblock %}
 
 {% block web_content %}
-<div class="max-w-4xl mx-auto px-4 lg:px-6 py-8">
 
-  <!-- Breadcrumb -->
+<!-- Hero banner - full width cover image -->
+{% if article.cover_url %}
+<div class="relative w-full h-72 sm:h-96 overflow-hidden">
+  <img src="{{ article.cover_url }}" alt="{{ article.title }}" class="w-full h-full object-cover">
+  <div class="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent"></div>
+  <!-- Category + title overlaid on image -->
+  <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-10 max-w-4xl mx-auto">
+    <div class="flex items-center gap-2 mb-3">
+      <a href="/blog/?category={{ article.category }}"
+         class="px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider rounded-full
+                {% if article.category == 'guide' %}bg-green-900/60 text-green-300 border border-green-700/40
+                {% elif article.category == 'news' %}bg-blue-900/60 text-blue-300 border border-blue-700/40
+                {% elif article.category == 'opinion' %}bg-orange-900/60 text-orange-300 border border-orange-700/40
+                {% else %}bg-violet-900/60 text-violet-300 border border-violet-700/40{% endif %}">
+        {{ article.category }}
+      </a>
+      {% if article.is_pinned %}<span class="px-2 py-0.5 bg-yellow-800/40 text-yellow-400 text-xs rounded-full border border-yellow-700/40"><i class="fas fa-thumbtack mr-1"></i>Pinned</span>{% endif %}
+    </div>
+    <h1 class="text-2xl sm:text-4xl font-extrabold text-white leading-tight drop-shadow-lg">{{ article.title }}</h1>
+  </div>
+</div>
+{% endif %}
+
+<div class="max-w-4xl mx-auto px-4 lg:px-6 {% if article.cover_url %}py-6{% else %}py-8{% endif %}">
+
+  {% if not article.cover_url %}
+  <!-- Breadcrumb (only when no hero) -->
   <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
     <a href="/blog/" class="hover:text-violet-400 transition-colors">Blog</a>
     <i class="fas fa-chevron-right text-xs"></i>
-    <span class="capitalize {% if article.category == 'guide' %}text-green-400{% elif article.category == 'news' %}text-blue-400{% elif article.category == 'opinion' %}text-orange-400{% else %}text-violet-400{% endif %}">
-      <a href="/blog/?category={{ article.category }}">{{ article.category }}</a>
-    </span>
+    <a href="/blog/?category={{ article.category }}" class="capitalize {% if article.category == 'guide' %}text-green-400{% elif article.category == 'news' %}text-blue-400{% elif article.category == 'opinion' %}text-orange-400{% else %}text-violet-400{% endif %}">{{ article.category }}</a>
     <i class="fas fa-chevron-right text-xs"></i>
     <span class="text-gray-300 truncate">{{ article.title }}</span>
   </nav>
 
-  <!-- Article header -->
   <header class="mb-8">
     {% if article.is_pinned %}
-    <div class="flex items-center gap-2 mb-3">
-      <span class="px-2 py-0.5 bg-yellow-800/30 text-yellow-400 text-xs rounded flex items-center gap-1">
-        <i class="fas fa-thumbtack"></i> Pinned
-      </span>
-    </div>
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-800/30 text-yellow-400 text-xs rounded mb-3"><i class="fas fa-thumbtack"></i> Pinned</span>
     {% endif %}
-
+    <div class="mb-2">
+      <a href="/blog/?category={{ article.category }}" class="text-xs font-bold uppercase tracking-wider {% if article.category == 'guide' %}text-green-400{% elif article.category == 'news' %}text-blue-400{% elif article.category == 'opinion' %}text-orange-400{% else %}text-violet-400{% endif %}">{{ article.category }}</a>
+    </div>
     <h1 class="text-3xl lg:text-4xl font-extrabold text-white leading-tight">{{ article.title }}</h1>
-
-    {% if article.summary %}
-    <p class="mt-3 text-lg text-gray-400 leading-relaxed">{{ article.summary }}</p>
-    {% endif %}
-
-    <!-- Author + meta -->
-    <div class="mt-5 flex items-center justify-between flex-wrap gap-4 pb-5 border-b border-neutral-800">
-      <div class="flex items-center gap-3">
-        {% if article.author %}
-        {% if article.author.avatar_url %}
-        <img src="{{ article.author.avatar_url }}" alt="{{ article.author.username }}"
-             class="w-10 h-10 rounded-full object-cover">
-        {% else %}
-        <div class="w-10 h-10 rounded-full bg-violet-700 flex items-center justify-center">
-          <span class="text-sm font-bold text-white">{{ article.author.username|slice:":1"|upper }}</span>
-        </div>
-        {% endif %}
-        <div>
-          <a href="/ql/u/{{ article.author.username }}/"
-             class="text-sm font-medium text-white hover:text-violet-400 transition-colors">
-            {{ article.author.display_name }}
-          </a>
-          <div class="flex items-center gap-2 mt-0.5">
-            {% if article.author.flair_emoji %}
-            <span class="text-xs">{{ article.author.flair_emoji }}</span>
-            {% endif %}
-            {% if article.author.rank_title %}
-            <span class="text-xs text-gray-500">{{ article.author.rank_title }}</span>
-            {% endif %}
-          </div>
-        </div>
-        {% endif %}
-      </div>
-      <div class="flex items-center gap-4 text-sm text-gray-500">
-        <span id="article-publish-ts" data-ts="{{ article.published_at }}"></span>
-        {% if article.edit_count %}
-        <span class="text-xs text-gray-600" title="Edited">
-          <i class="fas fa-pencil-alt mr-1"></i>edited
-        </span>
-        {% endif %}
-        <span><i class="fas fa-eye mr-1"></i>{{ article.view_count }}</span>
-        <span><i class="fas fa-comment mr-1"></i>{{ article.comment_count }}</span>
-        {% if article.game_tag_name %}
-        <a href="/ql/lfg/browse/?game={{ article.game_tag_name|urlencode }}" class="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 rounded text-xs transition"><i class="fas fa-gamepad text-[10px]"></i>{{ article.game_tag_name }}</a>
-        {% endif %}
-        {% if user_can_edit %}
-        <a href="/blog/{{ article.slug }}/edit/"
-           class="ml-2 px-3 py-1 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition-colors">
-          <i class="fas fa-edit mr-1"></i>Edit
-        </a>
-        {% endif %}
-      </div>
-    </div>
   </header>
-
-  <!-- Cover image -->
-  {% if article.cover_url %}
-  <div class="mb-8 rounded-xl overflow-hidden">
-    <img src="{{ article.cover_url }}" alt="{{ article.title }}" class="w-full max-h-96 object-cover">
-  </div>
+  {% else %}
+  <!-- Breadcrumb below hero -->
+  <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
+    <a href="/blog/" class="hover:text-violet-400 transition-colors">Blog</a>
+    <i class="fas fa-chevron-right text-xs"></i>
+    <a href="/blog/?category={{ article.category }}" class="capitalize {% if article.category == 'guide' %}text-green-400{% elif article.category == 'news' %}text-blue-400{% elif article.category == 'opinion' %}text-orange-400{% else %}text-violet-400{% endif %}">{{ article.category }}</a>
+  </nav>
   {% endif %}
 
-  <!-- Article body - sanitized HTML from markdown -->
+  {% if article.summary %}
+  <p class="text-lg text-gray-400 leading-relaxed mb-5">{{ article.summary }}</p>
+  {% endif %}
+
+  <!-- Author + meta bar -->
+  <div class="flex items-center justify-between flex-wrap gap-3 pb-5 mb-8 border-b border-neutral-800">
+    <div class="flex items-center gap-3">
+      {% if article.author %}
+      {% if article.author.avatar_url %}
+      <img src="{{ article.author.avatar_url }}" alt="{{ article.author.username }}" class="w-10 h-10 rounded-full object-cover">
+      {% else %}
+      <div class="w-10 h-10 rounded-full bg-violet-700 flex items-center justify-center">
+        <span class="text-sm font-bold text-white">{{ article.author.username|slice:":1"|upper }}</span>
+      </div>
+      {% endif %}
+      <div>
+        <a href="/ql/u/{{ article.author.username }}/" class="text-sm font-semibold text-white hover:text-violet-400 transition-colors">
+          {% if article.author.flair_emoji %}{{ article.author.flair_emoji }} {% endif %}{{ article.author.display_name }}
+        </a>
+        <p class="text-xs text-gray-500 mt-0.5">
+          <span id="article-publish-ts" data-ts="{{ article.published_at }}"></span>
+          {% if article.edit_count %} &middot; <span title="Edited"><i class="fas fa-pencil-alt mr-0.5"></i>edited</span>{% endif %}
+        </p>
+      </div>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+      <!-- Reading time -->
+      <span id="reading-time" class="flex items-center gap-1"><i class="fas fa-clock text-xs"></i> <span></span></span>
+      <span class="flex items-center gap-1"><i class="fas fa-eye text-xs"></i>{{ article.view_count }}</span>
+      <span class="flex items-center gap-1"><i class="fas fa-comment text-xs"></i>{{ article.comment_count }}</span>
+      {% if article.game_tag_name %}
+      <a href="/ql/lfg/browse/?game={{ article.game_tag_name|urlencode }}" class="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 rounded text-xs transition"><i class="fas fa-gamepad text-[10px]"></i>{{ article.game_tag_name }}</a>
+      {% endif %}
+      <!-- Share buttons -->
+      <button onclick="shareTo('twitter')" title="Share on X" class="text-gray-500 hover:text-white transition"><i class="fab fa-twitter text-sm"></i></button>
+      <button onclick="copyLink()" id="copy-btn" title="Copy link" class="text-gray-500 hover:text-white transition"><i class="fas fa-link text-sm"></i></button>
+      {% if user_can_edit %}
+      <a href="/blog/{{ article.slug }}/edit/" class="px-3 py-1 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded-lg transition-colors"><i class="fas fa-edit mr-1"></i>Edit</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Article body -->
   <article id="article-body"
            class="prose prose-invert prose-violet max-w-none
                   prose-headings:text-white prose-headings:font-bold
@@ -99,10 +110,8 @@
                   prose-code:text-violet-300 prose-code:bg-neutral-800 prose-code:px-1 prose-code:rounded
                   prose-pre:bg-neutral-800 prose-pre:border prose-pre:border-neutral-700
                   prose-blockquote:border-l-violet-500 prose-blockquote:text-gray-400
-                  prose-table:text-sm
-                  prose-th:text-gray-300 prose-th:bg-neutral-800
-                  prose-td:text-gray-400
-                  prose-img:rounded-lg prose-img:max-w-full
+                  prose-table:text-sm prose-th:text-gray-300 prose-th:bg-neutral-800 prose-td:text-gray-400
+                  prose-img:rounded-xl prose-img:max-w-full prose-img:mx-auto
                   pb-8 border-b border-neutral-800">
     {{ body_html }}
   </article>
@@ -175,6 +184,19 @@ function _csrf() {
   return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1] || '';
 }
 
+function shareTo(platform) {
+  const url = encodeURIComponent(window.location.href);
+  const title = encodeURIComponent(document.title);
+  if (platform === 'twitter') window.open(`https://twitter.com/intent/tweet?url=${url}&text=${title}`, '_blank');
+}
+function copyLink() {
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.innerHTML = '<i class="fas fa-check text-sm text-green-400"></i>';
+    setTimeout(() => { btn.innerHTML = '<i class="fas fa-link text-sm"></i>'; }, 2000);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // Render publish timestamp
   const tsEl = document.getElementById('article-publish-ts');
@@ -184,6 +206,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const d = new Date(ts * 1000);
       tsEl.textContent = d.toLocaleDateString(undefined, {year: 'numeric', month: 'long', day: 'numeric'});
     }
+  }
+
+  // Reading time estimate
+  const body = document.getElementById('article-body');
+  const rtEl = document.querySelector('#reading-time span');
+  if (body && rtEl) {
+    const words = body.innerText.trim().split(/\s+/).length;
+    const mins = Math.max(1, Math.round(words / 200));
+    rtEl.textContent = `${mins} min read`;
   }
 
   // Render comment timestamps

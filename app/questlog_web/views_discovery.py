@@ -573,15 +573,19 @@ def _community_add_platform(request, db, community, data):
     # Verify ownership
     if ptype == PlatformType.FLUXER:
         if not pid.startswith('http'):
-            linked = [i for i in [discord_id, fluxer_id_str] if i]
-            if not linked:
+            if not fluxer_id_str:
                 return JsonResponse({'error': 'Connect your Fluxer account first'}, status=403)
+            linked = [i for i in [discord_id, fluxer_id_str] if i]
             ph = ','.join(f':lid{i}' for i in range(len(linked)))
             params = {f'lid{i}': v for i, v in enumerate(linked)}
             params['gid'] = pid
             row = db.execute(text(f"SELECT guild_id FROM web_fluxer_guild_settings WHERE guild_id=:gid AND owner_id IN ({ph}) LIMIT 1"), params).fetchone()
             if not row:
-                return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                # If guild is known in our DB but user isn't owner - hard block
+                known = db.execute(text("SELECT 1 FROM web_fluxer_guild_settings WHERE guild_id=:gid LIMIT 1"), {'gid': pid}).fetchone()
+                if known:
+                    return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                # Guild not synced yet - trust linked Fluxer account
     elif ptype == PlatformType.DISCORD:
         try:
             discord_guild_id = int(pid)
@@ -1259,19 +1263,32 @@ def api_communities(request):
                 if pid.startswith('http://') or pid.startswith('https://'):
                     resolved_platforms.append((ptype, pid, p_invite_url, p_member_count))
                     continue
-                linked = [i for i in [discord_id, fluxer_id_str] if i]
-                if not linked:
+                # Must have a linked Fluxer account to link a Fluxer server
+                if not fluxer_id_str:
                     return JsonResponse({'error': 'Connect your Fluxer account to link a Fluxer server'}, status=403)
                 with get_db_session() as db:
-                    ph = ','.join(f':lid{i}' for i in range(len(linked)))
+                    ph = ','.join(f':lid{i}' for i in range(len([i for i in [discord_id, fluxer_id_str] if i])))
+                    linked = [i for i in [discord_id, fluxer_id_str] if i]
                     params = {f'lid{i}': v for i, v in enumerate(linked)}
                     params['gid'] = pid
                     row = db.execute(
                         text(f"SELECT guild_id FROM web_fluxer_guild_settings WHERE guild_id=:gid AND owner_id IN ({ph}) LIMIT 1"),
                         params,
                     ).fetchone()
+                # If not in our DB yet (bot not joined), trust the linked Fluxer account -
+                # the user can only know their own guild ID, and ownership is verified when bot joins.
+                # This allows listing without requiring bot installation first.
                 if not row:
-                    return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                    # Verify the guild exists at all in any of our Fluxer tables
+                    with get_db_session() as db:
+                        known = db.execute(
+                            text("SELECT 1 FROM web_fluxer_guild_settings WHERE guild_id=:gid LIMIT 1"),
+                            {'gid': pid},
+                        ).fetchone()
+                    if known:
+                        # Guild is in our DB but user isn't the owner
+                        return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                    # Guild not in our DB yet - trust linked Fluxer account, allow listing
 
             elif ptype == PlatformType.DISCORD:
                 # If pid isn't a numeric guild ID it's a manual invite URL - skip ownership check

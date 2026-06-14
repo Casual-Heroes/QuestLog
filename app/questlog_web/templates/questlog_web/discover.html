@@ -1636,7 +1636,7 @@ async function loadDiscoverSpotlights() {
       const platIcon = c.platform === 'discord'
         ? `<i class="fab fa-discord text-indigo-400 text-xs"></i>`
         : c.platform === 'fluxer'
-          ? `<span class="text-xs text-purple-400">F</span>`
+          ? `<img src="/static/img/siteassets/fluxer-favicon.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;" alt="Fluxer">`
           : `<i class="fas fa-server text-gray-400 text-xs"></i>`;
       const banner = c.banner_url
         ? `<div class="w-full h-24 overflow-hidden bg-neutral-950"><img src="${_e(c.banner_url)}" class="w-full h-full object-cover object-center" loading="lazy"></div>`

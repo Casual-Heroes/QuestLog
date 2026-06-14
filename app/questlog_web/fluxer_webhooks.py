@@ -654,45 +654,61 @@ def notify_member_signup_log(username: str, profile_url: str):
 
 
 def notify_new_member(username: str, profile_url: str):
-    """Queue an embed when a new user registers on QuestLog."""
+    """Queue an embed when a new user registers on QuestLog - both Fluxer and Discord."""
     try:
+        import requests as _req
         with get_db_session() as db:
             cfg = db.query(WebFluxerWebhookConfig).filter_by(
                 event_type='new_member', is_enabled=True
             ).first()
-            if not cfg or not cfg.channel_id:
+            if not cfg:
                 return
 
-            # Use custom message template if set, else default
-            if cfg.message_template:
-                body = _format_template(
-                    cfg.message_template,
-                    username=username,
-                    profile=profile_url,
-                )
-            else:
-                body = f"Welcome **{username}** to QuestLog!\n\n[View Profile]({profile_url})"
-
+            body = (
+                _format_template(cfg.message_template, username=username, profile=profile_url)
+                if cfg.message_template
+                else f"Welcome **{username}** to QuestLog!\n\n[View Profile]({profile_url})"
+            )
             embed_data = {
                 "title": cfg.embed_title or "New Member Joined QuestLog!",
                 "description": body,
                 "footer": cfg.embed_footer or "QuestLog - questlog.casual-heroes.com/",
                 "color": _hex_to_int(cfg.embed_color, GREEN_COLOR),
             }
+            now_ts = int(time.time())
 
-            db.execute(text("""
-                INSERT INTO fluxer_pending_broadcasts
-                    (guild_id, channel_id, payload, created_at)
-                VALUES (:guild_id, :channel_id, :payload, :now)
-            """), {
-                'guild_id': int(cfg.guild_id) if cfg.guild_id else 0,
-                'channel_id': int(cfg.channel_id),
-                'payload': json.dumps(embed_data),
-                'now': int(time.time()),
-            })
+            # Fluxer channel broadcast
+            if cfg.channel_id:
+                db.execute(text("""
+                    INSERT INTO fluxer_pending_broadcasts
+                        (guild_id, channel_id, payload, created_at)
+                    VALUES (:guild_id, :channel_id, :payload, :now)
+                """), {
+                    'guild_id': int(cfg.guild_id) if cfg.guild_id else 0,
+                    'channel_id': int(cfg.channel_id),
+                    'payload': json.dumps(embed_data),
+                    'now': now_ts,
+                })
+
+            # Discord webhook broadcast
+            if cfg.discord_webhook_url:
+                try:
+                    _req.post(
+                        cfg.discord_webhook_url,
+                        json={'embeds': [{
+                            'title': embed_data['title'],
+                            'description': embed_data['description'],
+                            'color': embed_data['color'],
+                            'footer': {'text': embed_data['footer']},
+                        }]},
+                        timeout=5,
+                    )
+                except Exception as e:
+                    logger.warning(f"notify_new_member: Discord webhook failed: {e}")
+
             db.commit()
     except Exception as e:
-        logger.error(f"Failed to queue Fluxer new_member notification: {e}")
+        logger.error(f"Failed to queue new_member notification: {e}")
 
 
 def _post_embed_data(username: str, game: str, content: str, post_url: str, image_url: str | None, prefix: str) -> dict:

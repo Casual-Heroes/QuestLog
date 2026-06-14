@@ -538,7 +538,7 @@ def api_invite_link(request):
 
         invite_code = user.invite_code
 
-    invite_url = request.build_absolute_uri(f'register/?ref={invite_code}')
+    invite_url = request.build_absolute_uri(f'/register/?ref={invite_code}')
 
     return JsonResponse({
         'invite_code': invite_code,

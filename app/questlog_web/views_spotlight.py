@@ -331,7 +331,17 @@ def api_spotlight_reroll(request):
             from .models import WebIndieGame as _WIG
             all_ids = [g.id for g in db.query(_WIG).filter_by(is_published=True).all()]
         elif category == 'community':
-            all_ids = [c.id for c in db.query(WebCommunity).filter_by(network_status='approved').all()]
+            # One entry per owner - prefer is_primary=True to avoid showing Fluxer when Discord is primary
+            all_comms = db.query(WebCommunity).filter_by(network_status='approved').order_by(
+                WebCommunity.is_primary.desc()
+            ).all()
+            seen_owners = set()
+            deduped = []
+            for c in all_comms:
+                if c.owner_id not in seen_owners:
+                    seen_owners.add(c.owner_id)
+                    deduped.append(c)
+            all_ids = [c.id for c in deduped]
         else:
             from .models import WebCreatorProfile as _WCP
             creator_uids = [r[0] for r in db.query(_WCP.user_id).filter_by(allow_discovery=True).all()]

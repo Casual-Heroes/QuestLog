@@ -102,38 +102,56 @@
         <a href="{% url 'questlog_web_register' %}" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">Join Free</a>
         {% endif %}
 
-        <!-- Mobile hamburger - opens full sidebar drawer -->
-        <button onclick="toggleSidebar()" class="md:hidden p-2 text-gray-400 hover:text-white transition">
-          <i class="fas fa-bars"></i>
+        <!-- Mobile hamburger - opens sidebar drawer on phone, dropdown on tablet -->
+        <button
+          class="lg:hidden flex items-center justify-center w-10 h-10 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-white transition"
+          onclick="if(window.innerWidth >= 768) { $data.mobileOpen = !$data.mobileOpen } else { toggleSidebar() }"
+          aria-label="Menu">
+          <i class="fas fa-bars text-sm"></i>
         </button>
       </div>
     </div>
 
     <!-- Mobile nav (tablet only: md to lg) -->
-    <div x-show="mobileOpen" x-cloak class="hidden md:block lg:hidden border-t border-neutral-800 py-3 space-y-1">
-      <a href="{% url 'questlog_web_discover' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
-        <i class="fas fa-compass text-xs text-gray-500"></i> Discover
+    <div x-show="mobileOpen" x-cloak class="md:block lg:hidden border-t border-neutral-800 py-3 space-y-1 px-2">
+      <a href="{% url 'questlog_web_discover' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium">
+        <i class="fas fa-compass text-indigo-400 w-4 text-center"></i> Discover
       </a>
-      <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
-        <i class="fas fa-users text-xs text-gray-500"></i> Find Groups
+      <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium">
+        <i class="fas fa-users text-emerald-400 w-4 text-center"></i> Find Groups
       </a>
-      <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
-        <i class="fas fa-shield-alt text-xs text-gray-500"></i> Communities
+      <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium">
+        <i class="fas fa-shield-alt text-purple-400 w-4 text-center"></i> Communities
       </a>
-      <div class="px-3 pt-1 pb-0.5 text-[10px] font-bold text-gray-600 uppercase tracking-widest">MMOs</div>
-      <a href="/ffxiv/" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm pl-5">
-        <img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover opacity-70"> FFXIV
+      <a href="/indie-heroes/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium">
+        <i class="fas fa-rocket text-yellow-400 w-4 text-center"></i> Indie Heroes
       </a>
-      <a href="/eso/" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm pl-5">
-        <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover opacity-70"> ESO
+      <div class="px-3 pt-2 pb-1 text-[10px] font-bold text-gray-500 uppercase tracking-widest">MMOs</div>
+      <a href="/ffxiv/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium pl-5">
+        <img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover"> FFXIV
+      </a>
+      <a href="/eso/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium pl-5">
+        <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover"> ESO
       </a>
       {% if web_user %}
-      <div class="border-t border-neutral-800 pt-2 mt-2">
-        <a href="{% url 'questlog_web_lfg_create' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-neutral-800 transition text-sm font-semibold">
-          <i class="fas fa-plus text-xs"></i> Start a Group
+      <div class="border-t border-neutral-800 pt-2 mt-2 space-y-1">
+        <a href="{% url 'questlog_web_lfg_create' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl bg-emerald-600/20 border border-emerald-600/30 text-emerald-400 hover:bg-emerald-600/30 active:bg-emerald-600/40 transition text-sm font-semibold">
+          <i class="fas fa-plus w-4 text-center"></i> Start a Group
         </a>
-        <a href="{% url 'questlog_web_profile' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm">
-          <i class="fas fa-user text-xs text-gray-500"></i> My Profile
+        <a href="{% url 'questlog_web_profile' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium">
+          <i class="fas fa-user text-indigo-400 w-4 text-center"></i> My Profile
+        </a>
+        <a href="{% url 'questlog_web_feed' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium">
+          <i class="fas fa-scroll text-rose-400 w-4 text-center"></i> Posts
+        </a>
+      </div>
+      {% else %}
+      <div class="border-t border-neutral-800 pt-2 mt-2 space-y-1">
+        <a href="{% url 'questlog_web_register' %}" class="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition text-sm font-semibold">
+          Join Free
+        </a>
+        <a href="{% url 'questlog_web_login' %}" class="flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm font-medium">
+          Sign In
         </a>
       </div>
       {% endif %}
@@ -255,8 +273,10 @@ const FLUXER_ICON_URL = '{% static "img/siteassets/fluxer-favicon.png" %}';
   }
   // Render @mentions as clickable pills in already-escaped HTML text
   window.renderMentions = function(escapedText) {
-    return escapedText.replace(/@([a-zA-Z0-9_]{1,50})/g, function(m, u) {
-      return '<a href="/u/' + u + '/" class="inline-flex items-center px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 rounded font-medium text-xs transition" style="vertical-align:1px">@' + u + '</a>';
+    // Only match @username when preceded by whitespace, start of string, or > (after a tag)
+    // NOT when preceded by / (inside a URL like odysee.com/@username)
+    return escapedText.replace(/(^|[\s>])@([a-zA-Z0-9_]{1,50})(?![:/])/g, function(m, pre, u) {
+      return pre + '<a href="/u/' + u + '/" class="inline-flex items-center px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 rounded font-medium text-xs transition" style="vertical-align:1px">@' + u + '</a>';
     });
   };
   window.attachMention = function(ta) {
@@ -926,4 +946,14 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeLightbox();
 });
 </script>
+{% endblock %}
+
+{% block footer_community_link %}
+{% if web_user and web_user.primary_community_platform == 'discord' %}
+  <a href="https://discord.gg/DrNyP6gSHx" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-white transition" title="Join on Discord"><i class="fab fa-discord"></i></a>
+{% elif web_user and web_user.primary_community_platform == 'fluxer' %}
+  <a href="https://fluxer.gg/zplS0MwI" target="_blank" rel="noopener noreferrer" class="hover:opacity-100 opacity-60 transition" title="Join on Fluxer"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" style="width:18px;height:18px;border-radius:3px;"></a>
+{% else %}
+  <a href="https://discord.gg/DrNyP6gSHx" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-white transition" title="Join on Discord"><i class="fab fa-discord"></i></a>
+{% endif %}
 {% endblock %}

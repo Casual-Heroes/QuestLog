@@ -438,7 +438,8 @@ def api_check_invite(request):
     return JsonResponse({'valid': True, 'redirect': f'register/?invite={code}'})
 
 
-@ratelimit(key='ip', rate='5/h', block=True)
+@ratelimit(key='ip', rate='5/h', method='POST', block=True)
+@ratelimit(key='ip', rate='60/h', method='GET', block=True)
 def ql_register(request):
     """Account registration — username + password via Django auth."""
     if request.session.get('web_user_id'):

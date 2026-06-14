@@ -508,7 +508,9 @@
 
         <!-- Social icons -->
         <div class="flex gap-5 items-center text-lg">
-          <a href="https://fluxer.gg/zplS0MwI" target="_blank" rel="noopener noreferrer" class="hover:opacity-100 opacity-60 transition"><img src="/static/img/siteassets/fluxer-favicon.png" alt="Fluxer" style="width:18px;height:18px;border-radius:3px;"></a>
+          {% block footer_community_link %}
+          <a href="https://discord.gg/DrNyP6gSHx" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-white transition"><i class="fab fa-discord"></i></a>
+          {% endblock %}
           <a href="https://www.youtube.com/@RyvenBrodragon" class="text-gray-400 hover:text-white transition"><i class="fab fa-youtube"></i></a>
           <a href="https://www.twitch.tv/ryvenbrodragon" class="text-gray-400 hover:text-white transition"><i class="fab fa-twitch"></i></a>
           <a href="https://x.com/CasualHeroes_" class="text-gray-400 hover:text-white transition"><i class="fab fa-twitter"></i></a>

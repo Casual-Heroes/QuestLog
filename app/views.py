@@ -1,8 +1,31 @@
 def home(request):
     if request.get_host().split(':')[0].lower() == 'questlog.casual-heroes.com':
         from app.questlog_web.helpers import get_web_user
+        from app.questlog_web.models import WebCommunity
+        from app.db import get_db_session as _gds
         web_user = get_web_user(request)
-        return render(request, 'questlog_web/landing.html', {'web_user': web_user, 'active_page': 'home'})
+        primary_community = None
+        try:
+            with _gds() as db:
+                c = db.query(WebCommunity).filter_by(
+                    is_primary=True, network_status='approved',
+                    is_active=True, owner_id=1,
+                ).first()
+                if c:
+                    plat = c.platform.value if hasattr(c.platform, 'value') else str(c.platform)
+                    primary_community = {
+                        'name': c.name, 'platform': plat,
+                        'icon_url': c.icon_url or '',
+                        'invite_url': c.invite_url or '',
+                        'short_description': c.short_description or '',
+                    }
+        except Exception:
+            pass
+        return render(request, 'questlog_web/landing.html', {
+            'web_user': web_user,
+            'active_page': 'home',
+            'primary_community': primary_community,
+        })
     return render(request, 'index.html')
 
 def ql_legacy_redirect(request, rest):

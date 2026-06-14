@@ -36,9 +36,35 @@ logger = logging.getLogger(__name__)
 @add_web_user_context
 def home(request):
     """Casual Heroes / QuestLog landing page - accessible to all users."""
+    # Load the primary community to drive the hub banner
+    primary_community = None
+    try:
+        from .models import WebCommunity
+        with get_db_session() as db:
+            # Site owner (id=1) primary community drives the landing page hub banner
+            c = db.query(WebCommunity).filter_by(
+                is_primary=True,
+                network_status='approved',
+                is_active=True,
+                owner_id=1,
+            ).first()
+            if c:
+                # Resolve enum to string for template use
+                plat = c.platform.value if hasattr(c.platform, 'value') else str(c.platform)
+                primary_community = {
+                    'name': c.name,
+                    'platform': plat,
+                    'icon_url': c.icon_url or '',
+                    'invite_url': c.invite_url or '',
+                    'short_description': c.short_description or '',
+                }
+    except Exception as _e:
+        logger.error(f"home: failed to load primary_community: {_e}")
+
     return render(request, 'questlog_web/landing.html', {
         'web_user': request.web_user,
         'active_page': 'home',
+        'primary_community': primary_community,
     })
 
 
@@ -1584,15 +1610,16 @@ def network_leaderboard(request):
                     GROUP BY guild_id
                 ) fx ON fx.guild_id = CAST(wc.platform_id AS UNSIGNED) AND wc.platform = 'fluxer'
                 LEFT JOIN (
-                    SELECT guild_id,
-                           COUNT(DISTINCT user_id) AS member_count,
-                           SUM(xp) AS total_xp,
-                           SUM(message_count) AS total_messages,
-                           SUM(media_count) AS total_media,
-                           SUM(voice_minutes) AS total_voice_mins,
-                           SUM(reaction_count) AS total_reactions
-                    FROM guild_members
-                    GROUP BY guild_id
+                    SELECT gm.guild_id,
+                           COALESCE(g.member_count, COUNT(DISTINCT gm.user_id)) AS member_count,
+                           SUM(gm.xp) AS total_xp,
+                           SUM(gm.message_count) AS total_messages,
+                           SUM(gm.media_count) AS total_media,
+                           SUM(gm.voice_minutes) AS total_voice_mins,
+                           SUM(gm.reaction_count) AS total_reactions
+                    FROM guild_members gm
+                    LEFT JOIN guilds g ON g.guild_id = gm.guild_id
+                    GROUP BY gm.guild_id
                 ) dc ON dc.guild_id = CAST(wc.platform_id AS UNSIGNED) AND wc.platform = 'discord'
                 WHERE wc.network_status='approved' AND wc.is_active=1 AND wc.is_primary=1
                   AND COALESCE(fx.total_xp, dc.total_xp, 0) > 0
