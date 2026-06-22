@@ -1443,6 +1443,26 @@ def _get_recent_activity(request):
                     'indie_name': g.name,
                 })
 
+        # Recent blog posts (last 7 days) - show as blog_post in ticker
+        from .models import WebArticle
+        recent_articles = db.query(WebArticle).filter(
+            WebArticle.is_published == True,
+            WebArticle.is_hidden == False,
+            WebArticle.published_at >= now - (7 * 86400),
+        ).order_by(WebArticle.published_at.desc()).limit(3).all()
+        for art in recent_articles:
+            art_author = db.query(WebUser).filter_by(id=art.author_id).first()
+            ticker.append({
+                'type': 'blog_post',
+                'username': art_author.username if art_author else '',
+                'display_name': art_author.display_name or art_author.username if art_author else 'Community',
+                'avatar_url': art_author.avatar_url or '' if art_author else '',
+                'message': art.title,
+                'timestamp': art.published_at or art.created_at,
+                'blog_url': f'/blog/{art.slug}/',
+                'category': art.category,
+            })
+
         # Site announcements (last 12 hours) - show as platform news in ticker
         from .models import WebSiteAnnouncement
         recent_announcements = db.query(WebSiteAnnouncement).filter(

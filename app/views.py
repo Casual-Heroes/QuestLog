@@ -3045,9 +3045,36 @@ def questlog_login(request):
                 if validate_response.status_code == 200:
                     return redirect(f'https://{settings.DASHBOARD_DOMAIN}/questlog/')
 
-                # If token expired (401), clear session and continue to re-auth below
+                # If token expired (401), try refresh token before clearing session
                 if validate_response.status_code == 401:
-                    logger.warning(f"Discord token expired during login check, clearing session")
+                    refresh_token = discord_user.get('refresh_token')
+                    if refresh_token:
+                        try:
+                            from .discord_auth import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
+                            refresh_resp = requests.post(
+                                'https://discord.com/api/oauth2/token',
+                                data={
+                                    'grant_type': 'refresh_token',
+                                    'refresh_token': refresh_token,
+                                    'client_id': DISCORD_CLIENT_ID,
+                                    'client_secret': DISCORD_CLIENT_SECRET,
+                                },
+                                timeout=10,
+                            )
+                            if refresh_resp.status_code == 200:
+                                new_tokens = refresh_resp.json()
+                                new_access = new_tokens.get('access_token')
+                                new_refresh = new_tokens.get('refresh_token', refresh_token)
+                                if new_access:
+                                    discord_user['access_token'] = new_access
+                                    discord_user['refresh_token'] = new_refresh
+                                    request.session['discord_user'] = discord_user
+                                    request.session.modified = True
+                                    next_url = request.GET.get('next', f'https://{settings.DASHBOARD_DOMAIN}/questlog/')
+                                    return redirect(next_url)
+                        except Exception as _re:
+                            logger.warning(f"Discord token refresh failed: {_re}")
+                    logger.warning("Discord token expired and refresh failed, clearing session")
                     request.session.flush()
             except requests.RequestException:
                 # Network error - fail open and redirect to dashboard
@@ -3422,9 +3449,37 @@ def discord_required(view_func):
                     timeout=5
                 )
 
-                # If token is expired (401), clear session and redirect to login
+                # If token is expired (401), try refresh before forcing re-auth
                 if validate_response.status_code == 401:
-                    logger.warning(f"Discord token expired for user {discord_user.get('username')}, forcing re-auth")
+                    refresh_token = discord_user.get('refresh_token')
+                    if refresh_token:
+                        try:
+                            from .discord_auth import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
+                            refresh_resp = requests.post(
+                                'https://discord.com/api/oauth2/token',
+                                data={
+                                    'grant_type': 'refresh_token',
+                                    'refresh_token': refresh_token,
+                                    'client_id': DISCORD_CLIENT_ID,
+                                    'client_secret': DISCORD_CLIENT_SECRET,
+                                },
+                                timeout=10,
+                            )
+                            if refresh_resp.status_code == 200:
+                                new_tokens = refresh_resp.json()
+                                new_access = new_tokens.get('access_token')
+                                new_refresh = new_tokens.get('refresh_token', refresh_token)
+                                if new_access:
+                                    discord_user['access_token'] = new_access
+                                    discord_user['refresh_token'] = new_refresh
+                                    request.session['discord_user'] = discord_user
+                                    request.session.modified = True
+                                    logger.info(f"Discord token refreshed for {discord_user.get('username')}")
+                                    return view_func(request, *args, **kwargs)
+                        except Exception as _re:
+                            logger.warning(f"Discord token refresh failed in decorator: {_re}")
+
+                    logger.warning(f"Discord token expired for {discord_user.get('username')}, forcing re-auth")
                     request.session.flush()
 
                     # For API endpoints, return JSON error
@@ -18367,7 +18422,7 @@ def guild_lfg(request, guild_id):
             logger.warning("DISCORD_BOT_TOKEN not configured")
 
         # Check if user is admin or LFG Manager (for audit log access)
-        discord_user = request.session.get('discord_user', {})
+        discord_user = request.session.get('discord_user') or {}
         user_id = discord_user.get('id')
         has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id) if user_id else False
         is_admin_or_manager = is_admin or has_lfg_manager_role
@@ -18522,6 +18577,9 @@ def guild_lfg_browser(request, guild_id):
         has_lfg_module = has_module_access(guild_id, 'lfg')
         has_engagement_module = has_module_access(guild_id, 'engagement')
         has_any_module = has_any_module_access(guild_id)
+
+        # Ensure discord_user is always the full session dict, never empty
+        discord_user = request.session.get('discord_user') or discord_user or {}
 
         return render(request, 'questlog/lfg_browser.html', {
             'guild': guild,

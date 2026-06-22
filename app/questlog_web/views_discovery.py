@@ -1290,6 +1290,27 @@ def api_communities(request):
                         return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
                     # Guild not in our DB yet - trust linked Fluxer account, allow listing
 
+                # Fetch live member count using the user's own Fluxer OAuth token (auto-refreshes)
+                try:
+                    import requests as _req
+                    from app.questlog_web.management.commands.update_steam_now_playing import _get_fluxer_access_token
+                    with get_db_session() as _tdb:
+                        _tuser = _tdb.query(WebUser).filter_by(id=request.web_user.id).first()
+                        _tok = _get_fluxer_access_token(_tuser, _tdb) if _tuser else None
+                    if _tok:
+                        _gr = _req.get(
+                            f'https://api.fluxer.app/v1/guilds/{pid}',
+                            headers={'Authorization': f'Bearer {_tok}'},
+                            timeout=5,
+                        )
+                        if _gr.ok:
+                            _gdata = _gr.json()
+                            _live = _gdata.get('member_count') or _gdata.get('approximate_member_count')
+                            if _live:
+                                p_member_count = int(_live)
+                except Exception as _e:
+                    logger.debug(f'community_register: Fluxer member count fetch failed: {_e}')
+
             elif ptype == PlatformType.DISCORD:
                 # If pid isn't a numeric guild ID it's a manual invite URL - skip ownership check
                 try:
@@ -1306,6 +1327,18 @@ def api_communities(request):
                     ).fetchone()
                 if not row:
                     return JsonResponse({'error': 'You are not the owner of that Discord server'}, status=403)
+
+                # Use live member count from guilds table (WardenBot keeps this current)
+                try:
+                    with get_db_session() as db:
+                        _gc = db.execute(
+                            text("SELECT member_count FROM guilds WHERE guild_id=:gid LIMIT 1"),
+                            {'gid': discord_guild_id},
+                        ).fetchone()
+                        if _gc and _gc[0]:
+                            p_member_count = int(_gc[0])
+                except Exception:
+                    pass
 
             elif ptype == PlatformType.MATRIX:
                 matrix_id_str = str(getattr(request.web_user, 'matrix_id', '') or '')
@@ -2444,40 +2477,66 @@ def api_mention_search(request):
 @add_web_user_context
 def api_community_members_list(request, community_id):
     """GET QuestLog members of a community.
-    Source of truth is web_community_members - populated when a user links their
-    Discord/Fluxer account and they are found in that platform's guild.
+    Queries across all platform rows in the same community_group_id so members
+    who joined via Discord OR Fluxer all appear. Deduplicated by user_id so
+    someone who joined on both platforms is only counted once.
+    Role priority: owner > admin > moderator > member (best role wins on dedup).
     """
     with get_db_session() as db:
         community = db.query(WebCommunity).filter_by(id=community_id, is_active=True).first()
         if not community:
             return JsonResponse({'error': 'Not found'}, status=404)
 
+        # Get all community IDs in the same group (all platforms of this community)
+        group_id = community.community_group_id or community_id
+        sibling_ids = [r[0] for r in db.execute(
+            text("SELECT id FROM web_communities WHERE community_group_id = :gid AND is_active = 1"),
+            {'gid': group_id}
+        ).fetchall()]
+        # Always include this community itself (handles communities with no group_id set)
+        if community_id not in sibling_ids:
+            sibling_ids.append(community_id)
+
         page = safe_int(request.GET.get('page', 1), 1, 1, 100)
         limit = 48
         offset = (page - 1) * limit
 
-        rows = db.execute(text("""
+        id_placeholders = ','.join(f':cid{i}' for i in range(len(sibling_ids)))
+        id_params = {f'cid{i}': v for i, v in enumerate(sibling_ids)}
+
+        # Deduplicate by user_id - pick their best role and earliest join date
+        rows = db.execute(text(f"""
             SELECT u.id, u.username, u.display_name, u.avatar_url,
-                   cm.role, cm.joined_at
+                   MAX(CASE cm.role
+                       WHEN 'owner'     THEN 4
+                       WHEN 'admin'     THEN 3
+                       WHEN 'moderator' THEN 2
+                       ELSE 1 END) AS role_rank,
+                   MIN(cm.joined_at) AS first_joined
             FROM web_community_members cm
             JOIN web_users u ON u.id = cm.user_id
-            WHERE cm.community_id = :cid AND u.is_banned = 0 AND u.is_disabled = 0
-            ORDER BY FIELD(cm.role,'owner','admin','moderator','member'), cm.joined_at ASC
+            WHERE cm.community_id IN ({id_placeholders})
+              AND u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY u.id, u.username, u.display_name, u.avatar_url
+            ORDER BY role_rank DESC, first_joined ASC
             LIMIT :lim OFFSET :off
-        """), {'cid': community_id, 'lim': limit, 'off': offset}).fetchall()
+        """), {**id_params, 'lim': limit, 'off': offset}).fetchall()
 
-        total = db.execute(text("""
-            SELECT COUNT(*) FROM web_community_members cm
+        total = db.execute(text(f"""
+            SELECT COUNT(DISTINCT cm.user_id)
+            FROM web_community_members cm
             JOIN web_users u ON u.id = cm.user_id
-            WHERE cm.community_id = :cid AND u.is_banned = 0 AND u.is_disabled = 0
-        """), {'cid': community_id}).scalar()
+            WHERE cm.community_id IN ({id_placeholders})
+              AND u.is_banned = 0 AND u.is_disabled = 0
+        """), id_params).scalar()
 
+        role_map = {4: 'owner', 3: 'admin', 2: 'moderator', 1: 'member'}
         members = [{
-            'id': r.id,
-            'username': r.username,
-            'display_name': r.display_name or r.username,
-            'avatar_url': r.avatar_url or '',
-            'role': r.role,
+            'id': r[0],
+            'username': r[1],
+            'display_name': r[2] or r[1],
+            'avatar_url': r[3] or '',
+            'role': role_map.get(r[4], 'member'),
             'linked': True,
         } for r in rows]
 

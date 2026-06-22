@@ -627,7 +627,18 @@
       </section>
       {% endif %}
 
-      <!-- 5. POST COMPOSER - at the bottom, after discovery content -->
+      <!-- 5. FROM THE BLOG - random recent post inline -->
+      <div id="discover-blog-section" class="hidden">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fas fa-newspaper text-violet-400 text-sm"></i>From the Blog
+          </h2>
+          <a href="/blog/" class="text-violet-400 hover:text-violet-300 text-xs transition">All Posts →</a>
+        </div>
+        <div id="discover-blog-card"></div>
+      </div>
+
+      <!-- 6. POST COMPOSER - at the bottom, after discovery content -->
       <div id="post-composer-anchor"></div>
 
       <!-- Bottom CTA: federation pitch (logged out only) -->
@@ -804,42 +815,6 @@
         </div>
         <div id="sidebar-news" class="space-y-2">
           <p class="text-gray-600 text-xs">Loading...</p>
-        </div>
-      </div>
-
-      <!-- Quick Links -->
-      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
-        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-          <i class="fas fa-compass text-indigo-400"></i>Explore
-        </h3>
-        <div class="grid grid-cols-2 gap-2">
-          <a href="{% url 'questlog_web_creators' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-star text-yellow-400"></i>Creators
-          </a>
-          <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-users text-emerald-400"></i>Find Groups
-          </a>
-          <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-shield-alt text-purple-400"></i>Communities
-          </a>
-          <a href="{% url 'questlog_web_games' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-gamepad text-indigo-400"></i>Games
-          </a>
-          <a href="{% url 'questlog_web_indie_heroes' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-rocket text-amber-400"></i>Indie Heroes
-          </a>
-          {% if web_user %}
-          <a href="{% url 'questlog_web_network' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-search text-cyan-400"></i>Find Gamers
-          </a>
-          <a href="{% url 'questlog_web_feed' %}" class="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-scroll text-pink-400"></i>Posts Feed
-          </a>
-          {% else %}
-          <a href="{% url 'questlog_web_articles' %}" class="col-span-2 flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-xs text-gray-300 transition">
-            <i class="fas fa-newspaper text-orange-400"></i>Gaming News
-          </a>
-          {% endif %}
         </div>
       </div>
 
@@ -1338,6 +1313,7 @@ document.addEventListener('DOMContentLoaded', function() {
   loadDiscoverIndieHeroes();
   loadGameServerStrip();
   loadDiscoverSpotlights();
+  loadDiscoverBlogPost();
   initFindPlayers();
   // Preload custom emoji so the tab icon can update
   fetch('/api/emoji/').then(r => r.json()).then(data => {
@@ -1415,7 +1391,8 @@ async function loadActivity() {
         community_post:   { icon: 'fa-comments',        color: 'text-teal-400' },
         game_night:       { icon: 'fa-moon',            color: 'text-indigo-400' },
         announcement:     { icon: 'fa-bullhorn',        color: 'text-yellow-400' },
-        indie_hero:       { icon: 'fa-rocket',           color: 'text-emerald-400' },
+        indie_hero:       { icon: 'fa-rocket',          color: 'text-emerald-400' },
+        blog_post:        { icon: 'fa-newspaper',       color: 'text-violet-400' },
       };
 
       function buildTickerItem(t) {
@@ -1440,6 +1417,8 @@ async function loadActivity() {
           msgHtml = `<a href="${esc(t.community_url)}" class="${t.type === 'game_night' ? 'text-indigo-400' : 'text-teal-400'} hover:underline">${esc(t.message)}</a>`;
         } else if (t.type === 'announcement' && t.ann_url) {
           msgHtml = `<a href="${esc(t.ann_url)}" class="text-yellow-400 hover:underline">${esc(t.message)}</a>`;
+        } else if (t.type === 'blog_post' && t.blog_url) {
+          msgHtml = `<a href="${esc(t.blog_url)}" class="text-violet-400 hover:underline">${esc(t.message)}</a>`;
         } else if (t.type === 'indie_hero' && t.indie_slug) {
           msgHtml = `<a href="/indie-heroes/${esc(t.indie_slug)}/" class="text-emerald-400 hover:underline">${esc(t.message)}</a>`;
         }
@@ -1538,6 +1517,7 @@ function buildTickerItemStatic(t) {
     community_post: 'fa-comments text-teal-400', game_night: 'fa-moon text-indigo-400',
     announcement: 'fa-bullhorn text-yellow-400',
     indie_hero:   'fa-rocket text-emerald-400',
+    blog_post:    'fa-newspaper text-violet-400',
   };
   const iconCls = ICONS[t.type] || 'fa-circle text-gray-400';
   const userLink = t.username
@@ -1558,6 +1538,8 @@ function buildTickerItemStatic(t) {
     msgHtml = `wants to play <a href="${esc(t.steam_url)}" target="_blank" rel="noopener" class="text-violet-400 hover:underline">${esc(t.game)}</a>`;
   else if (t.type === 'announcement' && t.ann_url)
     msgHtml = `<a href="${esc(t.ann_url)}" class="text-yellow-400 hover:underline">${esc(t.message)}</a>`;
+  else if (t.type === 'blog_post' && t.blog_url)
+    msgHtml = `<a href="${esc(t.blog_url)}" class="text-violet-400 hover:underline">${esc(t.message)}</a>`;
   else if (t.type === 'indie_hero' && t.indie_slug)
     msgHtml = `<a href="/indie-heroes/${esc(t.indie_slug)}/" class="text-emerald-400 hover:underline">${esc(t.message)}</a>`;
   const specialAvatar = t.type === 'announcement'
@@ -1609,6 +1591,31 @@ async function loadNudgeCards() {
 }
 
 // Indie Heroes discover widget - 5 random published games
+async function loadDiscoverBlogPost() {
+  try {
+    const res = await fetch('/api/blog/recent/?limit=5');
+    const data = await res.json();
+    const posts = data.articles || [];
+    const section = document.getElementById('discover-blog-section');
+    const card = document.getElementById('discover-blog-card');
+    if (!section || !card || !posts.length) return;
+    const post = posts[Math.floor(Math.random() * posts.length)];
+    const authorName = post.author ? (post.author.display_name || post.author.username || '') : '';
+    const catColor = post.category === 'guide' ? 'text-green-400' : post.category === 'news' ? 'text-blue-400' : post.category === 'opinion' ? 'text-orange-400' : 'text-violet-400';
+    card.innerHTML = `
+      <a href="/blog/${esc(post.slug)}/" class="flex gap-4 bg-neutral-900 border border-neutral-800 hover:border-violet-700/50 rounded-xl overflow-hidden transition group">
+        ${post.cover_url ? `<div class="w-32 sm:w-44 h-full flex-shrink-0 overflow-hidden"><img src="${esc(post.cover_url)}" class="w-full h-full object-cover" style="min-height:100px" loading="lazy"></div>` : ''}
+        <div class="flex-1 p-4 min-w-0">
+          <span class="text-[10px] font-bold uppercase tracking-wider ${catColor} mb-1 block">${esc(post.category)}</span>
+          <p class="text-white font-bold text-sm group-hover:text-violet-300 transition line-clamp-2 leading-snug mb-1">${esc(post.title)}</p>
+          ${post.summary ? `<p class="text-gray-400 text-xs line-clamp-2 leading-relaxed">${esc(post.summary)}</p>` : ''}
+          ${authorName ? `<p class="text-gray-600 text-xs mt-2">by ${esc(authorName)}</p>` : ''}
+        </div>
+      </a>`;
+    section.classList.remove('hidden');
+  } catch(e) { console.error('Blog post load failed:', e); }
+}
+
 async function loadDiscoverSpotlights() {
   try {
     const r = await fetch('/api/spotlight/');
@@ -1937,6 +1944,8 @@ async function loadSidebarContent() {
     const el = document.getElementById('sidebar-news');
     if (el) el.innerHTML = newsHtml;
   } catch(e) { const el = document.getElementById('sidebar-news'); if(el) el.innerHTML = '<p class="text-gray-600 text-xs">-</p>'; }
+
+  // sidebar-blog-post removed - blog now loads via loadDiscoverBlogPost()
 }
 </script>
 

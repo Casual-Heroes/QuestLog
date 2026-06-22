@@ -2146,6 +2146,148 @@ def api_admin_rss_feed_fetch_now(request, feed_id):
 
 # --- User Admin ---
 
+@web_admin_required
+@require_http_methods(['GET'])
+def api_admin_tracker_stats(request):
+    """Admin: Full site analytics + Mortality Tracker download stats."""
+    import time as _time
+    from sqlalchemy import text as _t
+    now = int(_time.time())
+    period_days = int(request.GET.get('days', 30))
+    since = now - (period_days * 86400)
+
+    SECTION_LABELS = {
+        'soulslike_tracker': 'Mortality Tracker',
+        'soulslike':         'SoulsLike Hub',
+        'ffxiv_tools':       'FFXIV Tools',
+        'ffxiv':             'FFXIV',
+        'eso':               'ESO',
+        'indie_heroes':      'Indie Heroes',
+        'lfg':               'LFG',
+        'games_we_play':     'Games We Play',
+        'game_servers':      'Game Servers',
+        'communities':       'Communities',
+        'discover':          'Discover',
+        'blog':              'Blog',
+        'creators':          'Creators',
+        'steamquest':        'SteamQuest',
+        'leaderboard':       'Leaderboard',
+        'profile':           'Profiles',
+        'register':          'Register',
+        'getting_started':   'Getting Started',
+    }
+
+    try:
+        with get_db_session() as db:
+            # Site-wide totals
+            total_views = db.execute(_t(
+                "SELECT COUNT(*) FROM web_page_views WHERE created_at >= :s"
+            ), {'s': since}).scalar() or 0
+
+            unique_visitors = db.execute(_t(
+                "SELECT COUNT(DISTINCT ip_hash) FROM web_page_views WHERE created_at >= :s"
+            ), {'s': since}).scalar() or 0
+
+            # Views + unique visitors per section
+            section_rows = db.execute(_t(
+                "SELECT section, COUNT(*) as views, COUNT(DISTINCT ip_hash) as uniques "
+                "FROM web_page_views "
+                "WHERE created_at >= :s GROUP BY section ORDER BY views DESC"
+            ), {'s': since}).fetchall()
+            sections = [
+                {
+                    'section': r[0],
+                    'label': SECTION_LABELS.get(r[0], r[0].replace('_', ' ').title()),
+                    'views': r[1],
+                    'uniques': r[2],
+                }
+                for r in section_rows
+            ]
+
+            # New vs returning
+            new_visitors = db.execute(_t(
+                "SELECT COUNT(DISTINCT ip_hash) FROM web_page_views "
+                "WHERE created_at >= :s AND is_new_visitor = 1"
+            ), {'s': since}).scalar() or 0
+            returning_visitors = db.execute(_t(
+                "SELECT COUNT(DISTINCT ip_hash) FROM web_page_views "
+                "WHERE created_at >= :s AND is_new_visitor = 0"
+            ), {'s': since}).scalar() or 0
+
+            # Traffic sources (utm_source)
+            source_rows = db.execute(_t(
+                "SELECT utm_source, COUNT(*) as views, COUNT(DISTINCT ip_hash) as uniques "
+                "FROM web_page_views WHERE created_at >= :s AND utm_source IS NOT NULL "
+                "GROUP BY utm_source ORDER BY views DESC LIMIT 15"
+            ), {'s': since}).fetchall()
+
+            # Top external referrers only (exclude own domain)
+            referrer_rows = db.execute(_t(
+                "SELECT referrer, COUNT(*) as cnt FROM web_page_views "
+                "WHERE created_at >= :s AND referrer IS NOT NULL AND referrer != '' "
+                "AND referrer NOT LIKE '%questlog.casual-heroes.com%' "
+                "AND referrer NOT LIKE '%casual-heroes.com%' "
+                "AND utm_source != 'internal' "
+                "GROUP BY referrer ORDER BY cnt DESC LIMIT 10"
+            ), {'s': since}).fetchall()
+
+            # Internal navigation - top pages people click FROM within the site
+            internal_nav_rows = db.execute(_t(
+                "SELECT referrer, COUNT(*) as cnt FROM web_page_views "
+                "WHERE created_at >= :s AND referrer IS NOT NULL "
+                "AND referrer LIKE '%questlog.casual-heroes.com%' "
+                "GROUP BY referrer ORDER BY cnt DESC LIMIT 10"
+            ), {'s': since}).fetchall()
+
+            # Daily trend (last 14 days)
+            daily = db.execute(_t(
+                "SELECT DATE(FROM_UNIXTIME(created_at)) as day, COUNT(*) as cnt "
+                "FROM web_page_views WHERE created_at >= :s "
+                "GROUP BY day ORDER BY day DESC LIMIT 14"
+            ), {'s': now - 14 * 86400}).fetchall()
+
+            # Tracker downloads
+            total_dl = db.execute(_t("SELECT COUNT(*) FROM web_tracker_download_stats")).scalar() or 0
+            dl_by_platform = {}
+            for r in db.execute(_t(
+                "SELECT platform, COUNT(*) FROM web_tracker_download_stats GROUP BY platform"
+            )).fetchall():
+                dl_by_platform[r[0] or 'unknown'] = r[1]
+
+            recent_dl = db.execute(_t(
+                "SELECT platform, created_at FROM web_tracker_download_stats ORDER BY created_at DESC LIMIT 20"
+            )).fetchall()
+
+        return JsonResponse({
+            'period_days': period_days,
+            'total_views': total_views,
+            'unique_visitors': unique_visitors,
+            'new_visitors': new_visitors,
+            'returning_visitors': returning_visitors,
+            'sections': sections,
+            'traffic_sources': [
+                {'source': r[0], 'views': r[1], 'uniques': r[2]}
+                for r in source_rows
+            ],
+            'top_referrers': [
+                {'referrer': r[0], 'count': r[1]}
+                for r in referrer_rows
+            ],
+            'internal_nav': [
+                {'referrer': r[0], 'count': r[1]}
+                for r in internal_nav_rows
+            ],
+            'daily_trend': [{'day': str(r[0]), 'views': r[1]} for r in daily],
+            'tracker': {
+                'total_downloads': total_dl,
+                'by_platform': dl_by_platform,
+                'recent': [{'platform': r[0] or 'unknown', 'created_at': r[1]} for r in recent_dl],
+            },
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 @web_mod_required
 def api_admin_users(request):
     """API: List users for admin."""

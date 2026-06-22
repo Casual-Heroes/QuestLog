@@ -5554,3 +5554,91 @@ def page_feedback(request):
         'web_user': request.web_user,
         'active_page': 'feedback',
     })
+
+
+# =============================================================================
+# SOULSLIKE HUB
+# =============================================================================
+
+@ensure_csrf_cookie
+@add_web_user_context
+def soulslike_hub(request):
+    """SoulsLike hub landing page."""
+    return render(request, 'questlog_web/soulslike_hub.html', {
+        'web_user': request.web_user,
+        'active_page': 'soulslike',
+        'games_list': [
+            'Elden Ring', 'Dark Souls III', 'Dark Souls II', 'Dark Souls',
+            'Bloodborne', 'Sekiro', 'Lies of P', "Demon's Souls",
+            'Lords of the Fallen', 'The First Berserker: Khazan',
+        ],
+    })
+
+
+@ensure_csrf_cookie
+@add_web_user_context
+def soulslike_tracker(request):
+    """QuestLog Mortality Tracker download & info page."""
+    from app.db import get_db_session as _gds
+    from sqlalchemy import text as _t
+    import time as _time
+
+    download_count = 0
+    try:
+        with _gds() as db:
+            row = db.execute(_t(
+                "SELECT COALESCE(SUM(count),0) FROM web_tracker_download_stats"
+            )).scalar()
+            download_count = int(row or 0)
+    except Exception:
+        pass  # table not yet created, show 0
+
+    return render(request, 'questlog_web/soulslike_tracker.html', {
+        'web_user': request.web_user,
+        'active_page': 'soulslike_tracker',
+        'download_count': download_count,
+        'setup_steps': [
+            'Create a free QuestLog account at questlog.casual-heroes.com/register/',
+            'Download and run the listener for your OS',
+            'Enter your QuestLog API token when prompted (Settings → API Token)',
+            'Launch Elden Ring - deaths are tracked automatically via OCR',
+            'Open your browser to manage runs, toggle bosses, and view your stats',
+        ],
+        'features_list': [
+            'Auto death detection via OCR - no manual input needed',
+            'Boss tracker for 200+ Elden Ring bosses',
+            "Rage meter that escalates through Maiden's Grace to HOLLOW",
+            'Deaths per hour stats and session tracking',
+            'OBS overlay URL for streaming',
+            'Multiple run support (vanilla, Reforged, NG+)',
+            'Leaderboards coming soon',
+            'LFG integration - find others in your NG cycle',
+        ],
+    })
+
+
+@add_web_user_context
+@require_http_methods(['POST'])
+def api_tracker_download(request):
+    """Record a download and serve the file URL."""
+    import time as _time
+    from app.db import get_db_session as _gds
+    from sqlalchemy import text as _t
+
+    platform = (request.POST.get('platform') or request.GET.get('platform') or 'unknown')[:20]
+    ip = request.META.get('HTTP_CF_CONNECTING_IP') or request.META.get('REMOTE_ADDR', '')
+
+    try:
+        with _gds() as db:
+            db.execute(_t("""
+                INSERT INTO web_tracker_download_stats (platform, ip_hash, created_at)
+                VALUES (:p, SHA2(:ip, 256), :ts)
+            """), {'p': platform, 'ip': ip, 'ts': int(_time.time())})
+            db.commit()
+    except Exception:
+        pass  # log and continue
+
+    return JsonResponse({
+        'ok': True,
+        'url': '/static/downloads/QuestLogMortalityTracker.zip',
+    })
