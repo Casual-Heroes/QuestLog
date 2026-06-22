@@ -1443,6 +1443,26 @@ def _get_recent_activity(request):
                     'indie_name': g.name,
                 })
 
+        # Recent blog posts (last 7 days) - show as blog_post in ticker
+        from .models import WebArticle
+        recent_articles = db.query(WebArticle).filter(
+            WebArticle.is_published == True,
+            WebArticle.is_hidden == False,
+            WebArticle.published_at >= now - (7 * 86400),
+        ).order_by(WebArticle.published_at.desc()).limit(3).all()
+        for art in recent_articles:
+            art_author = db.query(WebUser).filter_by(id=art.author_id).first()
+            ticker.append({
+                'type': 'blog_post',
+                'username': art_author.username if art_author else '',
+                'display_name': art_author.display_name or art_author.username if art_author else 'Community',
+                'avatar_url': art_author.avatar_url or '' if art_author else '',
+                'message': art.title,
+                'timestamp': art.published_at or art.created_at,
+                'blog_url': f'/blog/{art.slug}/',
+                'category': art.category,
+            })
+
         # Site announcements (last 12 hours) - show as platform news in ticker
         from .models import WebSiteAnnouncement
         recent_announcements = db.query(WebSiteAnnouncement).filter(
@@ -1460,6 +1480,41 @@ def _get_recent_activity(request):
                 'ann_url': '/ql/whats-new/',
                 'category': ann.category,
             })
+
+        # Play Together - 2 random picks from library, spread through ticker
+        try:
+            pt_rows = db.execute(text("""
+                SELECT g.web_user_id, g.name AS game_name, g.steam_app_id,
+                       g.updated_at AS status_set_at,
+                       u.username, u.display_name, u.avatar_url
+                FROM web_user_games g
+                JOIN web_users u ON u.id = g.web_user_id
+                WHERE g.status = 'play_together'
+                  AND u.is_banned = 0
+                  AND u.is_disabled = 0
+                  AND u.allow_discovery = 1
+                  AND u.email_verified = 1
+                ORDER BY RAND()
+                LIMIT 2
+            """)).fetchall()
+            for row in pt_rows:
+                steam_url = (
+                    f'https://store.steampowered.com/app/{row.steam_app_id}/'
+                    if row.steam_app_id
+                    else f'https://store.steampowered.com/search/?term={row.game_name}'
+                )
+                ticker.append({
+                    'type': 'play_together',
+                    'username': row.username,
+                    'display_name': row.display_name or row.username,
+                    'avatar_url': row.avatar_url or '',
+                    'message': f"wants to play {row.game_name}",
+                    'game': row.game_name,
+                    'steam_url': steam_url,
+                    'timestamp': row.status_set_at,
+                })
+        except Exception:
+            pass
 
         ticker.sort(key=lambda x: x['timestamp'], reverse=True)
         ticker = ticker[:20]

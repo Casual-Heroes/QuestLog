@@ -57,7 +57,7 @@
 
       <!-- Markdown editor + preview tabs -->
       <div>
-        <div class="flex items-center gap-1 mb-2">
+        <div class="flex items-center gap-1 mb-2 flex-wrap">
           <button id="tab-write" onclick="switchEditorTab('write')"
                   class="px-3 py-1.5 text-sm rounded-t-lg font-medium transition-colors bg-neutral-800 text-white border-b-2 border-violet-500">
             Write
@@ -66,7 +66,49 @@
                   class="px-3 py-1.5 text-sm rounded-t-lg font-medium transition-colors text-gray-400 hover:text-white border-b-2 border-transparent">
             Preview
           </button>
-          <span class="ml-auto text-xs text-gray-500">Markdown supported</span>
+          <!-- Formatting toolbar -->
+          <div class="ml-auto flex items-center gap-1 flex-wrap">
+            <button onclick="insertMd('**','**')" title="Bold" class="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded transition font-bold">B</button>
+            <button onclick="insertMd('*','*')" title="Italic" class="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded transition italic">I</button>
+            <button onclick="insertMd('`','`')" title="Code" class="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded transition font-mono">&#96;</button>
+            <button onclick="insertMdLine('## ')" title="Heading" class="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded transition">H</button>
+            <button onclick="insertMdLine('- ')" title="Bullet list" class="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded transition">&#8226;</button>
+            <button onclick="insertMdLine('> ')" title="Quote" class="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded transition">"</button>
+            <button onclick="insertMdLine('---')" title="Divider" class="px-2 py-1 text-xs bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded transition">&#8212;</button>
+            <button onclick="openImageInsert()" title="Insert Image or GIF" class="px-2 py-1 text-xs bg-violet-700 hover:bg-violet-600 text-white rounded transition flex items-center gap-1">
+              <i class="fas fa-image text-[10px]"></i> Image/GIF
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline image insert modal -->
+        <div id="img-insert-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/70" onclick="closeImageInsert()"></div>
+          <div class="relative bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+            <h3 class="text-white font-semibold text-sm">Insert Image or GIF</h3>
+            <!-- Upload tab -->
+            <div class="flex gap-2 mb-3">
+              <button onclick="imgInsertTab('upload')" id="img-tab-upload" class="px-3 py-1.5 text-xs rounded-lg bg-violet-600 text-white font-medium transition">Upload File</button>
+              <button onclick="imgInsertTab('url')" id="img-tab-url" class="px-3 py-1.5 text-xs rounded-lg bg-neutral-800 text-gray-300 hover:bg-neutral-700 font-medium transition">Paste URL</button>
+            </div>
+            <div id="img-panel-upload" class="space-y-3">
+              <label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-neutral-600 rounded-xl cursor-pointer hover:border-violet-500 transition bg-neutral-800/50">
+                <i class="fas fa-cloud-upload-alt text-2xl text-gray-500 mb-2"></i>
+                <span class="text-xs text-gray-400">Click to upload image or GIF</span>
+                <span class="text-xs text-gray-600 mt-1">PNG, JPG, WEBP, GIF up to 10MB</span>
+                <input type="file" id="img-file-input" accept="image/*,.gif" class="hidden" onchange="handleImageUpload(this)">
+              </label>
+              <div id="img-upload-status" class="hidden text-xs text-center py-2"></div>
+            </div>
+            <div id="img-panel-url" class="hidden space-y-3">
+              <input type="url" id="img-url-input" placeholder="https://example.com/image.gif"
+                     class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500">
+              <input type="text" id="img-alt-input" placeholder="Alt text (optional)"
+                     class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500">
+              <button onclick="insertImageFromUrl()" class="w-full py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm rounded-lg transition">Insert</button>
+            </div>
+            <button onclick="closeImageInsert()" class="absolute top-3 right-3 text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+          </div>
         </div>
 
         <div id="editor-write">
@@ -167,14 +209,19 @@ print('hello')
       <!-- Cover image -->
       <div class="bg-neutral-900 border border-neutral-700 rounded-xl p-4">
         <h3 class="text-sm font-semibold text-white mb-2">Cover Image</h3>
-        <p class="text-xs text-gray-500 mb-3">Upload via the image upload tool, then paste the /media/uploads/ path here.</p>
-        <input type="text" id="cover-url"
-               value="{% if article %}{{ article.cover_url }}{% endif %}"
-               placeholder="/media/uploads/..."
-               class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 transition-colors">
-        <div id="cover-preview" class="mt-2 hidden">
-          <img id="cover-preview-img" src="" alt="Cover preview" class="w-full rounded-lg max-h-32 object-cover">
+        <div id="cover-preview" class="mb-3 {% if not article or not article.cover_url %}hidden{% endif %} relative group">
+          <img id="cover-preview-img" src="{% if article %}{{ article.cover_url }}{% endif %}" alt="Cover" class="w-full rounded-lg max-h-40 object-cover">
+          <button onclick="removeCover()" class="absolute top-2 right-2 w-6 h-6 bg-black/60 hover:bg-red-600 text-white rounded-full text-xs hidden group-hover:flex items-center justify-center transition">
+            <i class="fas fa-times text-[10px]"></i>
+          </button>
         </div>
+        <input type="hidden" id="cover-url" value="{% if article %}{{ article.cover_url }}{% endif %}">
+        <label class="flex items-center justify-center gap-2 w-full py-2.5 border-2 border-dashed border-neutral-600 rounded-xl cursor-pointer hover:border-violet-500 transition bg-neutral-800/50 text-sm text-gray-400 hover:text-white">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <span id="cover-upload-label">{% if article and article.cover_url %}Replace Cover Image{% else %}Upload Cover Image{% endif %}</span>
+          <input type="file" id="cover-file-input" accept="image/*" class="hidden" onchange="handleCoverUpload(this)">
+        </label>
+        <div id="cover-upload-status" class="hidden text-xs text-center py-1 mt-1"></div>
       </div>
 
       <!-- Markdown cheatsheet -->
@@ -211,23 +258,7 @@ document.addEventListener('DOMContentLoaded', function() {
   initCounter('summary-input', 'summary-char-count', 500);
   initCounter('body-input', 'body-char-count', 100000, true);
 
-  // Cover image live preview
-  const coverInput = document.getElementById('cover-url');
-  if (coverInput) {
-    coverInput.addEventListener('input', function() {
-      const val = coverInput.value.trim();
-      const preview = document.getElementById('cover-preview');
-      const img = document.getElementById('cover-preview-img');
-      if (val && /^\/media\/uploads\/.+\.(webp|jpg|jpeg|png|gif)$/i.test(val)) {
-        img.src = val;
-        preview.classList.remove('hidden');
-      } else {
-        preview.classList.add('hidden');
-      }
-    });
-    // Trigger on load for edit mode
-    coverInput.dispatchEvent(new Event('input'));
-  }
+  // Nothing needed here for cover - handled by upload function
 
   // Timestamp for edit mode
   const tsEl = document.getElementById('edit-ts');
@@ -369,6 +400,150 @@ function saveArticle() {
     btn.disabled = false;
     btn.textContent = ARTICLE_ID ? 'Save Changes' : 'Create Article';
   });
+}
+
+// ── Markdown toolbar helpers ─────────────────────────────────────────
+function insertMd(before, after) {
+  const ta = document.getElementById('body-input');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  const sel = ta.value.substring(start, end) || 'text';
+  const insert = before + sel + after;
+  ta.value = ta.value.substring(0, start) + insert + ta.value.substring(end);
+  ta.selectionStart = start + before.length;
+  ta.selectionEnd = start + before.length + sel.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
+}
+
+function insertMdLine(prefix) {
+  const ta = document.getElementById('body-input');
+  const pos = ta.selectionStart;
+  const lineStart = ta.value.lastIndexOf('\n', pos - 1) + 1;
+  ta.value = ta.value.substring(0, lineStart) + prefix + ta.value.substring(lineStart);
+  ta.selectionStart = ta.selectionEnd = lineStart + prefix.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
+}
+
+function insertImageMd(url, alt) {
+  const ta = document.getElementById('body-input');
+  const pos = ta.selectionStart;
+  const md = `\n![${alt || 'image'}](${url})\n`;
+  ta.value = ta.value.substring(0, pos) + md + ta.value.substring(pos);
+  ta.selectionStart = ta.selectionEnd = pos + md.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
+}
+
+// ── Inline image insert modal ─────────────────────────────────────────
+function openImageInsert() {
+  document.getElementById('img-insert-modal').classList.remove('hidden');
+  imgInsertTab('upload');
+}
+function closeImageInsert() {
+  document.getElementById('img-insert-modal').classList.add('hidden');
+  document.getElementById('img-upload-status').classList.add('hidden');
+  document.getElementById('img-file-input').value = '';
+  document.getElementById('img-url-input').value = '';
+  document.getElementById('img-alt-input').value = '';
+}
+function imgInsertTab(tab) {
+  document.getElementById('img-panel-upload').classList.toggle('hidden', tab !== 'upload');
+  document.getElementById('img-panel-url').classList.toggle('hidden', tab !== 'url');
+  document.getElementById('img-tab-upload').className = 'px-3 py-1.5 text-xs rounded-lg font-medium transition ' +
+    (tab === 'upload' ? 'bg-violet-600 text-white' : 'bg-neutral-800 text-gray-300 hover:bg-neutral-700');
+  document.getElementById('img-tab-url').className = 'px-3 py-1.5 text-xs rounded-lg font-medium transition ' +
+    (tab === 'url' ? 'bg-violet-600 text-white' : 'bg-neutral-800 text-gray-300 hover:bg-neutral-700');
+}
+function insertImageFromUrl() {
+  const url = document.getElementById('img-url-input').value.trim();
+  const alt = document.getElementById('img-alt-input').value.trim();
+  if (!url) return;
+  insertImageMd(url, alt);
+  closeImageInsert();
+}
+async function handleImageUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const status = document.getElementById('img-upload-status');
+  status.textContent = 'Uploading...';
+  status.className = 'text-xs text-center py-2 text-gray-400';
+  status.classList.remove('hidden');
+  const formData = new FormData();
+  formData.append('image', input.files[0]);
+  try {
+    const r = await csrfFetch('/api/upload/image/', {
+      method: 'POST',
+      headers: {'Accept': 'application/json'},
+      body: formData
+    });
+    if (!r.ok && r.status === 403) {
+      status.textContent = 'Email verification required to upload images.';
+      status.className = 'text-xs text-center py-2 text-red-400';
+      return;
+    }
+    if (!r.ok && r.status === 401) {
+      status.textContent = 'Please log in to upload images.';
+      status.className = 'text-xs text-center py-2 text-red-400';
+      return;
+    }
+    const data = await r.json();
+    if (data.image_url) {
+      insertImageMd(data.image_url, '');
+      closeImageInsert();
+    } else {
+      status.textContent = data.error || 'Upload failed.';
+      status.className = 'text-xs text-center py-2 text-red-400';
+    }
+  } catch(e) {
+    status.textContent = 'Upload failed. Please try again.';
+    status.className = 'text-xs text-center py-2 text-red-400';
+  }
+}
+
+// ── Cover image upload ────────────────────────────────────────────────
+async function handleCoverUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const status = document.getElementById('cover-upload-status');
+  const label = document.getElementById('cover-upload-label');
+  status.textContent = 'Uploading...';
+  status.className = 'text-xs text-center py-1 mt-1 text-gray-400';
+  status.classList.remove('hidden');
+  const formData = new FormData();
+  formData.append('image', input.files[0]);
+  try {
+    const r = await csrfFetch('/api/upload/image/', {
+      method: 'POST',
+      headers: {'Accept': 'application/json'},
+      body: formData
+    });
+    if (!r.ok && (r.status === 401 || r.status === 403)) {
+      const err = await r.json().catch(() => ({}));
+      status.textContent = err.error || 'Permission denied - please verify your email.';
+      status.className = 'text-xs text-center py-1 mt-1 text-red-400';
+      return;
+    }
+    const data = await r.json();
+    if (data.image_url) {
+      document.getElementById('cover-url').value = data.image_url;
+      document.getElementById('cover-preview-img').src = data.image_url;
+      document.getElementById('cover-preview').classList.remove('hidden');
+      label.textContent = 'Replace Cover Image';
+      status.classList.add('hidden');
+    } else {
+      status.textContent = data.error || 'Upload failed.';
+      status.className = 'text-xs text-center py-1 mt-1 text-red-400';
+    }
+  } catch(e) {
+    status.textContent = 'Upload failed.';
+    status.className = 'text-xs text-center py-1 mt-1 text-red-400';
+  }
+}
+function removeCover() {
+  document.getElementById('cover-url').value = '';
+  document.getElementById('cover-preview').classList.add('hidden');
+  document.getElementById('cover-preview-img').src = '';
+  document.getElementById('cover-upload-label').textContent = 'Upload Cover Image';
+  document.getElementById('cover-file-input').value = '';
 }
 
 function confirmDelete() {

@@ -127,6 +127,7 @@
         <option value="games-we-play">Games We Play</option>
         <option value="giveaways">Giveaways</option>
         {% if not is_mod_only %}<option value="hero-subs">Hero Subs</option>{% endif %}
+        {% if not is_mod_only %}<option value="tracker-stats">Tracker Stats</option>{% endif %}
         {% if not is_mod_only %}<option value="indie-submissions">Indie Claims</option>{% endif %}
         {% if not is_mod_only %}<option value="dev-applications">Dev Apps</option>{% endif %}
         <option value="users">Members</option>
@@ -243,6 +244,9 @@
           </button>
           <button onclick="switchTab('emoji')" id="tab-emoji" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
             <i class="fas fa-smile mr-1"></i>Emoji
+          </button>
+          <button onclick="switchTab('tracker-stats')" id="tab-tracker-stats" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-crosshairs mr-1 text-red-400"></i>Tracker Stats
           </button>
         </div>
       </div>
@@ -1060,6 +1064,7 @@ function loadTabData(tab) {
     'eso-applications':     () => loadEsoApplications('pending'),
     'indie-submissions':    () => { loadIndieSubmissions(); },
     'dev-applications':     () => { loadDevApplications(); },
+    'tracker-stats':        () => { loadTrackerStats(); },
   };
   if (loaders[tab]) loaders[tab]();
 }
@@ -4371,6 +4376,108 @@ function renderBotStats(d) {
   <div id="devApplicationsList" class="space-y-3"></div>
 </div>
 
+<!-- Tracker Stats Tab -->
+<div id="panel-tracker-stats" class="admin-panel hidden max-w-5xl mx-auto px-4 pb-8">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-semibold text-white"><i class="fas fa-chart-bar text-indigo-400 mr-2"></i>Site Analytics</h2>
+    <div class="flex items-center gap-2">
+      <select id="ts-period" onchange="loadTrackerStats()" class="bg-neutral-800 border border-neutral-700 text-gray-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="365">Last year</option>
+      </select>
+      <button onclick="loadTrackerStats()" class="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-semibold rounded-lg transition"><i class="fas fa-sync mr-1"></i>Refresh</button>
+    </div>
+  </div>
+
+  <!-- Site totals row 1 -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <p class="text-3xl font-bold text-indigo-400" id="ts-total-views">-</p>
+      <p class="text-xs text-gray-500 mt-1 uppercase tracking-wide">Total Views</p>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <p class="text-3xl font-bold text-emerald-400" id="ts-unique-visitors">-</p>
+      <p class="text-xs text-gray-500 mt-1 uppercase tracking-wide">Unique Visitors</p>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <p class="text-3xl font-bold text-sky-400" id="ts-new-visitors">-</p>
+      <p class="text-xs text-gray-500 mt-1 uppercase tracking-wide">New Visitors</p>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <p class="text-3xl font-bold text-violet-400" id="ts-returning-visitors">-</p>
+      <p class="text-xs text-gray-500 mt-1 uppercase tracking-wide">Returning</p>
+    </div>
+  </div>
+
+  <!-- Site totals row 2 -->
+  <div class="grid grid-cols-2 sm:grid-cols-2 gap-3 mb-5">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <p class="text-3xl font-bold text-amber-400" id="ts-downloads">-</p>
+      <p class="text-xs text-gray-500 mt-1 uppercase tracking-wide">Tracker Downloads</p>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <p class="text-3xl font-bold text-red-400" id="ts-tracker-views">-</p>
+      <p class="text-xs text-gray-500 mt-1 uppercase tracking-wide">Tracker Page Views</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <!-- Views by section -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2"><i class="fas fa-globe text-indigo-400 text-xs"></i>Views by Section</h3>
+      <div class="flex justify-end gap-4 text-[10px] text-gray-600 uppercase tracking-wider mb-2 pr-1">
+        <span class="w-10 text-right">Views</span>
+        <span class="w-10 text-right text-emerald-700">Unique</span>
+      </div>
+      <div id="ts-sections" class="space-y-3"></div>
+    </div>
+
+    <!-- Daily trend -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2"><i class="fas fa-chart-line text-emerald-400 text-xs"></i>Daily Views (last 14 days)</h3>
+      <div id="ts-daily" class="space-y-1.5"></div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <!-- Traffic sources -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2"><i class="fas fa-share-alt text-pink-400 text-xs"></i>Traffic Sources</h3>
+      <div class="flex justify-end gap-4 text-[10px] text-gray-600 uppercase tracking-wider mb-2 pr-1">
+        <span class="w-10 text-right">Views</span>
+        <span class="w-10 text-right text-emerald-700">Unique</span>
+      </div>
+      <div id="ts-sources" class="space-y-3"></div>
+    </div>
+
+    <!-- Top referrers -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-1 flex items-center gap-2"><i class="fas fa-external-link-alt text-orange-400 text-xs"></i>External Referrers</h3>
+      <p class="text-gray-600 text-xs mb-3">Sites sending people to QuestLog</p>
+      <div id="ts-referrers" class="space-y-1.5 text-xs mb-5"></div>
+      <h3 class="text-sm font-semibold text-white mb-1 flex items-center gap-2"><i class="fas fa-route text-blue-400 text-xs"></i>Internal Navigation</h3>
+      <p class="text-gray-600 text-xs mb-3">Pages people click FROM within the site</p>
+      <div id="ts-internal-nav" class="space-y-1.5 text-xs"></div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Downloads by platform -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2"><i class="fas fa-download text-amber-400 text-xs"></i>Downloads by Platform</h3>
+      <div id="ts-platform-breakdown" class="space-y-2"></div>
+    </div>
+
+    <!-- Recent downloads -->
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+      <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2"><i class="fas fa-clock text-gray-400 text-xs"></i>Recent Downloads</h3>
+      <div id="ts-recent-downloads" class="space-y-1 text-xs text-gray-400"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Broadcasts Tab -->
 <div id="panel-broadcasts" class="admin-panel hidden">
   <h2 class="text-lg font-semibold text-white mb-6"><i class="fas fa-broadcast-tower text-yellow-400 mr-2"></i>Post Broadcasts</h2>
@@ -6017,6 +6124,133 @@ async function esoReview(appId, action) {
 // ============================================================
 // INDIE HEROES SUBMISSIONS
 // ============================================================
+async function loadTrackerStats() {
+  const days = document.getElementById('ts-period')?.value || 30;
+  try {
+    const r = await csrfFetch(`/api/admin/tracker-stats/?days=${days}`);
+    const d = await r.json();
+
+    // Totals
+    document.getElementById('ts-total-views').textContent = (d.total_views || 0).toLocaleString();
+    document.getElementById('ts-unique-visitors').textContent = (d.unique_visitors || 0).toLocaleString();
+    document.getElementById('ts-new-visitors').textContent = (d.new_visitors || 0).toLocaleString();
+    document.getElementById('ts-returning-visitors').textContent = (d.returning_visitors || 0).toLocaleString();
+    document.getElementById('ts-downloads').textContent = (d.tracker?.total_downloads || 0).toLocaleString();
+    const trackerSection = (d.sections || []).find(s => s.section === 'soulslike_tracker');
+    document.getElementById('ts-tracker-views').textContent = (trackerSection?.views || 0).toLocaleString();
+
+    // Sections - views + unique visitors
+    const sections = d.sections || [];
+    const maxViews = sections.length ? sections[0].views : 1;
+    document.getElementById('ts-sections').innerHTML = sections.length
+      ? sections.map(s => `
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-gray-300 text-xs flex-1 truncate">${escapeHtml(s.label)}</span>
+              <span class="text-gray-400 text-xs w-10 text-right font-medium">${s.views.toLocaleString()}</span>
+              <span class="text-emerald-500 text-xs w-10 text-right">${s.uniques.toLocaleString()}</span>
+            </div>
+            <div class="w-full bg-neutral-800 rounded-full h-1.5">
+              <div class="bg-indigo-500 h-1.5 rounded-full" style="width:${Math.round(s.views/maxViews*100)}%"></div>
+            </div>
+          </div>`).join('')
+      : '<p class="text-gray-600 text-sm">No data yet - pages need to be visited first</p>';
+
+    // Traffic sources
+    const sources = d.traffic_sources || [];
+    const maxSrc = sources.length ? sources[0].views : 1;
+    const sourceIcons = {
+      discord:'fab fa-discord text-indigo-400', reddit:'fab fa-reddit text-orange-400',
+      twitter:'fab fa-twitter text-sky-400', google:'fab fa-google text-blue-400',
+      youtube:'fab fa-youtube text-red-400', twitch:'fab fa-twitch text-purple-400',
+      facebook:'fab fa-facebook text-blue-500', instagram:'fab fa-instagram text-pink-400',
+      bluesky:'fas fa-cloud text-sky-300', fluxer:'fas fa-server text-purple-300',
+      direct:'fas fa-mouse-pointer text-gray-400', internal:'fas fa-home text-gray-400',
+      bing:'fas fa-search text-teal-400', duckduckgo:'fas fa-duck text-yellow-400',
+    };
+    document.getElementById('ts-sources').innerHTML = sources.length
+      ? sources.map(s => {
+          const icon = sourceIcons[s.source] || 'fas fa-globe text-gray-400';
+          return `<div>
+            <div class="flex items-center gap-2 mb-1">
+              <i class="${icon} text-xs w-4 text-center flex-shrink-0"></i>
+              <span class="text-gray-300 text-xs flex-1 capitalize">${escapeHtml(s.source)}</span>
+              <span class="text-gray-400 text-xs w-10 text-right font-medium">${s.views.toLocaleString()}</span>
+              <span class="text-emerald-500 text-xs w-10 text-right">${s.uniques.toLocaleString()}</span>
+            </div>
+            <div class="w-full bg-neutral-800 rounded-full h-1.5 ml-6">
+              <div class="bg-pink-500 h-1.5 rounded-full" style="width:${Math.round(s.views/maxSrc*100)}%"></div>
+            </div>
+          </div>`;
+        }).join('')
+      : '<p class="text-gray-600 text-sm">No traffic source data yet. Share links with ?utm_source=discord etc.</p>';
+
+    // External referrers
+    const referrers = d.top_referrers || [];
+    document.getElementById('ts-referrers').innerHTML = referrers.length
+      ? referrers.map(r => {
+          let label = '';
+          try { const u = new URL(r.referrer); label = u.hostname.replace('www.','') + (u.pathname !== '/' ? u.pathname : ''); }
+          catch(e) { label = r.referrer.slice(0,60); }
+          return `<div class="flex items-center justify-between py-1.5 border-b border-neutral-800 last:border-0">
+            <span class="text-gray-400 truncate flex-1 mr-2">${escapeHtml(label)}</span>
+            <span class="text-white font-medium flex-shrink-0">${r.count.toLocaleString()}</span>
+          </div>`;
+        }).join('')
+      : '<p class="text-gray-600">No external referrers yet - share your links!</p>';
+
+    // Internal navigation
+    const internalNav = d.internal_nav || [];
+    document.getElementById('ts-internal-nav').innerHTML = internalNav.length
+      ? internalNav.map(r => {
+          let path = '';
+          try { path = new URL(r.referrer).pathname; } catch(e) { path = r.referrer.slice(0,60); }
+          return `<div class="flex items-center justify-between py-1.5 border-b border-neutral-800 last:border-0">
+            <span class="text-gray-400 truncate flex-1 mr-2 font-mono text-[11px]">${escapeHtml(path)}</span>
+            <span class="text-blue-400 font-medium flex-shrink-0">${r.count.toLocaleString()}</span>
+          </div>`;
+        }).join('')
+      : '<p class="text-gray-600">No internal nav data yet</p>';
+
+    // Daily trend
+    const daily = (d.daily_trend || []).reverse();
+    const maxDaily = daily.length ? Math.max(...daily.map(d=>d.views)) : 1;
+    document.getElementById('ts-daily').innerHTML = daily.length
+      ? daily.map(row => `
+          <div class="flex items-center gap-2 text-xs">
+            <span class="text-gray-600 w-20 flex-shrink-0">${row.day}</span>
+            <div class="flex-1 bg-neutral-800 rounded-full h-1.5">
+              <div class="bg-emerald-500 h-1.5 rounded-full" style="width:${Math.round(row.views/maxDaily*100)}%"></div>
+            </div>
+            <span class="text-gray-400 w-8 text-right">${row.views}</span>
+          </div>`).join('')
+      : '<p class="text-gray-600 text-sm">No data yet</p>';
+
+    // Downloads by platform
+    const platforms = d.tracker?.by_platform || {};
+    document.getElementById('ts-platform-breakdown').innerHTML = Object.keys(platforms).length
+      ? Object.entries(platforms).map(([p, cnt]) =>
+          `<div class="flex items-center justify-between py-1.5 border-b border-neutral-800 last:border-0">
+            <span class="text-gray-300 text-sm capitalize">${escapeHtml(p)}</span>
+            <span class="text-white font-semibold">${cnt.toLocaleString()}</span>
+          </div>`).join('')
+      : '<p class="text-gray-600 text-sm">No downloads yet</p>';
+
+    // Recent downloads
+    const recent = d.tracker?.recent || [];
+    document.getElementById('ts-recent-downloads').innerHTML = recent.length
+      ? recent.map(row => `
+          <div class="flex justify-between py-1 border-b border-neutral-800/50 last:border-0">
+            <span class="capitalize text-gray-400">${escapeHtml(row.platform)}</span>
+            <span class="text-gray-600">${new Date(row.created_at * 1000).toLocaleDateString()}</span>
+          </div>`).join('')
+      : '<p class="text-gray-600">No downloads recorded yet</p>';
+
+  } catch(e) {
+    document.getElementById('ts-total-views').textContent = 'Error';
+  }
+}
+
 async function loadDevApplications() {
   const list = document.getElementById('devApplicationsList');
   list.innerHTML = '<div class="text-gray-500 text-sm text-center py-8">Loading...</div>';

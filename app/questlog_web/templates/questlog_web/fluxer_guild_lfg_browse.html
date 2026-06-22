@@ -95,7 +95,7 @@
         <p class="text-gray-500 text-xs mt-1">150 character limit</p>
       </div>
 
-      <div>
+      <div id="createScheduledRow">
         <label class="text-sm text-gray-300 mb-1 block">Scheduled Time (optional)</label>
         <input id="createScheduled" type="datetime-local"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
@@ -109,7 +109,7 @@
       </div>
 
       <div>
-        <label class="text-sm text-gray-300 mb-1 block">Group Size</label>
+        <label id="createMaxSizeLabel" class="text-sm text-gray-300 mb-1 block">Group Size</label>
         <input id="createMaxSize" type="number" min="2" max="100" value="4"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition">
       </div>
@@ -241,7 +241,7 @@
       </div>
 
       <!-- Scheduled Time + Recurrence side by side -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div id="editScheduledRow" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="text-sm text-gray-300 mb-1 block">Scheduled Time (optional)</label>
           <input id="editScheduled" type="datetime-local"
@@ -256,7 +256,7 @@
 
       <!-- Max Size -->
       <div>
-        <label class="text-sm text-gray-300 mb-1 block">Max Size</label>
+        <label id="editMaxSizeLabel" class="text-sm text-gray-300 mb-1 block">Max Size</label>
         <input id="editMaxSize" type="number" min="2" max="100"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
         <p class="text-gray-500 text-xs mt-1">Group auto-closes when full, re-opens when a spot opens.</p>
@@ -940,6 +940,10 @@ function onCreateGameChange() {
     roleSection.classList.add('hidden');
     document.getElementById('createGameOptions').innerHTML = '';
     window._createIsSurvival = false;
+    const _rsl = document.getElementById('createMaxSizeLabel');
+    if (_rsl) _rsl.textContent = 'Group Size';
+    const _csr = document.getElementById('createScheduledRow');
+    if (_csr) _csr.classList.remove('hidden');
     return;
   }
   document.getElementById('createMaxSize').value = game.max_group_size || 4;
@@ -952,6 +956,15 @@ function onCreateGameChange() {
   });
   const isSurvival = !!roleOpt && !game.has_roles;
   window._createIsSurvival = isSurvival;
+
+  // Survival: rename Group Size -> Server Size, hide Scheduled Time
+  const _maxSizeLbl = document.getElementById('createMaxSizeLabel');
+  if (_maxSizeLbl) _maxSizeLbl.textContent = isSurvival ? 'Server Size' : 'Group Size';
+  const _createSchedRow = document.getElementById('createScheduledRow');
+  if (_createSchedRow) {
+    _createSchedRow.classList.toggle('hidden', isSurvival);
+    if (isSurvival) document.getElementById('createScheduled').value = '';
+  }
 
   // Always reset checkbox to unchecked when game changes
   roleEnabled.checked = false;
@@ -1137,6 +1150,14 @@ function openEditModal(groupId) {
   document.getElementById('editTitle').value = g.title || '';
   document.getElementById('editScheduled').value = g.scheduled_time ? tsToDatetimeLocal(g.scheduled_time) : '';
   document.getElementById('editMaxSize').value = g.max_size;
+
+  // Survival detection: hide Scheduled Time, rename Group Size -> Server Size
+  const _editGame = GAMES_FULL.find(function(gm) { return gm.id === g.game_id; });
+  const _editIsSurvival = _editGame && (_editGame.options || _editGame.custom_options || []).some(function(o) { return o.name === 'Server Type'; });
+  const _editSchedRow = document.getElementById('editScheduledRow');
+  if (_editSchedRow) _editSchedRow.classList.toggle('hidden', !!_editIsSurvival);
+  const _editSizeLbl = document.getElementById('editMaxSizeLabel');
+  if (_editSizeLbl) _editSizeLbl.textContent = _editIsSurvival ? 'Server Size' : 'Group Size';
   document.getElementById('editDescription').value = g.description || '';
   document.getElementById('editError').classList.add('hidden');
 

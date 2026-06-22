@@ -254,18 +254,52 @@
 <div class="bg-neutral-900/40 border-t border-b border-neutral-800 py-10 px-6">
   <div class="max-w-3xl mx-auto flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
     <div class="flex-shrink-0">
-      <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-14 h-14 rounded-2xl shadow-lg mx-auto sm:mx-0">
+      {% if primary_community and primary_community.icon_url and primary_community.icon_url != '' %}
+        <img src="{{ primary_community.icon_url }}" alt="{{ primary_community.name }}" class="w-14 h-14 rounded-2xl shadow-lg mx-auto sm:mx-0 object-cover">
+      {% elif primary_community and primary_community.platform == 'fluxer' %}
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-14 h-14 rounded-2xl shadow-lg mx-auto sm:mx-0">
+      {% elif primary_community and primary_community.platform == 'discord' %}
+        <div class="w-14 h-14 rounded-2xl shadow-lg mx-auto sm:mx-0 bg-indigo-700 flex items-center justify-center">
+          <i class="fab fa-discord text-white text-2xl"></i>
+        </div>
+      {% else %}
+        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="Fluxer" class="w-14 h-14 rounded-2xl shadow-lg mx-auto sm:mx-0">
+      {% endif %}
     </div>
     <div class="flex-1">
       <p class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">Our Community Hub</p>
-      <h3 class="text-xl font-extrabold text-white mb-1">We live on Fluxer</h3>
-      <p class="text-gray-500 text-sm leading-relaxed">Voice, Text, LFG, Events - Jump in and join us!</p>
+      <h3 class="text-xl font-extrabold text-white mb-1">
+        {% if primary_community %}
+          We live on {{ primary_community.platform|capfirst }}
+        {% else %}
+          We live on Fluxer
+        {% endif %}
+      </h3>
+      <p class="text-gray-500 text-sm leading-relaxed">
+        {% if primary_community and primary_community.short_description %}
+          {{ primary_community.short_description }}
+        {% else %}
+          Voice, Text, LFG, Events - Jump in and join us!
+        {% endif %}
+      </p>
     </div>
     <div class="flex-shrink-0">
-      <a href="https://fluxer.gg/zplS0MwI" target="_blank" rel="noopener"
-         class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl transition text-sm whitespace-nowrap">
-        <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="" class="w-4 h-4 rounded-sm"> Join on Fluxer
-      </a>
+      {% if primary_community and primary_community.invite_url %}
+        <a href="{{ primary_community.invite_url }}" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl transition text-sm whitespace-nowrap">
+          {% if primary_community.platform == 'fluxer' %}
+            <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="" class="w-4 h-4 rounded-sm">
+          {% elif primary_community.platform == 'discord' %}
+            <i class="fab fa-discord"></i>
+          {% endif %}
+          Join on {{ primary_community.platform|capfirst }}
+        </a>
+      {% else %}
+        <a href="https://fluxer.gg/zplS0MwI" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-3 rounded-xl transition text-sm whitespace-nowrap">
+          <img src="{% static 'img/siteassets/fluxer-favicon.png' %}" alt="" class="w-4 h-4 rounded-sm"> Join on Fluxer
+        </a>
+      {% endif %}
     </div>
   </div>
 </div>

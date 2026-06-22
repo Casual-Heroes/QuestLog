@@ -730,9 +730,26 @@ def api_blog_comment_like(request, comment_id):
 # API: markdown preview (contributor/admin only)
 # ---------------------------------------------------------------------------
 
+@require_GET
+def api_blog_recent(request):
+    """GET /api/blog/recent/ - public endpoint, returns recent published articles."""
+    limit = min(int(request.GET.get('limit', 5)), 10)
+    with get_db_session() as db:
+        articles = db.query(WebArticle).filter_by(
+            is_published=True, is_hidden=False
+        ).order_by(desc(WebArticle.published_at)).limit(limit).all()
+        result = []
+        for art in articles:
+            author = db.query(WebUser).filter_by(id=art.author_id).first()
+            result.append(_article_to_dict(art, author))
+    return JsonResponse({'articles': result})
+
+
 @web_login_required
 @require_POST
 @ratelimit(key='ip', rate='60/h', block=True)
+
+
 def api_blog_preview(request):
     """POST /ql/api/blog/preview/ - render markdown and return safe HTML."""
     web_user = _get_web_user(request)

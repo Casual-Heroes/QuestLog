@@ -33,6 +33,7 @@ from .views_pages import (
     communities, community_register, community_detail, community_detail_slug, community_guidelines,
     profile, profile_edit, creator_register, settings, getting_started, hero_shop, public_legacy,
     game_servers_ql, api_gameservers_status, api_gameservers_discover_strip,
+    soulslike_hub, soulslike_tracker, api_tracker_download,
     api_active_poll, api_poll_vote,
     giveaways_page, legacy_page, legacy_nominate, api_legacy_nominate,
     api_internal_close_nominations,
@@ -183,7 +184,7 @@ from .views_admin import (
     api_admin_raffles, api_admin_raffle_detail, api_admin_raffle_pick_winners,
     api_admin_rss_feeds, api_admin_rss_feed_detail, api_admin_validate_rss,
     api_admin_rss_feed_fetch_now,
-    api_admin_users, api_admin_user_action,
+    api_admin_users, api_admin_user_action, api_admin_tracker_stats,
     api_admin_audit_log,
     api_admin_posts, api_admin_post_action, api_admin_comment_action,
     admin_games_tracker, api_admin_site_activity_games, api_admin_site_activity_roles, api_admin_site_activity_fluxer_roles,
@@ -290,6 +291,7 @@ from .views_profile import (
     api_flairs, api_flair_buy, api_flair_equip,
 )
 from .views_blog import (
+    api_blog_recent,
     blog_list, blog_detail, blog_editor,
     api_blog_create, api_blog_edit, api_blog_delete,
     api_blog_comments, api_blog_comment_delete, api_blog_comment_like,
@@ -436,6 +438,7 @@ urlpatterns = [
 
     # Blog API
     path('api/blog/',                            api_blog_create,         name='questlog_web_api_blog_create'),
+    path('api/blog/recent/',                     api_blog_recent,         name='questlog_web_api_blog_recent'),
     path('api/blog/preview/',                    api_blog_preview,        name='questlog_web_api_blog_preview'),
     path('api/blog/<int:article_id>/',           api_blog_edit,           name='questlog_web_api_blog_edit'),
     path('api/blog/<int:article_id>/delete/',    api_blog_delete,         name='questlog_web_api_blog_delete'),
@@ -488,6 +491,9 @@ urlpatterns = [
     path('settings/', settings, name='questlog_web_settings'),
     path('getting-started/', getting_started, name='questlog_web_getting_started'),
     path('gameservers/', game_servers_ql, name='questlog_web_gameservers'),
+    path('soulslike/', soulslike_hub, name='questlog_web_soulslike'),
+    path('soulslike/tracker/', soulslike_tracker, name='questlog_web_soulslike_tracker'),
+    path('api/tracker/download/', api_tracker_download, name='questlog_web_api_tracker_download'),
     path('api/gameservers/status/', api_gameservers_status, name='api_gameservers_status'),
     path('api/gameservers/discover-strip/', api_gameservers_discover_strip, name='api_gameservers_discover_strip'),
 
@@ -631,6 +637,7 @@ urlpatterns = [
     # Admin: Users
     path('api/user-lookup/', api_user_lookup, name='questlog_web_api_user_lookup'),
     path('api/admin/users/', api_admin_users, name='questlog_web_api_admin_users'),
+    path('api/admin/tracker-stats/', api_admin_tracker_stats, name='questlog_web_api_admin_tracker_stats'),
     path('api/admin/users/<int:user_id>/action/', api_admin_user_action, name='questlog_web_api_admin_user_action'),
 
     # Admin: Audit Log

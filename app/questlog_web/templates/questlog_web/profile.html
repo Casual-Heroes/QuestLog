@@ -191,6 +191,14 @@
         {% if web_user.twitch_username %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><i class="fab fa-twitch"></i>Twitch</span>{% endif %}
         {% if not web_user.steam_id and not web_user.discord_id and not web_user.fluxer_id %}<p class="text-gray-600 text-xs">No accounts connected yet. <button @click="tab='connected'" class="text-indigo-400 hover:underline">Connect one</button></p>{% endif %}
       </div>
+      <div class="flex flex-wrap gap-2">
+        {% if web_user.steam_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-blue-900/30 border border-blue-800/40 rounded-lg text-xs text-blue-300"><i class="fab fa-steam"></i>Steam</span>{% endif %}
+        {% if web_user.discord_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-900/30 border border-indigo-800/40 rounded-lg text-xs text-indigo-300"><i class="fab fa-discord"></i>Discord</span>{% endif %}
+        {% if web_user.fluxer_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><span class="font-bold">F</span>Fluxer</span>{% endif %}
+        {% if web_user.matrix_id %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-teal-900/30 border border-teal-800/40 rounded-lg text-xs text-teal-300"><i class="fas fa-comment-dots"></i>QuestChat</span>{% endif %}
+        {% if web_user.twitch_username %}<span class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-900/30 border border-purple-800/40 rounded-lg text-xs text-purple-300"><i class="fab fa-twitch"></i>Twitch</span>{% endif %}
+        {% if not web_user.steam_id and not web_user.discord_id and not web_user.fluxer_id %}<p class="text-gray-600 text-xs">No accounts connected yet. <button @click="tab='connected'" class="text-indigo-400 hover:underline">Connect one</button></p>{% endif %}
+      </div>
     </div>
 
     <!-- Invite Friends -->

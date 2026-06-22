@@ -140,6 +140,15 @@ def api_profile_update(request):
                 if validate_admin_image_url(url):
                     user.banner_url = url[:500]
 
+        if 'banner_url' in data:
+            url = (data['banner_url'] or '').strip()
+            if not url:
+                user.banner_url = None
+            else:
+                from .helpers import validate_admin_image_url
+                if validate_admin_image_url(url):
+                    user.banner_url = url[:500]
+
         if 'twitch_username' in data:
             val = sanitize_text(data['twitch_username'], max_length=50).strip()
             user.twitch_username = val if val else None
@@ -529,7 +538,7 @@ def api_invite_link(request):
 
         invite_code = user.invite_code
 
-    invite_url = request.build_absolute_uri(f'register/?ref={invite_code}')
+    invite_url = request.build_absolute_uri(f'/register/?ref={invite_code}')
 
     return JsonResponse({
         'invite_code': invite_code,

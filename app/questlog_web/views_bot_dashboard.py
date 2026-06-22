@@ -786,9 +786,13 @@ def fluxer_guild_lfg(request, guild_id):
             platform='fluxer', guild_id=gid
         ).all()
         lfg_cfg = db.query(WebFluxerLfgConfig).filter_by(guild_id=gid).first()
+        roles = db.query(WebFluxerGuildRole).filter_by(guild_id=gid).order_by(
+            WebFluxerGuildRole.role_name
+        ).all()
         return {
             'net_configs': [_config_dict(c) for c in net_configs],
             'publish_to_network': bool(lfg_cfg.publish_to_network) if lfg_cfg else False,
+            'roles_json': json.dumps([{'value': r.role_id, 'label': r.role_name or r.role_id} for r in roles]),
         }
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_lfg.html', 'lfg', extra=_extra)
 
@@ -1018,8 +1022,6 @@ def fluxer_guild_live_alerts(request, guild_id):
                 })
         return {'featured_creators_json': json.dumps(featured)}
     return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_live_alerts.html', 'live_alerts', extra=_extra)
-
-
 
 
 @fluxer_guild_required
@@ -1535,6 +1537,7 @@ def _lfg_game_dict(g: WebFluxerLfgGame) -> dict:
         'rank_max': g.rank_max,
         'is_custom_game': bool(g.is_custom_game) if g.is_custom_game is not None else False,
         'enabled': bool(g.enabled) if g.enabled is not None else True,
+        'receive_network_lfg': bool(g.receive_network_lfg) if g.receive_network_lfg is not None else False,
         'custom_options': json.loads(g.options_json) if g.options_json else [],
         'options': json.loads(g.options_json) if g.options_json else [],
         'is_active': bool(g.is_active),
@@ -2299,7 +2302,10 @@ def api_fluxer_guild_lfg_config(request, guild_id):
 @require_http_methods(['GET', 'POST'])
 def api_fluxer_guild_network_lfg(request, guild_id):
     """GET/POST the QuestLog Network LFG broadcast subscription for this Fluxer guild."""
+    import logging as _log
+    _logger = _log.getLogger(__name__)
     guild_id = guild_id.strip()
+    _logger.info(f"[NETWORK_LFG] {request.method} guild={guild_id}")
     with get_db_session() as db:
         if request.method == 'GET':
             row = db.execute(
@@ -2323,7 +2329,9 @@ def api_fluxer_guild_network_lfg(request, guild_id):
 
         is_enabled = bool(data.get('is_enabled', False))
         channel_id = str(data.get('channel_id', '') or '').strip()
+        _logger.info(f"[NETWORK_LFG] POST is_enabled={is_enabled} channel_id={channel_id!r}")
         if is_enabled and not channel_id:
+            _logger.warning(f"[NETWORK_LFG] Rejected: enabled but no channel_id")
             return JsonResponse({'error': 'Channel required when enabling'}, status=400)
 
         # Resolve channel name from cached channels
@@ -4825,6 +4833,22 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
         if use_roles:
             max_size = (tanks_needed + healers_needed + dps_needed + support_needed) or max_size
 
+        # Role composition
+        use_roles = bool(data.get('use_roles', False))
+        tanks_needed = safe_int(data.get('tanks_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        healers_needed = safe_int(data.get('healers_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        dps_needed = safe_int(data.get('dps_needed'), default=0, min_val=0, max_val=200) if use_roles else 0
+        support_needed = safe_int(data.get('support_needed'), default=0, min_val=0, max_val=50) if use_roles else 0
+        enforce_role_limits = bool(data.get('enforce_role_limits', True))
+        role_schema_raw = data.get('role_schema')
+        # Survival games: no slot counts - role_schema stores opt-in flag for card display
+        if use_roles and not role_schema_raw and not (tanks_needed or healers_needed or dps_needed or support_needed):
+            role_schema = '{"survival":true}'
+        else:
+            role_schema = json.dumps(role_schema_raw) if role_schema_raw and isinstance(role_schema_raw, list) else None
+        if use_roles:
+            max_size = (tanks_needed + healers_needed + dps_needed + support_needed) or max_size
+
         # Resolve guild name for origin tracking
         guild_settings = db.query(WebFluxerGuildSettings).filter_by(guild_id=guild_id).first()
         guild_display_name = (guild_settings.guild_name if guild_settings and guild_settings.guild_name else None)
@@ -4992,7 +5016,7 @@ def api_fluxer_guild_lfg_groups(request, guild_id):
                 network_group_id = web_group.id
             except Exception as _e:
                 import logging as _logging
-                _logging.getLogger(__name__).warning(f"[LFG] Fluxer network post failed for group {group.id}: {_e}")
+                _logging.getLogger(__name__).warning(f"[FLUXER_BROADCAST] network post failed for group {group.id}: {_e}", exc_info=True)
 
         members = [{'id': 1, 'username': creator_name, 'role': creator_role,
                     'is_creator': True, 'selections': selections, 'joined_at': now}]

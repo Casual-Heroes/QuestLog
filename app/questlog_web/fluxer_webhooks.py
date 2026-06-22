@@ -565,46 +565,150 @@ def notify_member_signup_log(username: str, profile_url: str):
         logger.error(f"Failed to queue member signup log: {e}")
 
 
-def notify_new_member(username: str, profile_url: str):
-    """Queue an embed when a new user registers on QuestLog."""
+def queue_lfg_embed_edit_for_group(group_id: int, group_platform: str = 'web',
+                                   pin_state: str | None = None):
+    """
+    Rebuild the full LFG embed from DB and queue an in-place edit to every
+    channel/thread that has a stored message for this group.
+    Call this after any join, leave, or status change.
+    """
     try:
+        from app.questlog_web.models import WebLFGGroup, WebUser as _WU
+        with get_db_session() as db:
+            if group_platform == 'web':
+                group = db.query(WebLFGGroup).filter_by(id=group_id).first()
+                if not group:
+                    return
+                creator_row = db.query(_WU).filter_by(id=group.creator_id).first()
+                creator_name = (creator_row.display_name or creator_row.username) if creator_row else 'Unknown'
+                lfg_url = f"https://questlog.casual-heroes.com/lfg/{group.share_token or group.id}/"
+                is_full = group.status == 'full'
+
+                from app.questlog_web.views_discovery import _parse_role_schema
+                embed_data = build_lfg_embed_data(
+                    creator=creator_name,
+                    game_name=group.game_name,
+                    title=group.title,
+                    description=group.description or '',
+                    group_size=group.group_size,
+                    current_size=group.current_size,
+                    scheduled_time=group.scheduled_time,
+                    lfg_url=lfg_url,
+                    game_image_url=group.game_image_url,
+                    use_roles=group.use_roles or False,
+                    tanks_needed=group.tanks_needed or 0,
+                    healers_needed=group.healers_needed or 0,
+                    dps_needed=group.dps_needed or 0,
+                    support_needed=group.support_needed or 0,
+                    role_schema=_parse_role_schema(group.role_schema),
+                    duration_hours=group.duration_hours,
+                    voice_link=group.voice_link,
+                    group_id=group_id,
+                    group_platform=group_platform,
+                    is_full=is_full,
+                )
+        queue_lfg_embed_edit(group_id, group_platform, embed_data, pin_state=pin_state)
+    except Exception as e:
+        logger.error(f"queue_lfg_embed_edit_for_group failed for group {group_id}: {e}")
+
+
+def notify_member_signup_log(username: str, profile_url: str):
+    """Post a staff-only audit log entry when a new QuestLog account is verified.
+    Queues to the private Fluxer and Discord staff log channels defined in warden.env.
+    """
+    _fluxer_ch = os.environ.get('FLUXER_LOG_CHANNEL', '').strip()
+    _discord_ch = os.environ.get('DISCORD_LOG_CHANNEL', '').strip()
+    if not _fluxer_ch and not _discord_ch:
+        return
+    try:
+        FLUXER_LOG_CHANNEL = int(_fluxer_ch) if _fluxer_ch else None
+        DISCORD_LOG_CHANNEL = int(_discord_ch) if _discord_ch else None
+    except ValueError:
+        logger.error("FLUXER_LOG_CHANNEL or DISCORD_LOG_CHANNEL in env is not a valid integer")
+        return
+
+    embed_data = {
+        "title": "New QuestLog Member",
+        "description": f"**{username}** just verified their account.\n[View Profile]({profile_url})",
+        "footer": "QuestLog signup log",
+        "color": BRAND_COLOR,
+    }
+    payload_json = json.dumps(embed_data)
+    now_ts = int(time.time())
+
+    try:
+        with get_db_session() as db:
+            if FLUXER_LOG_CHANNEL:
+                db.execute(text(
+                    "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                    "VALUES (:g, :c, :p, :t)"
+                ), {"g": 0, "c": FLUXER_LOG_CHANNEL, "p": payload_json, "t": now_ts})
+            if DISCORD_LOG_CHANNEL:
+                db.execute(text(
+                    "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) "
+                    "VALUES (:g, :c, :p, :t)"
+                ), {"g": 0, "c": DISCORD_LOG_CHANNEL, "p": payload_json, "t": now_ts})
+            db.commit()
+    except Exception as e:
+        logger.error(f"Failed to queue member signup log: {e}")
+
+
+def notify_new_member(username: str, profile_url: str):
+    """Queue an embed when a new user registers on QuestLog - both Fluxer and Discord."""
+    try:
+        import requests as _req
         with get_db_session() as db:
             cfg = db.query(WebFluxerWebhookConfig).filter_by(
                 event_type='new_member', is_enabled=True
             ).first()
-            if not cfg or not cfg.channel_id:
+            if not cfg:
                 return
 
-            # Use custom message template if set, else default
-            if cfg.message_template:
-                body = _format_template(
-                    cfg.message_template,
-                    username=username,
-                    profile=profile_url,
-                )
-            else:
-                body = f"Welcome **{username}** to QuestLog!\n\n[View Profile]({profile_url})"
-
+            body = (
+                _format_template(cfg.message_template, username=username, profile=profile_url)
+                if cfg.message_template
+                else f"Welcome **{username}** to QuestLog!\n\n[View Profile]({profile_url})"
+            )
             embed_data = {
                 "title": cfg.embed_title or "New Member Joined QuestLog!",
                 "description": body,
                 "footer": cfg.embed_footer or "QuestLog - questlog.casual-heroes.com/",
                 "color": _hex_to_int(cfg.embed_color, GREEN_COLOR),
             }
+            now_ts = int(time.time())
 
-            db.execute(text("""
-                INSERT INTO fluxer_pending_broadcasts
-                    (guild_id, channel_id, payload, created_at)
-                VALUES (:guild_id, :channel_id, :payload, :now)
-            """), {
-                'guild_id': int(cfg.guild_id) if cfg.guild_id else 0,
-                'channel_id': int(cfg.channel_id),
-                'payload': json.dumps(embed_data),
-                'now': int(time.time()),
-            })
+            # Fluxer channel broadcast
+            if cfg.channel_id:
+                db.execute(text("""
+                    INSERT INTO fluxer_pending_broadcasts
+                        (guild_id, channel_id, payload, created_at)
+                    VALUES (:guild_id, :channel_id, :payload, :now)
+                """), {
+                    'guild_id': int(cfg.guild_id) if cfg.guild_id else 0,
+                    'channel_id': int(cfg.channel_id),
+                    'payload': json.dumps(embed_data),
+                    'now': now_ts,
+                })
+
+            # Discord webhook broadcast
+            if cfg.discord_webhook_url:
+                try:
+                    _req.post(
+                        cfg.discord_webhook_url,
+                        json={'embeds': [{
+                            'title': embed_data['title'],
+                            'description': embed_data['description'],
+                            'color': embed_data['color'],
+                            'footer': {'text': embed_data['footer']},
+                        }]},
+                        timeout=5,
+                    )
+                except Exception as e:
+                    logger.warning(f"notify_new_member: Discord webhook failed: {e}")
+
             db.commit()
     except Exception as e:
-        logger.error(f"Failed to queue Fluxer new_member notification: {e}")
+        logger.error(f"Failed to queue new_member notification: {e}")
 
 
 def _post_embed_data(username: str, game: str, content: str, post_url: str, image_url: str | None, prefix: str) -> dict:

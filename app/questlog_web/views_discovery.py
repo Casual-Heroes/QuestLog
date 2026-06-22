@@ -294,6 +294,268 @@ def _validate_voice_link(url):
     return url or None
 
 
+def _calc_activity_level(db, community):
+    """
+    Auto-calculate activity tier from the community's own platform data.
+    Fluxer: fluxer_member_xp. Discord/other: web_unified_leaderboard.
+    Tiers: unknown < dormant < squire < champion < legendary < mythic
+    """
+    score = 0
+    pval = community.platform.value if hasattr(community.platform, 'value') else str(community.platform)
+
+    if community.platform_id:
+        if pval == 'fluxer':
+            row = db.execute(text("""
+                SELECT COALESCE(SUM(message_count),0), COALESCE(SUM(voice_minutes),0),
+                       COALESCE(SUM(reaction_count),0), COALESCE(SUM(media_count),0)
+                FROM fluxer_member_xp WHERE guild_id=CAST(:gid AS UNSIGNED)
+            """), {'gid': community.platform_id}).fetchone()
+        else:
+            row = db.execute(text("""
+                SELECT COALESCE(SUM(messages),0), COALESCE(SUM(voice_mins),0),
+                       COALESCE(SUM(reactions),0), COALESCE(SUM(media_count),0)
+                FROM web_unified_leaderboard WHERE guild_id=:gid
+            """), {'gid': community.platform_id}).fetchone()
+
+        if row:
+            score += (row[0] or 0) // 10   # messages: 1pt per 10
+            score += (row[1] or 0) // 30   # voice mins: 1pt per 30
+            score += (row[2] or 0) // 20   # reactions: 1pt per 20
+            score += (row[3] or 0) // 5    # media: 1pt per 5
+
+    # Wall posts last 30 days
+    cutoff = int(time.time()) - 30 * 86400
+    wall_posts = db.query(WebCommunityPost).filter(
+        WebCommunityPost.community_id == community.id,
+        WebCommunityPost.is_deleted == False,
+        WebCommunityPost.created_at >= cutoff,
+        WebCommunityPost.parent_id == None,
+    ).count()
+    score += wall_posts
+
+    if score >= 2000:
+        return 'mythic'
+    if score >= 800:
+        return 'legendary'
+    if score >= 250:
+        return 'champion'
+    if score >= 50:
+        return 'squire'
+    if score >= 5:
+        return 'dormant'
+    return 'unknown'
+
+
+
+
+_VOICE_LINK_SCHEMES = ('https://',)
+_VOICE_LINK_MAX = 500
+
+# Allowlist for platform invite URLs (invite_url field only - must be a known platform)
+_INVITE_URL_DOMAINS = {
+    'discord.gg', 'discord.com',
+    'fluxer.gg',
+    'matrix.to',
+    'stoat.gg',
+    'root.gg',
+    'revolt.chat',
+    'teamspeak.com',
+    'mumble.info',
+}
+
+# Allowlist for social link fields
+_SOCIAL_URL_DOMAINS = {
+    'twitch.tv', 'www.twitch.tv',
+    'youtube.com', 'www.youtube.com', 'youtu.be',
+    'twitter.com', 'x.com', 'www.twitter.com', 'www.x.com',
+    'bsky.app', 'bsky.social',
+    'tiktok.com', 'www.tiktok.com',
+    'instagram.com', 'www.instagram.com',
+    'bluesky.social',
+}
+
+# Valid in-game guild slugs - single source of truth
+VALID_GUILD_GAMES = frozenset({
+    'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor',
+    'division2', 'helldivers2', 'destiny2', 'warframe', 'dayz',
+    'rust', 'ark', 'sevendays', 'palworld', 'valheim',
+    'other',
+})
+
+# ── Survival game sub-choices (mirrors lfg_browse.html GAME_TEMPLATES) ───────
+_SURVIVAL_SUB_CHOICES = {
+    'palworld':   [
+        ('Tank/Defender',  'tank'), ('Support/Healer', 'healer'),
+        ('Combat (Melee)', 'dps'),  ('Combat (Ranged)', 'dps'), ('Scout/Explorer', 'dps'),
+        ('Builder', 'support'), ('Gatherer', 'support'), ('Tamer/Breeder', 'support'), ('Crafter', 'support'),
+    ],
+    'enshrouded': [
+        ('Tank', 'tank'), ('Healer', 'healer'),
+        ('Ranger (DPS)', 'dps'), ('Mage (DPS)', 'dps'), ('Fighter (DPS)', 'dps'),
+        ('Builder', 'support'), ('Crafter', 'support'),
+    ],
+    'valheim': [
+        ('Berserker (Tank)', 'tank'), ('Healer/Support', 'healer'),
+        ('Archer (DPS)', 'dps'), ('Warrior (DPS)', 'dps'),
+        ('Builder', 'support'), ('Gatherer', 'support'),
+    ],
+    'rust': [
+        ('Raider', 'tank'), ('Medic/Support', 'healer'),
+        ('Gunner (DPS)', 'dps'), ('Scout', 'dps'),
+        ('Builder', 'support'), ('Farmer/Gatherer', 'support'),
+    ],
+}
+
+_SURVIVAL_GAME_NAMES = {
+    'palworld': ['palworld'], 'enshrouded': ['enshrouded'],
+    'valheim': ['valheim'], 'rust': ['rust'],
+}
+
+def _detect_survival_game_type(game_name):
+    """Return survival game key if game_name matches, else None."""
+    if not game_name:
+        return None
+    nl = game_name.lower()
+    for key, aliases in _SURVIVAL_GAME_NAMES.items():
+        if any(a in nl for a in aliases):
+            return key
+    return None
+
+def _is_survival_schema(role_schema_raw):
+    """Return True if the stored role_schema is the survival variant."""
+    import json as _json
+    if not role_schema_raw:
+        return False
+    try:
+        schema = _json.loads(role_schema_raw)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(schema, list):
+        return False
+    return any(
+        r.get('slot') == 'tank' and (r.get('label') == 'Combat' or r.get('color') == 'orange')
+        for r in schema
+    )
+
+# ── Role schema helpers ───────────────────────────────────────────────────────
+
+_DEFAULT_ROLE_SCHEMA = [
+    {'slot': 'tank',    'label': 'Tank',    'color': 'blue',   'icon': 'shield-alt'},
+    {'slot': 'healer',  'label': 'Healer',  'color': 'green',  'icon': 'heart'},
+    {'slot': 'dps',     'label': 'DPS',     'color': 'red',    'icon': 'bolt'},
+    {'slot': 'support', 'label': 'Support', 'color': 'yellow', 'icon': 'music'},
+]
+_VALID_SLOTS = {'tank', 'healer', 'dps', 'support'}
+_VALID_COLORS = {'blue', 'green', 'red', 'yellow', 'orange', 'cyan', 'pink', 'purple', 'gray'}
+
+
+def _parse_role_schema(raw_json):
+    """Parse role_schema Text column. Returns list of 4 dicts with slot/label/color/icon.
+    Falls back to default if null, invalid JSON, wrong structure, or bad slot keys."""
+    if not raw_json:
+        return _DEFAULT_ROLE_SCHEMA
+    try:
+        schema = json.loads(raw_json)
+    except (ValueError, TypeError):
+        return _DEFAULT_ROLE_SCHEMA
+    if not isinstance(schema, list) or len(schema) != 4:
+        return _DEFAULT_ROLE_SCHEMA
+    seen_slots = set()
+    result = []
+    for entry in schema:
+        if not isinstance(entry, dict):
+            return _DEFAULT_ROLE_SCHEMA
+        slot = entry.get('slot', '')
+        if slot not in _VALID_SLOTS or slot in seen_slots:
+            return _DEFAULT_ROLE_SCHEMA
+        seen_slots.add(slot)
+        label = str(entry.get('label', slot))[:30]
+        color = str(entry.get('color', 'gray'))[:20]
+        if color not in _VALID_COLORS:
+            color = 'gray'
+        icon = str(entry.get('icon', 'circle'))[:40]
+        result.append({'slot': slot, 'label': label, 'color': color, 'icon': icon})
+    return result
+
+
+def _validate_role_schema(raw):
+    """Validate incoming role_schema from client (list or JSON string).
+    Returns JSON string to store, or None if default/invalid."""
+    if not raw:
+        return None
+    if isinstance(raw, list):
+        raw_json = json.dumps(raw)
+    elif isinstance(raw, str):
+        raw_json = raw
+    else:
+        return None
+    parsed = _parse_role_schema(raw_json)
+    # Store None if it matches the default (keeps DB clean)
+    if all(
+        parsed[i]['slot'] == _DEFAULT_ROLE_SCHEMA[i]['slot'] and
+        parsed[i]['label'] == _DEFAULT_ROLE_SCHEMA[i]['label']
+        for i in range(4)
+    ):
+        return None
+    return json.dumps(parsed)
+
+
+def _notify_lfg_game_owners(group_id, game_name, creator_id, now):
+    """Notify all members who own `game_name` (via Steam library cache) that a new LFG was created."""
+    from django.core.cache import cache
+    from app.db import get_db_session
+    from app.questlog_web.models import WebUser, WebNotification
+
+    game_lower = game_name.lower()
+
+    with get_db_session() as db:
+        candidates = db.query(WebUser.id, WebUser.steam_id).filter(
+            WebUser.steam_id.isnot(None),
+            WebUser.steam_id != '',
+            WebUser.share_steam_library == True,
+            WebUser.notify_lfg_game_owned == True,
+            WebUser.is_banned == False,
+            WebUser.is_disabled == False,
+            WebUser.is_hidden == False,
+            WebUser.id != creator_id,
+        ).all()
+
+        notified = []
+        for user_id, steam_id in candidates:
+            lib_key = f'steamquest_library_{steam_id}'
+            library = cache.get(lib_key) or []
+            owns = any(
+                g.get('name', '').lower() == game_lower
+                for g in library
+            )
+            if not owns:
+                continue
+            db.add(WebNotification(
+                user_id=user_id,
+                actor_id=creator_id,
+                notification_type='lfg_game_owned',
+                target_type='lfg',
+                target_id=str(group_id),
+                message=f'A new LFG group was created for {game_name}',
+                created_at=now,
+                is_read=False,
+            ))
+            notified.append(user_id)
+
+        if notified:
+            db.commit()
+
+
+def _validate_voice_link(url):
+    """Only allow https:// URLs. Prevents javascript:/file: URI injection."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()[:_VOICE_LINK_MAX]
+    if not url.startswith('https://'):
+        return None
+    return url or None
+
+
 def _community_add_platform(request, db, community, data):
     """Add a new platform row to an existing community group. Called from api_community_detail PUT."""
     ptype_str = (data.get('platform') or '').lower()
@@ -311,15 +573,19 @@ def _community_add_platform(request, db, community, data):
     # Verify ownership
     if ptype == PlatformType.FLUXER:
         if not pid.startswith('http'):
-            linked = [i for i in [discord_id, fluxer_id_str] if i]
-            if not linked:
+            if not fluxer_id_str:
                 return JsonResponse({'error': 'Connect your Fluxer account first'}, status=403)
+            linked = [i for i in [discord_id, fluxer_id_str] if i]
             ph = ','.join(f':lid{i}' for i in range(len(linked)))
             params = {f'lid{i}': v for i, v in enumerate(linked)}
             params['gid'] = pid
             row = db.execute(text(f"SELECT guild_id FROM web_fluxer_guild_settings WHERE guild_id=:gid AND owner_id IN ({ph}) LIMIT 1"), params).fetchone()
             if not row:
-                return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                # If guild is known in our DB but user isn't owner - hard block
+                known = db.execute(text("SELECT 1 FROM web_fluxer_guild_settings WHERE guild_id=:gid LIMIT 1"), {'gid': pid}).fetchone()
+                if known:
+                    return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                # Guild not synced yet - trust linked Fluxer account
     elif ptype == PlatformType.DISCORD:
         try:
             discord_guild_id = int(pid)
@@ -997,19 +1263,53 @@ def api_communities(request):
                 if pid.startswith('http://') or pid.startswith('https://'):
                     resolved_platforms.append((ptype, pid, p_invite_url, p_member_count))
                     continue
-                linked = [i for i in [discord_id, fluxer_id_str] if i]
-                if not linked:
+                # Must have a linked Fluxer account to link a Fluxer server
+                if not fluxer_id_str:
                     return JsonResponse({'error': 'Connect your Fluxer account to link a Fluxer server'}, status=403)
                 with get_db_session() as db:
-                    ph = ','.join(f':lid{i}' for i in range(len(linked)))
+                    ph = ','.join(f':lid{i}' for i in range(len([i for i in [discord_id, fluxer_id_str] if i])))
+                    linked = [i for i in [discord_id, fluxer_id_str] if i]
                     params = {f'lid{i}': v for i, v in enumerate(linked)}
                     params['gid'] = pid
                     row = db.execute(
                         text(f"SELECT guild_id FROM web_fluxer_guild_settings WHERE guild_id=:gid AND owner_id IN ({ph}) LIMIT 1"),
                         params,
                     ).fetchone()
+                # If not in our DB yet (bot not joined), trust the linked Fluxer account -
+                # the user can only know their own guild ID, and ownership is verified when bot joins.
+                # This allows listing without requiring bot installation first.
                 if not row:
-                    return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                    # Verify the guild exists at all in any of our Fluxer tables
+                    with get_db_session() as db:
+                        known = db.execute(
+                            text("SELECT 1 FROM web_fluxer_guild_settings WHERE guild_id=:gid LIMIT 1"),
+                            {'gid': pid},
+                        ).fetchone()
+                    if known:
+                        # Guild is in our DB but user isn't the owner
+                        return JsonResponse({'error': 'You are not the owner of that Fluxer server'}, status=403)
+                    # Guild not in our DB yet - trust linked Fluxer account, allow listing
+
+                # Fetch live member count using the user's own Fluxer OAuth token (auto-refreshes)
+                try:
+                    import requests as _req
+                    from app.questlog_web.management.commands.update_steam_now_playing import _get_fluxer_access_token
+                    with get_db_session() as _tdb:
+                        _tuser = _tdb.query(WebUser).filter_by(id=request.web_user.id).first()
+                        _tok = _get_fluxer_access_token(_tuser, _tdb) if _tuser else None
+                    if _tok:
+                        _gr = _req.get(
+                            f'https://api.fluxer.app/v1/guilds/{pid}',
+                            headers={'Authorization': f'Bearer {_tok}'},
+                            timeout=5,
+                        )
+                        if _gr.ok:
+                            _gdata = _gr.json()
+                            _live = _gdata.get('member_count') or _gdata.get('approximate_member_count')
+                            if _live:
+                                p_member_count = int(_live)
+                except Exception as _e:
+                    logger.debug(f'community_register: Fluxer member count fetch failed: {_e}')
 
             elif ptype == PlatformType.DISCORD:
                 # If pid isn't a numeric guild ID it's a manual invite URL - skip ownership check
@@ -1027,6 +1327,18 @@ def api_communities(request):
                     ).fetchone()
                 if not row:
                     return JsonResponse({'error': 'You are not the owner of that Discord server'}, status=403)
+
+                # Use live member count from guilds table (WardenBot keeps this current)
+                try:
+                    with get_db_session() as db:
+                        _gc = db.execute(
+                            text("SELECT member_count FROM guilds WHERE guild_id=:gid LIMIT 1"),
+                            {'gid': discord_guild_id},
+                        ).fetchone()
+                        if _gc and _gc[0]:
+                            p_member_count = int(_gc[0])
+                except Exception:
+                    pass
 
             elif ptype == PlatformType.MATRIX:
                 matrix_id_str = str(getattr(request.web_user, 'matrix_id', '') or '')
@@ -2165,40 +2477,66 @@ def api_mention_search(request):
 @add_web_user_context
 def api_community_members_list(request, community_id):
     """GET QuestLog members of a community.
-    Source of truth is web_community_members - populated when a user links their
-    Discord/Fluxer account and they are found in that platform's guild.
+    Queries across all platform rows in the same community_group_id so members
+    who joined via Discord OR Fluxer all appear. Deduplicated by user_id so
+    someone who joined on both platforms is only counted once.
+    Role priority: owner > admin > moderator > member (best role wins on dedup).
     """
     with get_db_session() as db:
         community = db.query(WebCommunity).filter_by(id=community_id, is_active=True).first()
         if not community:
             return JsonResponse({'error': 'Not found'}, status=404)
 
+        # Get all community IDs in the same group (all platforms of this community)
+        group_id = community.community_group_id or community_id
+        sibling_ids = [r[0] for r in db.execute(
+            text("SELECT id FROM web_communities WHERE community_group_id = :gid AND is_active = 1"),
+            {'gid': group_id}
+        ).fetchall()]
+        # Always include this community itself (handles communities with no group_id set)
+        if community_id not in sibling_ids:
+            sibling_ids.append(community_id)
+
         page = safe_int(request.GET.get('page', 1), 1, 1, 100)
         limit = 48
         offset = (page - 1) * limit
 
-        rows = db.execute(text("""
+        id_placeholders = ','.join(f':cid{i}' for i in range(len(sibling_ids)))
+        id_params = {f'cid{i}': v for i, v in enumerate(sibling_ids)}
+
+        # Deduplicate by user_id - pick their best role and earliest join date
+        rows = db.execute(text(f"""
             SELECT u.id, u.username, u.display_name, u.avatar_url,
-                   cm.role, cm.joined_at
+                   MAX(CASE cm.role
+                       WHEN 'owner'     THEN 4
+                       WHEN 'admin'     THEN 3
+                       WHEN 'moderator' THEN 2
+                       ELSE 1 END) AS role_rank,
+                   MIN(cm.joined_at) AS first_joined
             FROM web_community_members cm
             JOIN web_users u ON u.id = cm.user_id
-            WHERE cm.community_id = :cid AND u.is_banned = 0 AND u.is_disabled = 0
-            ORDER BY FIELD(cm.role,'owner','admin','moderator','member'), cm.joined_at ASC
+            WHERE cm.community_id IN ({id_placeholders})
+              AND u.is_banned = 0 AND u.is_disabled = 0
+            GROUP BY u.id, u.username, u.display_name, u.avatar_url
+            ORDER BY role_rank DESC, first_joined ASC
             LIMIT :lim OFFSET :off
-        """), {'cid': community_id, 'lim': limit, 'off': offset}).fetchall()
+        """), {**id_params, 'lim': limit, 'off': offset}).fetchall()
 
-        total = db.execute(text("""
-            SELECT COUNT(*) FROM web_community_members cm
+        total = db.execute(text(f"""
+            SELECT COUNT(DISTINCT cm.user_id)
+            FROM web_community_members cm
             JOIN web_users u ON u.id = cm.user_id
-            WHERE cm.community_id = :cid AND u.is_banned = 0 AND u.is_disabled = 0
-        """), {'cid': community_id}).scalar()
+            WHERE cm.community_id IN ({id_placeholders})
+              AND u.is_banned = 0 AND u.is_disabled = 0
+        """), id_params).scalar()
 
+        role_map = {4: 'owner', 3: 'admin', 2: 'moderator', 1: 'member'}
         members = [{
-            'id': r.id,
-            'username': r.username,
-            'display_name': r.display_name or r.username,
-            'avatar_url': r.avatar_url or '',
-            'role': r.role,
+            'id': r[0],
+            'username': r[1],
+            'display_name': r[2] or r[1],
+            'avatar_url': r[3] or '',
+            'role': role_map.get(r[4], 'member'),
             'linked': True,
         } for r in rows]
 
@@ -3322,6 +3660,56 @@ def api_igdb_search(request):
         finally:
             loop.close()
             asyncio.set_event_loop(None)
+
+        # Enrich steam_id for games IGDB doesn't have a Steam mapping for.
+        # Priority: IGDB external_games > web_found_games > web_lfg_game_configs > web_users.current_game_appid
+        game_names_no_steam = [g.name for g in games if not g.steam_id]
+        steam_id_by_name = {}
+        if game_names_no_steam:
+            with get_db_session() as db:
+                # 1. web_found_games (Steam-scraped, most reliable)
+                for row in db.query(WebFoundGame.name, WebFoundGame.steam_app_id).filter(
+                    WebFoundGame.name.in_(game_names_no_steam)
+                ).all():
+                    steam_id_by_name[row.name] = row.steam_app_id
+
+                # 2. web_lfg_game_configs (admin-configured LFG games with known Steam IDs)
+                still_missing = [n for n in game_names_no_steam if n not in steam_id_by_name]
+                if still_missing:
+                    for row in db.query(WebLFGGameConfig.game_name, WebLFGGameConfig.steam_app_id).filter(
+                        WebLFGGameConfig.game_name.in_(still_missing),
+                        WebLFGGameConfig.steam_app_id.isnot(None),
+                    ).all():
+                        steam_id_by_name[row.game_name] = row.steam_app_id
+
+                # 3. web_users.current_game_appid - players actively playing this game right now
+                still_missing = [n for n in game_names_no_steam if n not in steam_id_by_name]
+                if still_missing:
+                    for row in db.query(WebUser.current_game, WebUser.current_game_appid).filter(
+                        WebUser.current_game.in_(still_missing),
+                        WebUser.current_game_appid.isnot(None),
+                    ).distinct(WebUser.current_game).all():
+                        steam_id_by_name[row.current_game] = row.current_game_appid
+
+        # 4. Steam store search fallback for any still-missing steam_ids (exact name match only)
+        still_missing = [g.name for g in games if not (g.steam_id or steam_id_by_name.get(g.name))]
+        if still_missing:
+            import requests as _requests
+            for name in still_missing[:3]:  # cap at 3 to avoid slow searches
+                try:
+                    resp = _requests.get(
+                        'https://store.steampowered.com/api/storesearch/',
+                        params={'term': name, 'cc': 'US', 'l': 'english'},
+                        timeout=3,
+                    )
+                    if resp.status_code == 200:
+                        items = resp.json().get('items', [])
+                        for item in items:
+                            if item.get('name', '').lower() == name.lower() and item.get('id'):
+                                steam_id_by_name[name] = item['id']
+                                break
+                except Exception:
+                    pass
 
         # Enrich steam_id for games IGDB doesn't have a Steam mapping for.
         # Priority: IGDB external_games > web_found_games > web_lfg_game_configs > web_users.current_game_appid

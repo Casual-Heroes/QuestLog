@@ -190,6 +190,20 @@
         </label>
       </div>
 
+      <!-- QuestLog Network Option -->
+      <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-lg p-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" id="postToNetwork" class="w-5 h-5 rounded bg-neutral-700 border-neutral-600 text-yellow-500 focus:ring-yellow-500" onchange="onNetworkToggle(this.checked)">
+          <div>
+            <div class="text-white font-medium flex items-center gap-2">
+              Post to QuestLog Network
+              <span class="text-xs bg-yellow-600/30 text-yellow-400 border border-yellow-700/50 px-2 py-0.5 rounded-full font-normal">Cross-server</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">Broadcasts to all QuestLog Network servers and creates a post at casual-heroes.com/ql/lfg/. Requires a linked QuestLog account.</p>
+          </div>
+        </label>
+      </div>
+
       <div class="flex gap-3">
         <button onclick="createGroup()" class="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2 font-semibold">
           Create Group
@@ -2248,6 +2262,20 @@
     }
   }
 
+  function onNetworkToggle(checked) {
+    const threadCheckbox = document.getElementById('createDiscordThread');
+    const note = document.getElementById('discordThreadNetworkNote');
+    if (checked) {
+      threadCheckbox.checked = false;
+      threadCheckbox.disabled = true;
+      note.classList.remove('hidden');
+    } else {
+      threadCheckbox.checked = true;
+      threadCheckbox.disabled = false;
+      note.classList.add('hidden');
+    }
+  }
+
   async function openCreateGroupModal() {
     document.getElementById('createGroupModal').classList.remove('hidden');
     await loadGuildMembers();
@@ -2441,6 +2469,12 @@
     _roleFields.classList.add('hidden');
     document.getElementById('groupSizeContainer').classList.remove('hidden');
 
+    // Survival: hide scheduled time, duration, recurrence - show/restore for non-survival
+    document.getElementById('createScheduledTimeRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createEventDurationRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createRecurrenceRow').classList.toggle('hidden', _isSurvival);
+    document.getElementById('createGroupSizeLabel').textContent = _isSurvival ? 'Server Size' : 'Group Size';
+
     if (_isSurvival) {
       // Survival: hide role composition, scheduled time, event duration, recurrence; rename Group Size
       _roleSection.classList.add('hidden');
@@ -2555,10 +2589,10 @@
           items = [];
         } else if (Array.isArray(option.choices)) {
           // Simple dropdown - handle both string and object {value, role} formats
-          items = option.choices.map(choice => {
+          items = [{ value: '', label: '-- None --' }].concat(option.choices.map(choice => {
             const val = typeof choice === 'object' ? choice.value : choice;
             return { value: val, label: val };
-          });
+          }));
         }
 
         // Check if this option should allow multi-select (Activity, Server Type, or option.multi === true)
@@ -2711,7 +2745,12 @@
           if (optionContainer) {
             const hiddenInput = optionContainer.querySelector('input[type="hidden"]');
             if (hiddenInput && hiddenInput.value) {
-              creatorOptions[option.name] = hiddenInput.value;
+              let val = hiddenInput.value;
+              // Multi-select stores JSON array - join to comma-separated string for display
+              if (val.startsWith('[')) {
+                try { val = JSON.parse(val).filter(Boolean).join(', '); } catch(e) {}
+              }
+              if (val) creatorOptions[option.name] = val;
             }
           }
         });

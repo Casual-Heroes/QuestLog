@@ -1,7 +1,7 @@
 {% load static %}
 
 <!-- Web QuestLog Sidebar Navigation (No Discord dependency) -->
-<div id="web-sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col overflow-hidden">
+<div id="web-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col overflow-hidden">
   <!-- Collapse button -->
   <button onclick="collapseSidebar()" title="Hide sidebar"
           class="absolute top-3 right-2 z-10 text-gray-600 hover:text-gray-300 transition p-1 rounded hover:bg-neutral-800">
@@ -251,6 +251,42 @@
           <i class="fas fa-newspaper text-gray-400 group-hover:text-orange-400"></i>
           <span>Gaming News</span>
         </a>
+        <a href="/blog/"
+           class="nav-item {% if active_page == 'blog' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-newspaper text-gray-400 group-hover:text-violet-400"></i>
+          <span>Blog</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- SoulsLike Section -->
+    <div>
+      <div class="flex items-center justify-between px-3 mb-1">
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">SoulsLike</h3>
+      </div>
+      <div class="space-y-1">
+        <a href="/soulslike/"
+           class="nav-item {% if active_page == 'soulslike' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-skull text-gray-400 group-hover:text-red-400"></i>
+          <span>SoulsLike Hub</span>
+        </a>
+        <a href="/soulslike/tracker/"
+           class="nav-item {% if active_page == 'soulslike_tracker' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-crosshairs text-gray-400 group-hover:text-amber-400"></i>
+          <span>Mortality Tracker</span>
+        </a>
+        <a href="/soulslike/guides/"
+           class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group opacity-50 cursor-not-allowed" title="Coming Soon">
+          <i class="fas fa-book-open text-gray-500"></i>
+          <span class="flex-1">Guides</span>
+          <span class="text-[9px] text-gray-600 font-bold uppercase tracking-wide">Soon</span>
+        </a>
+        <a href="/soulslike/builder/"
+           class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group opacity-50 cursor-not-allowed" title="Coming Soon">
+          <i class="fas fa-sword text-gray-500"></i>
+          <span class="flex-1">Char Builder</span>
+          <span class="text-[9px] text-gray-600 font-bold uppercase tracking-wide">Soon</span>
+        </a>
       </div>
     </div>
 
@@ -349,11 +385,6 @@
            class="nav-item {% if active_page == 'game_servers' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
           <i class="fas fa-server text-gray-400 group-hover:text-indigo-400"></i>
           <span>Game Servers</span>
-        </a>
-        <a href="/blog/"
-           class="nav-item {% if active_page == 'blog' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-newspaper text-gray-400 group-hover:text-violet-400"></i>
-          <span>Blog</span>
         </a>
         <span id="whatsNewBadge" class="hidden"></span>
         <a href="{% url 'content' %}"
@@ -640,6 +671,8 @@
 
   </div><!-- /scrollable area -->
 
+  </div><!-- /scrollable area -->
+
   <!-- Footer - always visible at bottom -->
   <div class="p-4 border-t border-neutral-800 space-y-3 flex-shrink-0">
     <!-- Give Feedback - always visible -->
@@ -687,7 +720,7 @@
 </div>
 
 <!-- Mobile Overlay -->
-<div id="sidebar-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden hidden" onclick="toggleSidebar()"></div>
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-40 lg:hidden hidden" onclick="toggleSidebar()"></div>
 
 <!-- Mobile Menu Button (desktop-tablet only - mobile uses header hamburger) -->
 <button onclick="toggleSidebar()" type="button"

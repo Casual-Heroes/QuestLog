@@ -67,55 +67,76 @@
 
   <!-- Article grid -->
   {% if articles %}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pb-8">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
     {% for art in articles %}
     <a href="/blog/{{ art.slug }}/"
-       class="group block bg-neutral-900 border border-neutral-800 hover:border-violet-700/50 rounded-xl overflow-hidden transition-all hover:shadow-lg hover:shadow-violet-900/20">
+       class="group flex flex-col bg-neutral-900 border border-neutral-800 hover:border-violet-700/50 rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-xl hover:shadow-violet-900/20">
+
+      <!-- Cover image or placeholder -->
       {% if art.cover_url %}
-      <div class="h-44 overflow-hidden">
+      <div class="h-52 overflow-hidden flex-shrink-0 relative">
         <img src="{{ art.cover_url }}" alt="{{ art.title }}"
-             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900/60 to-transparent"></div>
+        <!-- Category badge over image -->
+        <span class="absolute top-3 left-3 px-2 py-0.5 text-xs font-semibold rounded-full capitalize backdrop-blur-sm
+          {% if art.category == 'guide' %}bg-green-900/70 text-green-300 border border-green-700/40
+          {% elif art.category == 'news' %}bg-blue-900/70 text-blue-300 border border-blue-700/40
+          {% elif art.category == 'opinion' %}bg-orange-900/70 text-orange-300 border border-orange-700/40
+          {% else %}bg-violet-900/70 text-violet-300 border border-violet-700/40{% endif %}">
+          {{ art.category }}
+        </span>
+        {% if art.is_pinned %}<span class="absolute top-3 right-3 text-yellow-400 text-xs bg-black/50 rounded-full w-6 h-6 flex items-center justify-center"><i class="fas fa-thumbtack"></i></span>{% endif %}
       </div>
       {% else %}
-      <div class="h-24 bg-gradient-to-br from-violet-900/30 to-indigo-900/30 flex items-center justify-center">
-        <i class="fas fa-newspaper text-3xl text-violet-700/50"></i>
+      <div class="h-32 bg-gradient-to-br
+        {% if art.category == 'guide' %}from-green-900/30 to-emerald-900/20
+        {% elif art.category == 'news' %}from-blue-900/30 to-cyan-900/20
+        {% elif art.category == 'opinion' %}from-orange-900/30 to-amber-900/20
+        {% else %}from-violet-900/30 to-indigo-900/20{% endif %}
+        flex items-center justify-center flex-shrink-0 relative">
+        <i class="fas fa-newspaper text-4xl
+          {% if art.category == 'guide' %}text-green-700/50
+          {% elif art.category == 'news' %}text-blue-700/50
+          {% elif art.category == 'opinion' %}text-orange-700/50
+          {% else %}text-violet-700/50{% endif %}"></i>
+        <span class="absolute top-3 left-3 px-2 py-0.5 text-xs font-semibold rounded-full capitalize
+          {% if art.category == 'guide' %}bg-green-800/40 text-green-400
+          {% elif art.category == 'news' %}bg-blue-800/40 text-blue-400
+          {% elif art.category == 'opinion' %}bg-orange-800/40 text-orange-400
+          {% else %}bg-violet-800/40 text-violet-400{% endif %}">
+          {{ art.category }}
+        </span>
+        {% if art.is_pinned %}<span class="absolute top-3 right-3 text-yellow-400 text-xs"><i class="fas fa-thumbtack"></i></span>{% endif %}
       </div>
       {% endif %}
 
-      <div class="p-4">
-        <!-- Category + pin badge -->
-        <div class="flex items-center gap-2 mb-2">
-          <span class="px-1.5 py-0.5 text-xs rounded capitalize
-            {% if art.category == 'guide' %}bg-green-800/40 text-green-400
-            {% elif art.category == 'news' %}bg-blue-800/40 text-blue-400
-            {% elif art.category == 'opinion' %}bg-orange-800/40 text-orange-400
-            {% else %}bg-violet-800/40 text-violet-400{% endif %}">
-            {{ art.category }}
-          </span>
-          {% if art.is_pinned %}
-          <span class="text-xs text-yellow-500" title="Pinned"><i class="fas fa-thumbtack"></i></span>
-          {% endif %}
-          {% if art.game_tag_name %}
-          <a href="/ql/lfg/browse/?game={{ art.game_tag_name|urlencode }}" class="text-xs text-indigo-400 hover:text-indigo-300 truncate transition"><i class="fas fa-gamepad mr-0.5 text-[10px]"></i>{{ art.game_tag_name }}</a>
-          {% endif %}
-        </div>
+      <!-- Card body -->
+      <div class="p-4 flex flex-col flex-1">
+        {% if art.game_tag_name %}
+        <a href="/ql/lfg/browse/?game={{ art.game_tag_name|urlencode }}" onclick="event.stopPropagation()"
+           class="text-xs text-indigo-400 hover:text-indigo-300 transition mb-1.5 inline-flex items-center gap-1 w-fit">
+          <i class="fas fa-gamepad text-[10px]"></i>{{ art.game_tag_name }}
+        </a>
+        {% endif %}
 
-        <h2 class="text-base font-bold text-white group-hover:text-violet-300 transition-colors line-clamp-2 leading-snug">
+        <h2 class="text-base font-bold text-white group-hover:text-violet-300 transition-colors line-clamp-2 leading-snug mb-1.5">
           {{ art.title }}
         </h2>
         {% if art.summary %}
-        <p class="mt-1 text-sm text-gray-400 line-clamp-2 leading-relaxed">{{ art.summary }}</p>
+        <p class="text-sm text-gray-400 line-clamp-2 leading-relaxed flex-1">{{ art.summary }}</p>
+        {% else %}
+        <div class="flex-1"></div>
         {% endif %}
 
-        <!-- Footer meta -->
-        <div class="mt-3 flex items-center justify-between">
+        <!-- Footer: author + meta -->
+        <div class="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between">
           <div class="flex items-center gap-2 min-w-0">
             {% if art.author %}
             {% if art.author.avatar_url %}
-            <img src="{{ art.author.avatar_url }}" alt="{{ art.author.username }}"
-                 class="w-5 h-5 rounded-full object-cover flex-shrink-0">
+            <img src="{{ art.author.avatar_url }}" alt="{{ art.author.username }}" class="w-6 h-6 rounded-full object-cover flex-shrink-0">
             {% else %}
-            <div class="w-5 h-5 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0">
+            <div class="w-6 h-6 rounded-full bg-violet-700 flex items-center justify-center flex-shrink-0">
               <span class="text-xs text-white font-bold">{{ art.author.username|slice:":1"|upper }}</span>
             </div>
             {% endif %}
@@ -123,7 +144,8 @@
             {% endif %}
           </div>
           <div class="flex items-center gap-3 text-xs text-gray-500 flex-shrink-0">
-            <span><i class="fas fa-comment mr-1"></i>{{ art.comment_count }}</span>
+            <span class="art-reading-time" data-body-len="{{ art.body_md|length }}"></span>
+            <span><i class="fas fa-comment mr-0.5"></i>{{ art.comment_count }}</span>
             <span id="art-ts-{{ art.id }}" data-ts="{{ art.published_at }}"></span>
           </div>
         </div>
@@ -180,8 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const ts = parseInt(el.dataset.ts, 10);
     if (!ts) { el.textContent = ''; return; }
     const d = new Date(ts * 1000);
-    const now = Date.now();
-    const diff = Math.floor((now - d.getTime()) / 1000);
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
     let label;
     if (diff < 60) label = 'just now';
     else if (diff < 3600) label = Math.floor(diff / 60) + 'm ago';
@@ -189,6 +210,13 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (diff < 2592000) label = Math.floor(diff / 86400) + 'd ago';
     else label = d.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
     el.textContent = label;
+  });
+
+  // Reading time estimate from body length (approx 5 chars/word, 200 words/min)
+  document.querySelectorAll('.art-reading-time').forEach(function(el) {
+    const len = parseInt(el.dataset.bodyLen, 10) || 0;
+    const mins = Math.max(1, Math.round(len / 1000));
+    el.textContent = mins + ' min';
   });
 });
 </script>

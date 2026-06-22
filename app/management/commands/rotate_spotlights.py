@@ -168,7 +168,16 @@ class Command(BaseCommand):
                 self.stdout.write('Indie: no published games found')
 
             # ── COMMUNITY ────────────────────────────────────────────────
-            comm_objs = db.query(WebCommunity).filter_by(network_status='approved').all()
+            # One entry per owner, prefer is_primary=True - avoids picking wrong platform
+            all_comms = db.query(WebCommunity).filter_by(network_status='approved').order_by(
+                WebCommunity.is_primary.desc()
+            ).all()
+            seen_owners = set()
+            comm_objs = []
+            for c in all_comms:
+                if c.owner_id not in seen_owners:
+                    seen_owners.add(c.owner_id)
+                    comm_objs.append(c)
             comm_ids = [c.id for c in comm_objs]
             comm_names = {c.id: c.name for c in comm_objs}
             if comm_ids:

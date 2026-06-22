@@ -502,6 +502,60 @@
         <input type="url" id="instagramUrl" placeholder="https://instagram.com/yourhandle"
                class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
       </div>
+      <div>
+        <label class="text-sm text-gray-300 mb-1.5 block">Instagram</label>
+        <input type="url" id="instagramUrl" placeholder="https://instagram.com/yourhandle"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500 focus:outline-none">
+      </div>
+    </div>
+
+    <!-- Platform invite + member count (shown when server selected) -->
+    <div id="fluxerInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
+      <p class="text-xs text-cyan-400 font-semibold uppercase tracking-wider mb-3"><img src="{% static 'img/siteassets/fluxer-favicon.png' %}" style="width:1em;height:1em;object-fit:contain;vertical-align:middle;display:inline-block;" alt="Fluxer">Fluxer</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Fluxer Invite URL</label>
+          <input type="url" id="fluxerInviteUrl" placeholder="https://fluxer.gg/invite/..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Fluxer Member Count</label>
+          <input type="number" id="fluxerMemberCount" min="0" value=""
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none">
+        </div>
+      </div>
+    </div>
+
+    <div id="discordInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
+      <p class="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-3"><i class="fab fa-discord mr-1"></i>Discord</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Discord Invite URL</label>
+          <input type="url" id="discordInviteUrl" placeholder="https://discord.gg/..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Discord Member Count</label>
+          <input type="number" id="discordMemberCount" min="0" value=""
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:outline-none">
+        </div>
+      </div>
+    </div>
+
+    <div id="matrixInviteField" class="hidden mt-4 pt-4 border-t border-neutral-800">
+      <p class="text-xs text-green-400 font-semibold uppercase tracking-wider mb-3"><i class="fas fa-comments mr-1"></i>Matrix</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Matrix Space Invite URL</label>
+          <input type="url" id="matrixInviteUrl" placeholder="https://matrix.to/#/!..."
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-sm text-gray-300 mb-1.5 block">Matrix Member Count</label>
+          <input type="number" id="matrixMemberCount" min="0" value=""
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+        </div>
+      </div>
     </div>
 
     <!-- Platform invite + member count (shown when server selected) -->

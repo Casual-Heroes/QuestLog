@@ -786,13 +786,28 @@ def add_web_user_context(view_func):
                             pass
                 if _pc_id:
                     with get_db_session() as _db:
+                        # Prefer is_primary=1 sibling owned by same owner - ensures
+                        # the user's chosen primary platform is shown, not a stale one
                         _pc_row = _db.execute(
                             sa_text(
-                                "SELECT name, icon_url, platform FROM web_communities "
-                                "WHERE id=:id AND is_active=1 LIMIT 1"
+                                "SELECT c2.name, c2.icon_url, c2.platform "
+                                "FROM web_communities c1 "
+                                "JOIN web_communities c2 ON c2.owner_id = c1.owner_id "
+                                "WHERE c1.id = :id AND c1.is_active = 1 "
+                                "AND c2.is_active = 1 AND c2.is_primary = 1 "
+                                "LIMIT 1"
                             ),
                             {'id': _pc_id}
                         ).fetchone()
+                        if not _pc_row:
+                            # Fallback: use the stored community directly
+                            _pc_row = _db.execute(
+                                sa_text(
+                                    "SELECT name, icon_url, platform FROM web_communities "
+                                    "WHERE id=:id AND is_active=1 LIMIT 1"
+                                ),
+                                {'id': _pc_id}
+                            ).fetchone()
                     if _pc_row:
                         _plat_raw = _pc_row[2]
                         request.web_user.primary_community_name = _pc_row[0]
@@ -1788,14 +1803,18 @@ _SAFE_URL_SCHEMES = frozenset({'http', 'https', 'mailto'})
 
 
 def _sanitize_url(url):
-    """Return url only if its scheme is in _SAFE_URL_SCHEMES, else '#'."""
+    """Return url only if its scheme is safe or it's a relative path, else '#'."""
     from urllib.parse import urlparse
     if not url:
         return '#'
     try:
-        scheme = urlparse(url.strip()).scheme.lower()
+        parsed = urlparse(url.strip())
+        scheme = parsed.scheme.lower()
     except Exception:
         return '#'
+    # Allow relative URLs (no scheme) - e.g. /media/uploads/...
+    if scheme == '':
+        return url.strip()
     if scheme not in _SAFE_URL_SCHEMES:
         return '#'
     return url.strip()

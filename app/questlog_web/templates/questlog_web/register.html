@@ -14,6 +14,10 @@
     justify-content: center;
     padding: 40px 16px;
 }
+@media (max-width: 640px) {
+    .ql-login-page { flex-direction: column !important; align-items: center !important; }
+    .ql-login-page > div:first-child { max-width: 100% !important; }
+}
 
 .ql-login-card {
     background: #0f0f1a;
@@ -149,8 +153,62 @@
 {% endblock %}
 
 {% block web_content %}
-<div class="ql-login-page">
-  <div class="ql-login-card">
+<div class="ql-login-page" style="align-items:flex-start;max-width:900px;margin:0 auto;gap:40px;flex-direction:row;flex-wrap:wrap;">
+
+  <!-- Left: What is QuestLog -->
+  <div style="flex:1;min-width:280px;max-width:400px;padding-top:8px;">
+    <div style="margin-bottom:24px;">
+      <p style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#6366f1;margin-bottom:8px;">Welcome to QuestLog</p>
+      <h2 style="font-size:1.8rem;font-weight:900;color:#fff;line-height:1.2;margin-bottom:12px;">Gaming, but with people who actually get it.</h2>
+      <p style="font-size:0.9rem;color:#9ca3af;line-height:1.6;">QuestLog is the web platform for Casual Heroes - a community built for working adults, parents, and gamers who grew up but never quite left Neverland.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas fa-users" style="color:#818cf8;font-size:14px;"></i>
+        </div>
+        <div>
+          <p style="color:#fff;font-weight:600;font-size:0.875rem;margin-bottom:2px;">Find Your Group</p>
+          <p style="color:#6b7280;font-size:0.8rem;line-height:1.5;">LFG system built for casual schedules. Post or join groups for any game, on any platform.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas fa-gamepad" style="color:#34d399;font-size:14px;"></i>
+        </div>
+        <div>
+          <p style="color:#fff;font-weight:600;font-size:0.875rem;margin-bottom:2px;">Your Gaming Identity</p>
+          <p style="color:#6b7280;font-size:0.8rem;line-height:1.5;">Profile, library, achievements, and a Legacy score that reflects your real contribution to the community.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas fa-rocket" style="color:#fbbf24;font-size:14px;"></i>
+        </div>
+        <div>
+          <p style="color:#fff;font-weight:600;font-size:0.875rem;margin-bottom:2px;">Indie Heroes</p>
+          <p style="color:#6b7280;font-size:0.8rem;line-height:1.5;">Discover indie games before they blow up. Devs share directly with gamers who actually care.</p>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="fas fa-shield-alt" style="color:#a78bfa;font-size:14px;"></i>
+        </div>
+        <div>
+          <p style="color:#fff;font-weight:600;font-size:0.875rem;margin-bottom:2px;">Real Communities</p>
+          <p style="color:#6b7280;font-size:0.8rem;line-height:1.5;">Browse gaming communities on Fluxer and Discord. Find your people or list your own for free.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right: Registration form -->
+  <div class="ql-login-card" style="flex-shrink:0;">
 
     <div class="ql-login-logo">🎮</div>
     <h1 class="ql-login-title">Create your account</h1>
@@ -231,6 +289,15 @@
       </div>
 
       {% if early_access_mode %}
+      <div class="ql-field">
+        <label for="id_invite_code">Invite Code</label>
+        <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"
+          placeholder="XXXXXXXXXX" autocomplete="off" maxlength="16"
+          style="text-transform: uppercase; letter-spacing: 0.15em; font-family: monospace; font-size: 1.05rem;">
+        <div class="ql-field-hint">Required during Early Access - get yours in our Fluxer or Discord community.</div>
+      </div>
+      {% endif %}
+
       <div class="ql-field">
         <label for="id_invite_code">Invite Code</label>
         <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"
@@ -419,6 +486,16 @@
       btn.textContent = 'Create Account & Submit Game';
     }
   }
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var sidebar = document.getElementById('web-sidebar');
+  var tab = document.getElementById('sidebar-expand-tab');
+  var main = document.getElementById('ql-main-content');
+  if (sidebar) sidebar.style.display = 'none';
+  if (tab) tab.style.display = 'none';
+  if (main) { main.style.marginLeft = '0'; main.style.width = '100%'; }
+});
 </script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {

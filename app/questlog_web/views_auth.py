@@ -201,6 +201,17 @@ def ql_login(request, early_access_bypass=False):
                     'turnstile_site_key': turnstile_site_key,
                 })
 
+        # Turnstile check on early access login
+        if early_access_bypass and turnstile_site_key:
+            if not _verify_turnstile(request.POST.get('cf-turnstile-response', ''), _get_remote_ip(request)):
+                logger.warning("Turnstile failed on early access login from %s", _get_remote_ip(request))
+                messages.error(request, "Security check failed. Please try again.")
+                return render(request, 'questlog_web/login.html', {
+                    'next': next_url,
+                    'early_access_bypass': True,
+                    'turnstile_site_key': turnstile_site_key,
+                })
+
         django_user = authenticate(request, username=username, password=password)
         if django_user is None:
             logger.warning("Failed login attempt from %s", _get_remote_ip(request))
@@ -427,11 +438,25 @@ def api_check_invite(request):
     return JsonResponse({'valid': True, 'redirect': f'register/?invite={code}'})
 
 
-@ratelimit(key='ip', rate='5/h', block=True)
+@ratelimit(key='ip', rate='5/h', method='POST', block=True)
+@ratelimit(key='ip', rate='60/h', method='GET', block=True)
 def ql_register(request):
     """Account registration — username + password via Django auth."""
     if request.session.get('web_user_id'):
         return redirect('/')
+
+    # Check for invite code bypass (from ?invite=CODE query param on GET, or invite_code field on POST)
+    if request.method == 'GET':
+        invite_param = request.GET.get('invite', '').strip().upper()
+    else:
+        invite_param = request.POST.get('invite_code', '').strip().upper()
+    invite_bypass = False
+    if invite_param:
+        with get_db_session() as db:
+            pre_check = db.query(WebEarlyAccessCode).filter_by(
+                code=invite_param, is_revoked=False
+            ).filter(WebEarlyAccessCode.used_by_user_id == None).first()
+            invite_bypass = bool(pre_check)
 
     # Check for invite code bypass (from ?invite=CODE query param on GET, or invite_code field on POST)
     if request.method == 'GET':

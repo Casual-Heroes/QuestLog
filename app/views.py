@@ -1,8 +1,31 @@
 def home(request):
     if request.get_host().split(':')[0].lower() == 'questlog.casual-heroes.com':
         from app.questlog_web.helpers import get_web_user
+        from app.questlog_web.models import WebCommunity
+        from app.db import get_db_session as _gds
         web_user = get_web_user(request)
-        return render(request, 'questlog_web/landing.html', {'web_user': web_user, 'active_page': 'home'})
+        primary_community = None
+        try:
+            with _gds() as db:
+                c = db.query(WebCommunity).filter_by(
+                    is_primary=True, network_status='approved',
+                    is_active=True, owner_id=1,
+                ).first()
+                if c:
+                    plat = c.platform.value if hasattr(c.platform, 'value') else str(c.platform)
+                    primary_community = {
+                        'name': c.name, 'platform': plat,
+                        'icon_url': c.icon_url or '',
+                        'invite_url': c.invite_url or '',
+                        'short_description': c.short_description or '',
+                    }
+        except Exception:
+            pass
+        return render(request, 'questlog_web/landing.html', {
+            'web_user': web_user,
+            'active_page': 'home',
+            'primary_community': primary_community,
+        })
     return render(request, 'index.html')
 
 def ql_legacy_redirect(request, rest):
@@ -2839,6 +2862,48 @@ def bot_fluxer(request):
     from app.questlog_web.helpers import get_web_user as _get_web_user
     return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url, 'web_user': _get_web_user(request)})
 
+
+def bot_discord(request):
+    import os
+    features = [
+        {'icon': '⭐', 'title': 'XP & Leveling', 'desc': 'Earn XP for messages, reactions, voice chat, invites, and gaming activity. Configurable rates, cooldowns, boost events, and level roles.'},
+        {'icon': '📅', 'title': 'LFG Scheduling', 'desc': 'Create and browse group finder posts with game, activity, date/time, and player cap. Members RSVP and get reminders.'},
+        {'icon': '🛡️', 'title': 'Moderation', 'desc': 'Auto-mod, timeout, ban, kick, warn, and full audit logging. Anti-raid detection and configurable thresholds.'},
+        {'icon': '📡', 'title': 'RSS Feeds', 'desc': 'Subscribe to any RSS/Atom feed and push new articles to a channel. Per-feed filters, formatting, and max age settings.'},
+        {'icon': '🔴', 'title': 'Live Alerts', 'desc': 'Post to a channel when a streamer goes live on Twitch, YouTube, or Kick. Per-streamer message templates.'},
+        {'icon': '🎟️', 'title': 'Raffles', 'desc': 'Run giveaways with ticket-based entry. Members earn extra tickets with Hero Points. Multi-winner support.'},
+        {'icon': '✅', 'title': 'Verification', 'desc': 'Gate new members behind a CAPTCHA or reaction-based verification step before they can access your server.'},
+        {'icon': '🎭', 'title': 'Reaction Roles', 'desc': 'Let members self-assign roles by reacting to a message. Supports single-choice and multi-select modes.'},
+        {'icon': '📰', 'title': 'Scheduled Messages', 'desc': 'Post recurring announcements, reminders, or rotating tips to any channel on a custom schedule.'},
+        {'icon': '🏅', 'title': 'Flairs & Ranks', 'desc': 'Members earn flairs and rank titles as they level up. Admins can create custom flairs purchasable with Hero Points.'},
+        {'icon': '🌐', 'title': 'QuestLog Network', 'desc': 'Approve your server to the QuestLog Network. Members\' Discord XP flows into their unified QuestLog profile.'},
+        {'icon': '🔓', 'title': 'Open Source', 'desc': 'Fully open source under AGPL-3.0. Self-host your own instance or contribute on GitHub.'},
+    ]
+    client_id = os.getenv('DISCORD_CLIENT_ID', '')
+    invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&scope=bot+applications.commands&permissions=8" if client_id else '#'
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'bot_discord.html', {'features': features, 'invite_url': invite_url, 'web_user': _get_web_user(request)})
+
+
+def bot_fluxer(request):
+    features = [
+        {'icon': '⭐', 'title': 'XP & Leveling', 'desc': 'Earn XP for messages, media, reactions, and voice. Configurable rates, cooldowns, boost events, and level roles. Syncs to your unified QuestLog profile.'},
+        {'icon': '📅', 'title': 'LFG Scheduling', 'desc': 'Create and browse group finder posts directly on Fluxer. Members RSVP, get reminders, and sessions show up in the QuestLog web calendar.'},
+        {'icon': '🛡️', 'title': 'Moderation', 'desc': 'Warn, mute, kick, and ban with full audit logging. Configurable thresholds and mod log channel.'},
+        {'icon': '📡', 'title': 'RSS Feeds', 'desc': 'Subscribe to any RSS/Atom feed and push new articles to a channel. Per-feed filters, max age, and formatting.'},
+        {'icon': '🔴', 'title': 'Live Alerts', 'desc': 'Post to a channel when a streamer goes live on Twitch, YouTube, or Kick. Per-streamer message templates.'},
+        {'icon': '🎭', 'title': 'Welcome Messages', 'desc': 'Greet new members with a fully customizable welcome message. Supports user mention, avatar, join count, and server name variables.'},
+        {'icon': '🏅', 'title': 'Flairs & Ranks', 'desc': 'Members earn flairs and rank titles as they level up. Synced with the QuestLog site flair shop.'},
+        {'icon': '🔗', 'title': 'Bridge', 'desc': 'Relay messages between Fluxer, Discord, and Matrix channels. One conversation, all platforms.'},
+        {'icon': '🖥️', 'title': 'Web Dashboard', 'desc': 'Every feature has a matching web UI at casual-heroes.com. Configure everything from the browser without slash commands.'},
+        {'icon': '🌐', 'title': 'QuestLog Network', 'desc': 'Approve your server to the QuestLog Network. Members\' Fluxer XP flows into their unified QuestLog profile alongside Discord activity.'},
+        {'icon': '📊', 'title': 'Member Stats', 'desc': 'Track message counts, voice minutes, reactions, and XP per member. Full leaderboard visible in the web dashboard.'},
+        {'icon': '🔓', 'title': 'Open Source', 'desc': 'Fully open source under AGPL-3.0. Self-host your own instance or contribute on GitHub.'},
+    ]
+    invite_url = 'https://web.fluxer.app/oauth2/authorize?client_id=1478501650237887115&scope=bot&permissions=6756638430588119'
+    from app.questlog_web.helpers import get_web_user as _get_web_user
+    return render(request, 'bot_fluxer.html', {'features': features, 'invite_url': invite_url, 'web_user': _get_web_user(request)})
+
 def questchat(request):
     from app.questlog_web.helpers import get_web_user as _get_web_user
     return render(request, 'questchat.html', {'web_user': _get_web_user(request)})
@@ -2980,9 +3045,36 @@ def questlog_login(request):
                 if validate_response.status_code == 200:
                     return redirect(f'https://{settings.DASHBOARD_DOMAIN}/questlog/')
 
-                # If token expired (401), clear session and continue to re-auth below
+                # If token expired (401), try refresh token before clearing session
                 if validate_response.status_code == 401:
-                    logger.warning(f"Discord token expired during login check, clearing session")
+                    refresh_token = discord_user.get('refresh_token')
+                    if refresh_token:
+                        try:
+                            from .discord_auth import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
+                            refresh_resp = requests.post(
+                                'https://discord.com/api/oauth2/token',
+                                data={
+                                    'grant_type': 'refresh_token',
+                                    'refresh_token': refresh_token,
+                                    'client_id': DISCORD_CLIENT_ID,
+                                    'client_secret': DISCORD_CLIENT_SECRET,
+                                },
+                                timeout=10,
+                            )
+                            if refresh_resp.status_code == 200:
+                                new_tokens = refresh_resp.json()
+                                new_access = new_tokens.get('access_token')
+                                new_refresh = new_tokens.get('refresh_token', refresh_token)
+                                if new_access:
+                                    discord_user['access_token'] = new_access
+                                    discord_user['refresh_token'] = new_refresh
+                                    request.session['discord_user'] = discord_user
+                                    request.session.modified = True
+                                    next_url = request.GET.get('next', f'https://{settings.DASHBOARD_DOMAIN}/questlog/')
+                                    return redirect(next_url)
+                        except Exception as _re:
+                            logger.warning(f"Discord token refresh failed: {_re}")
+                    logger.warning("Discord token expired and refresh failed, clearing session")
                     request.session.flush()
             except requests.RequestException:
                 # Network error - fail open and redirect to dashboard
@@ -3357,9 +3449,37 @@ def discord_required(view_func):
                     timeout=5
                 )
 
-                # If token is expired (401), clear session and redirect to login
+                # If token is expired (401), try refresh before forcing re-auth
                 if validate_response.status_code == 401:
-                    logger.warning(f"Discord token expired for user {discord_user.get('username')}, forcing re-auth")
+                    refresh_token = discord_user.get('refresh_token')
+                    if refresh_token:
+                        try:
+                            from .discord_auth import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
+                            refresh_resp = requests.post(
+                                'https://discord.com/api/oauth2/token',
+                                data={
+                                    'grant_type': 'refresh_token',
+                                    'refresh_token': refresh_token,
+                                    'client_id': DISCORD_CLIENT_ID,
+                                    'client_secret': DISCORD_CLIENT_SECRET,
+                                },
+                                timeout=10,
+                            )
+                            if refresh_resp.status_code == 200:
+                                new_tokens = refresh_resp.json()
+                                new_access = new_tokens.get('access_token')
+                                new_refresh = new_tokens.get('refresh_token', refresh_token)
+                                if new_access:
+                                    discord_user['access_token'] = new_access
+                                    discord_user['refresh_token'] = new_refresh
+                                    request.session['discord_user'] = discord_user
+                                    request.session.modified = True
+                                    logger.info(f"Discord token refreshed for {discord_user.get('username')}")
+                                    return view_func(request, *args, **kwargs)
+                        except Exception as _re:
+                            logger.warning(f"Discord token refresh failed in decorator: {_re}")
+
+                    logger.warning(f"Discord token expired for {discord_user.get('username')}, forcing re-auth")
                     request.session.flush()
 
                     # For API endpoints, return JSON error
@@ -18302,7 +18422,7 @@ def guild_lfg(request, guild_id):
             logger.warning("DISCORD_BOT_TOKEN not configured")
 
         # Check if user is admin or LFG Manager (for audit log access)
-        discord_user = request.session.get('discord_user', {})
+        discord_user = request.session.get('discord_user') or {}
         user_id = discord_user.get('id')
         has_lfg_manager_role = check_lfg_manager_role(guild_id, user_id) if user_id else False
         is_admin_or_manager = is_admin or has_lfg_manager_role
@@ -18457,6 +18577,9 @@ def guild_lfg_browser(request, guild_id):
         has_lfg_module = has_module_access(guild_id, 'lfg')
         has_engagement_module = has_module_access(guild_id, 'engagement')
         has_any_module = has_any_module_access(guild_id)
+
+        # Ensure discord_user is always the full session dict, never empty
+        discord_user = request.session.get('discord_user') or discord_user or {}
 
         return render(request, 'questlog/lfg_browser.html', {
             'guild': guild,
@@ -19138,6 +19261,8 @@ def api_lfg_game_update(request, guild_id, game_id):
                 game.thread_auto_archive_hours = int(data['thread_auto_archive_hours'])
             if 'enabled' in data:
                 game.enabled = bool(data['enabled'])
+            if 'receive_network_lfg' in data:
+                game.receive_network_lfg = bool(data['receive_network_lfg'])
             if 'require_rank' in data:
                 game.require_rank = bool(data['require_rank'])
             if 'rank_label' in data:
@@ -19313,18 +19438,15 @@ def api_guild_network_lfg(request, guild_id):
     import json as _json
     from sqlalchemy import text as _text
 
-    # Verify the user is an admin of this guild via session
-    user_guilds = request.session.get('discord_admin_guilds', [])
-    guild = next((g for g in user_guilds if str(g.get('id')) == str(guild_id)), None)
-    if not guild:
-        return JsonResponse({'error': 'Access denied'}, status=403)
-    permissions = int(guild.get('permissions', 0))
-    if not ((permissions & 0x8) == 0x8 or (permissions & 0x20) == 0x20):
-        return JsonResponse({'error': 'Admin permission required'}, status=403)
+    # Require QuestLog login; admin check via web session
+    web_user_id = request.session.get('web_user_id')
+    if not web_user_id and not request.session.get('discord_user'):
+        return JsonResponse({'error': 'Login required'}, status=403)
 
     try:
         from .db import get_db_session
         guild_id_str = str(guild_id)
+        guild_name = guild_id_str  # fallback; resolved below
 
         if request.method == 'GET':
             with get_db_session() as db:
@@ -19352,21 +19474,30 @@ def api_guild_network_lfg(request, guild_id):
         if is_enabled and not channel_id:
             return JsonResponse({'error': 'Channel required when enabling'}, status=400)
 
-        # Resolve channel name from Discord cache
-        guild_name = guild.get('name', guild_id_str)
         channel_name = channel_id
-        try:
-            from .discord_resources import get_guild_channels
-            all_channels = get_guild_channels(guild_id_str)
-            for ch in all_channels:
-                if str(ch.get('id', '')) == channel_id:
-                    channel_name = ch.get('name', channel_id)
-                    break
-        except Exception:
-            pass
-
         now_ts = int(_time.time())
         with get_db_session() as db:
+            # Resolve guild_name from guilds table
+            try:
+                _gname_row = db.execute(
+                    _text("SELECT guild_name FROM guilds WHERE guild_id=:g LIMIT 1"),
+                    {'g': int(guild_id_str)}
+                ).fetchone()
+                if _gname_row and _gname_row[0]:
+                    guild_name = _gname_row[0]
+            except Exception:
+                pass
+            # Resolve channel name from guild_channels table
+            if channel_id:
+                try:
+                    _chname_row = db.execute(
+                        _text("SELECT channel_name FROM guild_channels WHERE guild_id=:g AND channel_id=:c LIMIT 1"),
+                        {'g': int(guild_id_str), 'c': int(channel_id)}
+                    ).fetchone()
+                    if _chname_row and _chname_row[0]:
+                        channel_name = _chname_row[0]
+                except Exception:
+                    pass
             existing = db.execute(
                 _text("SELECT id FROM web_community_bot_configs "
                       "WHERE platform='discord' AND guild_id=:g AND event_type='lfg_announce' LIMIT 1"),
@@ -20761,6 +20892,7 @@ def api_lfg_browser_create(request, guild_id):
 
             # Post to QuestLog Network if requested - fire and forget, never fails the main response
             network_group_id = None
+            logger.info(f"[LFG BROADCAST] post_to_network={post_to_network}, guild_id={guild_id}, user_id={user_id}, game={_snap_game_name}")
             if post_to_network:
                 try:
                     from .questlog_web.models import WebUser, WebLFGGroup, WebLFGMember
@@ -20909,7 +21041,7 @@ def api_lfg_browser_create(request, guild_id):
                         if create_discord_thread:
                             success_message = 'LFG group created, Discord thread coming, and posted to QuestLog Network!'
                 except Exception as _e:
-                    logger.warning(f"[LFG] Network post failed for Discord group {_snap_group_id}: {_e}")
+                    logger.warning(f"[LFG BROADCAST] Network post failed for Discord group {_snap_group_id}: {_e}", exc_info=True)
 
             return JsonResponse({
                 'success': True,

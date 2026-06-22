@@ -973,6 +973,50 @@ const GAME_TEMPLATES = {
       {value:'Farmer/Gatherer',  role:'support'},
     ]},
   ],
+  palworld: [
+    { name: 'Role', choices: [
+      {value:'Tank/Defender',   role:'tank'},
+      {value:'Support/Healer',  role:'healer'},
+      {value:'Combat (Melee)',  role:'dps'},
+      {value:'Combat (Ranged)', role:'dps'},
+      {value:'Scout/Explorer',  role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Gatherer',        role:'support'},
+      {value:'Tamer/Breeder',   role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+  ],
+  enshrouded: [
+    { name: 'Role', choices: [
+      {value:'Tank',            role:'tank'},
+      {value:'Healer',          role:'healer'},
+      {value:'Ranger (DPS)',    role:'dps'},
+      {value:'Mage (DPS)',      role:'dps'},
+      {value:'Fighter (DPS)',   role:'dps'},
+      {value:'Builder',         role:'support'},
+      {value:'Crafter',         role:'support'},
+    ]},
+  ],
+  valheim: [
+    { name: 'Role', choices: [
+      {value:'Berserker (Tank)', role:'tank'},
+      {value:'Healer/Support',   role:'healer'},
+      {value:'Archer (DPS)',     role:'dps'},
+      {value:'Warrior (DPS)',    role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Gatherer',         role:'support'},
+    ]},
+  ],
+  rust: [
+    { name: 'Role', choices: [
+      {value:'Raider',           role:'tank'},
+      {value:'Medic/Support',    role:'healer'},
+      {value:'Gunner (DPS)',     role:'dps'},
+      {value:'Scout',            role:'dps'},
+      {value:'Builder',          role:'support'},
+      {value:'Farmer/Gatherer',  role:'support'},
+    ]},
+  ],
 };
 
 function detectGameType(name) {

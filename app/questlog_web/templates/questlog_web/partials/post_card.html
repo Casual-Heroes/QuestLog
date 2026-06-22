@@ -17,6 +17,8 @@ function formatContent(text) {
   const div = document.createElement('div');
   div.textContent = text;
   let html = div.innerHTML;
+  // Mentions first - before URL linkification so @username inside URLs isn't double-processed
+  if (window.renderMentions) html = renderMentions(html);
   // renderInlineMarkdown handles bold/italic/underline/code AND URL linkification.
   // Only fall back to manual URL linkification if renderInlineMarkdown is unavailable.
   if (window.renderInlineMarkdown) {
@@ -37,7 +39,6 @@ function formatContent(text) {
         : match;
     });
   }
-  if (window.renderMentions) html = renderMentions(html);
   return html;
 }
 
