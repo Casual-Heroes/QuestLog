@@ -272,19 +272,39 @@
         </a>
         <a href="/soulslike/tracker/"
            class="nav-item {% if active_page == 'soulslike_tracker' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-crosshairs text-gray-400 group-hover:text-amber-400"></i>
-          <span>Mortality Tracker</span>
+          <i class="fas fa-desktop text-gray-400 group-hover:text-amber-400"></i>
+          <div class="min-w-0">
+            <div>Mortality Tracker</div>
+            <div class="text-[9px] text-gray-600 font-normal normal-case tracking-normal">Standalone desktop app</div>
+          </div>
+        </a>
+        <a href="/soulslike/builder/"
+           class="nav-item {% if active_page == 'soulslike_builder' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-sword text-gray-400 group-hover:text-amber-400"></i>
+          <span>Char Builder</span>
+        </a>
+        <a href="/soulslike/builds/"
+           class="nav-item {% if active_page == 'soulslike_builds_browse' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-users text-gray-400 group-hover:text-amber-400"></i>
+          <span>Community Builds</span>
+        </a>
+        <a href="/soulslike/leaderboards/"
+           class="nav-item {% if active_page == 'soulslike_leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-trophy text-gray-400 group-hover:text-amber-400"></i>
+          <span>Leaderboards</span>
+        </a>
+        <a href="/soulslike/listener/"
+           class="nav-item {% if active_page == 'soulslike_listener' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-plug text-gray-400 group-hover:text-amber-400"></i>
+          <div class="min-w-0">
+            <div>QuestLog Listener</div>
+            <div class="text-[9px] text-gray-600 font-normal normal-case tracking-normal">Web-connected overlay</div>
+          </div>
         </a>
         <a href="/soulslike/guides/"
            class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group opacity-50 cursor-not-allowed" title="Coming Soon">
           <i class="fas fa-book-open text-gray-500"></i>
           <span class="flex-1">Guides</span>
-          <span class="text-[9px] text-gray-600 font-bold uppercase tracking-wide">Soon</span>
-        </a>
-        <a href="/soulslike/builder/"
-           class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group opacity-50 cursor-not-allowed" title="Coming Soon">
-          <i class="fas fa-sword text-gray-500"></i>
-          <span class="flex-1">Char Builder</span>
           <span class="text-[9px] text-gray-600 font-bold uppercase tracking-wide">Soon</span>
         </a>
       </div>
@@ -668,8 +688,6 @@
     </div>
     {% endif %}
   </nav>
-
-  </div><!-- /scrollable area -->
 
   </div><!-- /scrollable area -->
 

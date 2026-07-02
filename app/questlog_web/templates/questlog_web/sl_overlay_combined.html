@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  background: transparent;
+  width: 1920px;
+  height: 1080px;
+  overflow: visible;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.panel {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 320px;
+  background: rgba(10,10,15,0.92);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-top: 3px solid #d97706;
+  border-radius: 0 0 10px 10px;
+}
+
+/* ── Header ── */
+.header {
+  padding: 8px 12px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.build-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #d97706;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+  margin-right: 8px;
+}
+.live-badge {
+  font-size: 9px;
+  font-weight: 800;
+  background: #166534;
+  color: #4ade80;
+  border: 1px solid #15803d;
+  border-radius: 3px;
+  padding: 1px 5px;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+/* ── Deaths ── */
+.deaths-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px 6px;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.death-count {
+  font-size: 48px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+  min-width: 60px;
+  text-align: center;
+}
+.death-meta {
+  flex: 1;
+}
+.death-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+.mini-stats {
+  display: flex;
+  gap: 10px;
+}
+.mini-stat { text-align: center; }
+.mini-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f3f4f6;
+}
+.mini-key {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+/* ── Rage bar ── */
+.rage-section {
+  padding: 6px 12px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.rage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.rage-label {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #9ca3af;
+}
+.rage-name {
+  font-size: 11px;
+  font-weight: 900;
+  color: #c9a84c;
+}
+.rage-bar-bg {
+  height: 5px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.rage-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease, background 0.4s;
+}
+.hollow-alert {
+  display: none;
+  margin-top: 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #f87171;
+  animation: pulse 0.8s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.5} }
+
+/* ── Boss section ── */
+.section {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 6px 12px 8px;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.section-title {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #9ca3af;
+}
+.boss-count {
+  font-size: 13px;
+  font-weight: 900;
+  color: #d97706;
+}
+.boss-progress-bg {
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+.boss-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #92400e, #d97706);
+  border-radius: 2px;
+  transition: width 0.5s;
+}
+.recent-boss-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.boss-check-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #166534;
+  border: 1px solid #22c55e;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.boss-check-icon::after {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: #4ade80;
+  border-radius: 50%;
+}
+.recent-boss-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.boss-tier-badge {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.tier-god      { background:rgba(239,68,68,.15); color:#f87171; }
+.tier-demigod  { background:rgba(245,158,11,.15); color:#f59e0b; }
+.tier-legend   { background:rgba(139,92,246,.15); color:#a78bfa; }
+.tier-great_enemy { background:rgba(59,130,246,.15); color:#60a5fa; }
+.tier-enemy    { background:rgba(107,114,128,.25); color:#9ca3af; }
+.no-kills {
+  font-size: 10px;
+  color: #6b7280;
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* ── Items section ── */
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2.5px 0;
+}
+.item-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid #6b7280;
+  flex-shrink: 0;
+}
+.item-dot.done { background: #22c55e; border-color: #22c55e; }
+.item-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f3f4f6;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-name.done { text-decoration: line-through; color: #6b7280; }
+.item-type {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+/* ── Bottom stats ── */
+.bottom-stats {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 6px 12px 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+.bottom-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bottom-stat-key {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #9ca3af;
+}
+.bottom-stat-val {
+  font-size: 11px;
+  font-weight: 800;
+  color: #f3f4f6;
+}
+.total-deaths-row {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.total-deaths-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #d1d5db;
+}
+.total-deaths-val {
+  font-size: 22px;
+  font-weight: 900;
+  color: #f87171;
+}
+/* ── Footer ── */
+.footer {
+  padding: 3px 12px 5px;
+  font-size: 9px;
+  color: #9ca3af;
+  display: flex;
+  justify-content: space-between;
+}
+</style>
+</head>
+<body>
+<div class="panel" id="panel">
+  <div class="header">
+    <span class="build-name" id="bname">Loading...</span>
+    <span class="live-badge">● LIVE</span>
+  </div>
+
+  <!-- Deaths + mini stats -->
+  <div class="deaths-row">
+    <div>
+      <div class="death-count" id="deaths">0</div>
+      <div class="death-label">SESSION DEATHS</div>
+    </div>
+    <div class="death-meta">
+      <div class="mini-stats">
+        <div class="mini-stat">
+          <div class="mini-val" id="death-rate">0.0</div>
+          <div class="mini-key">Deaths/HR</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-val" id="session-time">00:00:00</div>
+          <div class="mini-key">Session Time</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rage -->
+  <div class="rage-section">
+    <div class="rage-header">
+      <span class="rage-label">Tarnished Fury</span>
+      <span class="rage-name" id="rage-name">Maiden's Grace</span>
+    </div>
+    <div class="rage-bar-bg">
+      <div class="rage-bar-fill" id="rage-bar" style="width:0%; background:linear-gradient(90deg,#92400e,#c9a84c)"></div>
+    </div>
+    <div class="hollow-alert" id="hollow-alert">⚠ Gone Hollow</div>
+  </div>
+
+  <!-- Boss tracker -->
+  <div class="section" id="boss-section" style="display:none">
+    <div class="section-header">
+      <span class="section-title">Boss Tracker</span>
+      <span class="boss-count" id="boss-count">0/0</span>
+    </div>
+    <div class="boss-progress-bg">
+      <div class="boss-progress-fill" id="boss-bar" style="width:0%"></div>
+    </div>
+    <div id="boss-recent"></div>
+  </div>
+
+  <!-- Items checklist -->
+  <div class="section" id="items-section" style="display:none">
+    <div class="section-header">
+      <span class="section-title">Items to Collect</span>
+      <span class="boss-count" id="items-count" style="color:#22c55e">0/0</span>
+    </div>
+    <div id="items-list"></div>
+  </div>
+
+  <!-- Survival time + longest life -->
+  <div class="bottom-stats">
+    <div class="bottom-stat-row">
+      <span class="bottom-stat-key">Survival Time</span>
+      <span class="bottom-stat-val" id="surv-time">00:00:00</span>
+    </div>
+    <div class="bottom-stat-row">
+      <span class="bottom-stat-key">Longest Life</span>
+      <span class="bottom-stat-val" id="longest-life">00:00:00</span>
+    </div>
+  </div>
+
+  <!-- Total deaths bold -->
+  <div class="total-deaths-row">
+    <span class="total-deaths-label">Total Deaths</span>
+    <span class="total-deaths-val" id="total-deaths-big">0</span>
+  </div>
+
+  <div class="footer">
+    <span>questlog.casual-heroes.com</span>
+    <span id="footer-time"></span>
+  </div>
+</div>
+
+<script>
+var POLL_URL = '{{ poll_url }}';
+
+var RAGE_COLORS = {
+  "Maiden's Grace": 'linear-gradient(90deg,#92400e,#c9a84c)',
+  'Staggered':      'linear-gradient(90deg,#92400e,#f59e0b)',
+  'Frenzied':       'linear-gradient(90deg,#c2410c,#f97316)',
+  'Cursed':         'linear-gradient(90deg,#991b1b,#ef4444)',
+  'HOLLOW':         'linear-gradient(90deg,#7f1d1d,#dc2626)',
+};
+var RAGE_TEXT_COLORS = {
+  "Maiden's Grace": '#c9a84c',
+  'Staggered':      '#f59e0b',
+  'Frenzied':       '#f97316',
+  'Cursed':         '#ef4444',
+  'HOLLOW':         '#dc2626',
+};
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function load() {
+  fetch(POLL_URL)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (!d || d.error) return;
+
+      document.getElementById('bname').textContent        = d.build_name || 'Run';
+      document.getElementById('deaths').textContent       = d.deaths || 0;
+      document.getElementById('death-rate').textContent   = (d.true_death_rate||0).toFixed(1);
+      document.getElementById('session-time').textContent = d.session_time_fmt || '00:00:00';
+      document.getElementById('surv-time').textContent    = d.survival_time_fmt || '00:00:00';
+      document.getElementById('longest-life').textContent = d.longest_life_fmt  || '00:00:00';
+      document.getElementById('total-deaths-big').textContent = d.deaths || 0;
+      document.getElementById('footer-time').textContent  = new Date().toLocaleTimeString();
+
+      // Rage
+      var rageName = d.rage_name || "Maiden's Grace";
+      var ragePct  = d.rage_pct || 0;
+      var bar = document.getElementById('rage-bar');
+      bar.style.width = Math.min(100, ragePct) + '%';
+      bar.style.background = RAGE_COLORS[rageName] || RAGE_COLORS["Maiden's Grace"];
+      var nameEl = document.getElementById('rage-name');
+      nameEl.textContent = rageName;
+      nameEl.style.color = RAGE_TEXT_COLORS[rageName] || '#c9a84c';
+      var hollowEl = document.getElementById('hollow-alert');
+      if (d.is_hollow) {
+        hollowEl.style.display = 'block';
+        hollowEl.textContent = d.hollow_streak > 0
+          ? '⚠ Gone Hollow ×' + (d.hollow_streak + 1)
+          : '⚠ Gone Hollow';
+      } else {
+        hollowEl.style.display = 'none';
+      }
+
+      // Boss tracker
+      var bosses = d.bosses || [];
+      var bTotal = d.bosses_total || 0;
+      var bDef   = d.bosses_defeated || 0;
+      if (bTotal > 0) {
+        document.getElementById('boss-section').style.display = '';
+        document.getElementById('boss-count').textContent = bDef + '/' + bTotal;
+        document.getElementById('boss-bar').style.width = Math.round(bDef/bTotal*100) + '%';
+        // Top 3 most recently defeated (highest-tier first among killed)
+        var tierOrder = {god:0, demigod:1, legend:2, great_enemy:3, enemy:4};
+        var killed = bosses.filter(function(b){ return b.defeated; })
+          .sort(function(a,b){ return (tierOrder[a.tier]||9)-(tierOrder[b.tier]||9); })
+          .slice(0,3);
+        var html = '';
+        if (killed.length) {
+          killed.forEach(function(b) {
+            html += '<div class="recent-boss-row">' +
+              '<div class="boss-check-icon"></div>' +
+              '<span class="recent-boss-name">' + esc(b.name) + '</span>' +
+              '<span class="boss-tier-badge tier-' + esc(b.tier) + '">' + esc(b.tier.replace('_',' ')) + '</span>' +
+              '</div>';
+          });
+        } else {
+          html = '<div class="no-kills">No kills yet</div>';
+        }
+        document.getElementById('boss-recent').innerHTML = html;
+      }
+
+      // Items checklist
+      var items = d.items || [];
+      if (items.length > 0) {
+        document.getElementById('items-section').style.display = '';
+        var total    = d.total || items.length;
+        var collected = d.collected || 0;
+        document.getElementById('items-count').textContent = collected + '/' + total;
+        var sorted = items.filter(function(i){return !i.collected;})
+                         .concat(items.filter(function(i){return i.collected;}));
+        var iHtml = '';
+        sorted.forEach(function(it) {
+          var dc = it.collected ? ' done' : '';
+          iHtml += '<div class="item-row">' +
+            '<div class="item-dot' + dc + '"></div>' +
+            '<span class="item-name' + dc + '">' + esc(it.name) + '</span>' +
+            '<span class="item-type">' + esc(it.type) + '</span>' +
+            '</div>';
+        });
+        document.getElementById('items-list').innerHTML = iHtml;
+      }
+    })
+    .catch(function(){});
+}
+
+load();
+setInterval(load, 3000);
+</script>
+</body>
+</html>

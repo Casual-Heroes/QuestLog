@@ -1,0 +1,708 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}{{ build_name }} | QuestLog{% endblock %}
+
+{% block web_content %}
+<style>
+.stat-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:1rem; text-align:center; }
+.stat-value { font-size:1.75rem; font-weight:900; color:#fff; }
+.stat-label { font-size:0.6rem; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:#4b5563; margin-top:0.2rem; }
+.section-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; overflow:hidden; margin-bottom:1rem; }
+.section-header { padding:0.75rem 1rem; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; }
+.section-title { font-size:0.7rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#6b7280; }
+/* Items */
+.item-row { display:flex; align-items:center; gap:0.75rem; padding:0.55rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.15s; cursor:pointer; }
+.item-row:last-child { border-bottom:none; }
+.item-row:hover { background:rgba(255,255,255,0.03); }
+.item-row.collected { opacity:0.4; }
+.item-check { width:1.4rem; height:1.4rem; border-radius:50%; border:2px solid rgba(255,255,255,0.2); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+.item-check:hover { border-color:#4ade80; }
+.item-check.checked { background:#166534; border-color:#4ade80; }
+.item-type-badge { font-size:0.58rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; padding:0.1rem 0.35rem; border-radius:3px; flex-shrink:0; }
+.type-weapon   { background:rgba(251,146,60,0.15); color:#fb923c; }
+.type-talisman { background:rgba(167,139,250,0.15); color:#a78bfa; }
+.type-spell    { background:rgba(96,165,250,0.15); color:#60a5fa; }
+.type-armor    { background:rgba(156,163,175,0.15); color:#9ca3af; }
+.type-spirit_ash { background:rgba(52,211,153,0.15); color:#34d399; }
+.type-crystal_tear { background:rgba(14,165,233,0.15); color:#38bdf8; }
+.filter-btn { font-size:0.65rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:4px; border:1px solid rgba(255,255,255,0.1); color:#6b7280; cursor:pointer; background:transparent; transition:all 0.15s; }
+.filter-btn:hover,.filter-btn.active { border-color:#d97706; color:#d97706; }
+/* Rage */
+.rage-bar-wrap { height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; }
+.rage-bar-fill { height:100%; border-radius:4px; transition:width 0.5s ease, background 0.4s; }
+.rage-calm    { background:linear-gradient(90deg,#92400e,#c9a84c); }
+.rage-stagger { background:linear-gradient(90deg,#92400e,#f59e0b); }
+.rage-frenzy  { background:linear-gradient(90deg,#c2410c,#f97316); }
+.rage-cursed  { background:linear-gradient(90deg,#991b1b,#ef4444); }
+.rage-hollow  { background:linear-gradient(90deg,#7f1d1d,#dc2626); animation:pulse-rage 0.8s ease-in-out infinite; }
+@keyframes pulse-rage { 0%,100%{opacity:1}50%{opacity:0.6} }
+/* Boss tabs */
+.boss-tab-bar { display:flex; overflow-x:auto; border-bottom:1px solid rgba(255,255,255,0.06); scrollbar-width:none; }
+.boss-tab-bar::-webkit-scrollbar { display:none; }
+.boss-tab { flex-shrink:0; padding:0.55rem 0.85rem; font-size:0.65rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#6b7280; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; transition:all 0.15s; background:none; border-top:none; border-left:none; border-right:none; }
+.boss-tab:hover { color:#d97706; }
+.boss-tab.active { color:#d97706; border-bottom-color:#d97706; }
+.boss-region-header { font-size:0.6rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#374151; padding:0.5rem 1rem 0.25rem; background:rgba(0,0,0,0.2); }
+.boss-row { display:flex; align-items:center; gap:0.75rem; padding:0.5rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.15s; }
+.boss-row:last-child { border-bottom:none; }
+.boss-row:hover { background:rgba(255,255,255,0.03); }
+.boss-row.defeated { opacity:0.35; }
+.boss-check { width:1.25rem; height:1.25rem; border-radius:50%; border:2px solid rgba(255,255,255,0.15); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+.boss-check.done { background:#166534; border-color:#4ade80; }
+.boss-check.focusing { background:rgba(153,27,27,0.4); border-color:#ef4444; }
+.boss-row.boss-focusing { background:rgba(153,27,27,0.08); border-left:2px solid #ef4444; }
+.boss-name { flex:1; font-size:0.8rem; font-weight:500; color:#d1d5db; }
+.boss-row.defeated .boss-name { text-decoration:line-through; color:#4b5563; }
+.boss-tier-badge { font-size:0.55rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; padding:0.1rem 0.3rem; border-radius:3px; flex-shrink:0; }
+.tier-enemy        { background:rgba(107,114,128,0.15); color:#6b7280; }
+.tier-great_enemy  { background:rgba(59,130,246,0.15); color:#60a5fa; }
+.tier-legend       { background:rgba(139,92,246,0.15); color:#a78bfa; }
+.tier-demigod      { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.tier-god          { background:rgba(239,68,68,0.15); color:#f87171; }
+.progress-bar-wrap { height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; margin-bottom:0.25rem; }
+.progress-bar-fill { height:100%; background:linear-gradient(90deg,#92400e,#d97706); border-radius:3px; transition:width 0.4s ease; }
+.progress-bar-fill.green { background:linear-gradient(90deg,#15803d,#22c55e); }
+</style>
+
+<div class="max-w-3xl mx-auto px-3 py-4">
+
+  <div class="flex items-center gap-2 mb-1">
+    <a href="/soulslike/runs/" class="text-gray-600 hover:text-gray-400 text-xs transition">
+      <i class="fas fa-chevron-left mr-1"></i>My Runs
+    </a>
+  </div>
+  <div class="flex items-start justify-between mb-4">
+    <div>
+      <h1 class="text-xl font-black text-white flex items-center gap-2">
+        <i class="fas fa-skull text-amber-500 text-base"></i>
+        {{ build_name }}
+      </h1>
+      <p class="text-xs text-gray-500 mt-0.5">
+        {% if game == 'err' or game_mode == 'err' %}Elden Ring Reforged{% elif game == 'elden_ring' %}Elden Ring{% else %}{{ game|title }}{% endif %}
+        {% if is_active %}
+        <span class="ml-2 text-green-400 font-semibold">
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mr-1"></span>Active
+        </span>
+        {% else %}
+        <span class="ml-2 text-gray-600">Completed</span>
+        {% endif %}
+      </p>
+    </div>
+    {% if is_owner and is_active %}
+    <button onclick="endRun()" class="px-3 py-1.5 text-xs border border-red-800 text-red-500 hover:bg-red-900/30 rounded transition">
+      <i class="fas fa-stop mr-1"></i>End Run
+    </button>
+    {% endif %}
+  </div>
+
+  <!-- Listener status bar -->
+  {% if is_owner and is_active %}
+  <div id="listener-status-bar" class="mb-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg border transition-all">
+    <span id="listener-dot" class="inline-block w-2 h-2 rounded-full bg-gray-600 flex-shrink-0"></span>
+    <span id="listener-label" class="text-gray-500">Listener not connected - <a href="/soulslike/listener/" class="underline hover:text-gray-300">Download</a> or use Log Death below</span>
+  </div>
+  {% endif %}
+
+  <!-- Stats: deaths + survival + death rate -->
+  <div class="grid grid-cols-3 gap-3 mb-3">
+    <div class="stat-card">
+      <div class="stat-value text-amber-400" id="stat-deaths">-</div>
+      <div class="stat-label">Deaths</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-sm font-bold" id="stat-surv-time">00:00:00</div>
+      <div class="stat-label">Survival Time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-death-rate">0.0</div>
+      <div class="stat-label">Deaths / HR</div>
+    </div>
+  </div>
+  <div class="grid grid-cols-3 gap-3 mb-4">
+    <div class="stat-card">
+      <div class="stat-value text-sm font-bold" id="stat-session-time">00:00:00</div>
+      <div class="stat-label">Session Time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-sm font-bold text-gray-400" id="stat-longest">00:00:00</div>
+      <div class="stat-label">Longest Life</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-green-400" id="stat-collected">-</div>
+      <div class="stat-label">Items Found</div>
+    </div>
+  </div>
+
+  <!-- Currently Fighting indicator -->
+  {% if is_owner and is_active %}
+  <div id="currently-fighting" class="hidden mb-3 flex items-center gap-3 px-3 py-2 bg-red-900/20 border border-red-800/40 rounded-lg">
+    <span class="text-red-400 text-xs animate-pulse"><i class="fas fa-crosshairs mr-1"></i>Fighting</span>
+    <span class="text-white text-xs font-bold flex-1" id="fighting-boss-name"></span>
+    <button onclick="clearFocus()" class="text-gray-600 hover:text-gray-400 text-xs transition"><i class="fas fa-times"></i></button>
+  </div>
+  {% endif %}
+
+  <!-- Rage bar - always shown -->
+  <div class="section-card mb-4 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-bold uppercase tracking-widest text-gray-500">Tarnished Fury</span>
+      <span class="text-sm font-black" id="rage-name-display">Maiden's Grace</span>
+    </div>
+    <div class="rage-bar-wrap">
+      <div class="rage-bar-fill rage-calm" id="rage-bar" style="width:0%"></div>
+    </div>
+    <div id="hollow-banner" class="hidden mt-2 text-center py-1.5 rounded bg-red-900/20 border border-red-800/50 text-red-400 text-xs font-bold uppercase tracking-widest animate-pulse">
+      Gone Hollow <span id="hollow-streak-badge"></span>
+    </div>
+  </div>
+
+  <!-- Boss progress bar -->
+  <div class="section-card mb-4 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="section-title">Boss Progress</span>
+      <span class="text-amber-400 text-xs font-bold" id="boss-progress-label">0/0</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="boss-progress-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Boss tracker - always shown -->
+  <div class="section-card mb-4">
+    <!-- Tab nav with scroll arrows -->
+    <div class="flex items-center border-b border-white/6">
+      <button onclick="scrollTabs(-1)" class="flex-shrink-0 px-2 py-2 text-gray-600 hover:text-gray-300 transition text-xs"><i class="fas fa-chevron-left"></i></button>
+      <div class="boss-tab-bar flex-1 overflow-x-auto" id="boss-tab-bar" style="scrollbar-width:none"></div>
+      <button onclick="scrollTabs(1)" class="flex-shrink-0 px-2 py-2 text-gray-600 hover:text-gray-300 transition text-xs"><i class="fas fa-chevron-right"></i></button>
+    </div>
+    <div class="px-3 pt-2 pb-1">
+      <input type="text" id="boss-search" placeholder="Search all bosses..."
+             class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-1.5 text-xs text-white placeholder-neutral-600 focus:border-amber-600 focus:outline-none"
+             oninput="filterBosses(this.value)">
+    </div>
+    <!-- Fixed-height scrollable boss list - no more endless page scroll -->
+    <div id="boss-list" style="max-height:320px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#374151 transparent;"></div>
+  </div>
+
+  <!-- Items to collect (if run has items) -->
+  <div class="section-card mb-4" id="items-section" style="display:none">
+    <div class="section-header">
+      <span class="section-title">Items to Collect</span>
+      <div class="flex gap-1.5">
+        <button class="filter-btn active" data-filter="all" onclick="filterItems('all')">All</button>
+        <button class="filter-btn" data-filter="pending" onclick="filterItems('pending')">Remaining</button>
+        <button class="filter-btn" data-filter="collected" onclick="filterItems('collected')">Collected</button>
+      </div>
+    </div>
+    <div id="item-list"></div>
+  </div>
+
+  <!-- Death log -->
+  <div class="section-card mb-4">
+    <div class="section-header">
+      <span class="section-title">Death Log</span>
+      <span class="text-xs text-gray-600" id="last-death-text"></span>
+    </div>
+    <div id="death-log" class="p-2 text-xs text-gray-600 text-center py-4">No deaths recorded</div>
+  </div>
+
+  <!-- Overlay URLs (for streamers) - collapsed by default -->
+  <details class="section-card mb-4">
+    <summary class="section-header cursor-pointer list-none">
+      <div class="flex items-center justify-between w-full">
+        <span class="section-title"><i class="fas fa-tv mr-1.5"></i>Streaming Overlays (OBS / Meld)</span>
+        <i class="fas fa-chevron-down text-gray-600 text-xs"></i>
+      </div>
+    </summary>
+    <div class="p-4 space-y-3">
+      <!-- Combined - recommended -->
+      <div class="p-2.5 bg-amber-900/10 border border-amber-700/30 rounded-lg">
+        <div class="text-[10px] text-amber-500 font-bold mb-1.5"><i class="fas fa-star mr-1"></i>Recommended - Combined Overlay (deaths + bosses + items + rage)</div>
+        <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+          <code class="text-amber-300 text-xs flex-1 truncate">https://questlog.casual-heroes.com/soulslike/overlay/{{ token }}/combined/</code>
+          <button onclick="copyUrl('/soulslike/overlay/{{ token }}/combined/')" class="text-gray-500 hover:text-white text-xs transition"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <!-- Individual overlays -->
+      <div class="text-[10px] text-gray-600 font-bold uppercase tracking-widest pt-1">Individual Overlays</div>
+      <div>
+        <div class="text-[10px] text-gray-500 mb-1"><i class="fas fa-chart-bar text-amber-400 mr-1"></i>Mortality Monitor (full stats widget)</div>
+        <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+          <code class="text-amber-300 text-xs flex-1 truncate">https://questlog.casual-heroes.com/soulslike/overlay/{{ token }}/mortality/</code>
+          <button onclick="copyUrl('/soulslike/overlay/{{ token }}/mortality/')" class="text-gray-500 hover:text-white text-xs transition"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-gray-500 mb-1"><i class="fas fa-list text-green-400 mr-1"></i>Collection / Item Checklist</div>
+        <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+          <code class="text-green-300 text-xs flex-1 truncate">https://questlog.casual-heroes.com/soulslike/overlay/{{ token }}/collection/</code>
+          <button onclick="copyUrl('/soulslike/overlay/{{ token }}/collection/')" class="text-gray-500 hover:text-white text-xs transition"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-gray-500 mb-1"><i class="fas fa-skull text-red-400 mr-1"></i>Gone Hollow Alert (popup)</div>
+        <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+          <code class="text-red-300 text-xs flex-1 truncate">https://questlog.casual-heroes.com/soulslike/overlay/{{ token }}/hollow/</code>
+          <button onclick="copyUrl('/soulslike/overlay/{{ token }}/hollow/')" class="text-gray-500 hover:text-white text-xs transition"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-gray-500 mb-1"><i class="fas fa-crosshairs text-red-400 mr-1"></i>Death Counter only</div>
+        <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+          <code class="text-red-300 text-xs flex-1 truncate">https://questlog.casual-heroes.com/soulslike/overlay/{{ token }}/deaths/</code>
+          <button onclick="copyUrl('/soulslike/overlay/{{ token }}/deaths/')" class="text-gray-500 hover:text-white text-xs transition"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- Controls -->
+  {% if is_owner and is_active %}
+  <div class="flex gap-2 mb-4">
+    <button onclick="logDeath()" class="flex-1 py-2.5 bg-red-900/30 hover:bg-red-900/50 border border-red-800/50 text-red-400 font-bold rounded-xl transition flex items-center justify-center gap-2 text-sm">
+      <i class="fas fa-skull"></i> Log Death
+    </button>
+    <button onclick="resetDeaths()" class="px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-400 hover:text-white text-xs font-bold rounded-xl transition" title="Reset deaths">
+      <i class="fas fa-undo mr-1"></i>Reset
+    </button>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+var TOKEN      = '{{ token }}';
+var IS_ACTIVE  = {% if is_active %}true{% else %}false{% endif %};
+var IS_OWNER   = {% if is_owner %}true{% else %}false{% endif %};
+var GAME       = '{{ game }}' || 'elden_ring';
+var GAME_MODE  = '{{ game_mode }}' || 'vanilla';
+
+var allItems   = [];
+var allBosses  = {};
+var bossData   = {};
+var activeBossTab = '';
+var bossSearch = '';
+var currentFilter = 'all';
+var currentFocusBoss = '';
+
+var RAGE_CLASSES = {
+  "Maiden's Grace": 'rage-calm',
+  'Staggered':      'rage-stagger',
+  'Frenzied':       'rage-frenzy',
+  'Cursed':         'rage-cursed',
+  'HOLLOW':         'rage-hollow',
+};
+
+function getCsrf() {
+  var c = document.cookie.split(';');
+  for (var i=0;i<c.length;i++){
+    var p=c[i].trim();
+    if(p.startsWith('csrftoken=')) return p.slice(10);
+  }
+  return '';
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtSecs(s) {
+  s=parseInt(s)||0; var m=Math.floor(s/60),sec=s%60;
+  return m+':'+(sec<10?'0':'')+sec;
+}
+
+// ── Status polling ────────────────────────────────────────────────────────────
+function loadStatus() {
+  fetch('/api/soulslike/session/'+TOKEN+'/status/')
+    .then(function(r){return r.json();})
+    .then(function(d) {
+      if (!d || d.error) return;
+      var deaths = d.deaths || 0;
+
+      document.getElementById('stat-deaths').textContent      = deaths;
+      document.getElementById('stat-surv-time').textContent   = d.survival_time_fmt  || '00:00:00';
+      document.getElementById('stat-death-rate').textContent  = (d.true_death_rate||0).toFixed(1);
+      document.getElementById('stat-session-time').textContent = d.session_time_fmt  || '00:00:00';
+      document.getElementById('stat-longest').textContent     = d.longest_life_fmt   || '00:00:00';
+
+      // Listener status bar
+      var dot   = document.getElementById('listener-dot');
+      var label = document.getElementById('listener-label');
+      var bar   = document.getElementById('listener-status-bar');
+      if (bar) {
+        if (d.listener_connected) {
+          bar.className = 'mb-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg border bg-green-900/20 border-green-800/40';
+          if (dot)   { dot.className = 'inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0'; }
+          if (label) { label.textContent = 'Listener connected - session time running'; label.className = 'text-green-400'; }
+        } else {
+          bar.className = 'mb-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg border bg-neutral-800/60 border-neutral-700';
+          if (dot)   { dot.className = 'inline-block w-2 h-2 rounded-full bg-gray-600 flex-shrink-0'; }
+          if (label) { label.innerHTML = 'Listener not connected - session time paused. <a href="/soulslike/listener/" class="underline hover:text-gray-300">Download</a> or use Log Death below.'; label.className = 'text-gray-500'; }
+        }
+      }
+
+      // Items found
+      var collected = d.collected || 0;
+      var total     = d.total || 0;
+      document.getElementById('stat-collected').textContent = total > 0 ? collected+'/'+total : '-';
+
+      // Show items section only if this run has items
+      if (total > 0) {
+        document.getElementById('items-section').style.display = '';
+        allItems = d.items || [];
+        renderItems();
+
+        // Items progress bar
+        document.getElementById('boss-progress-bar').className = 'progress-bar-fill';
+      }
+
+      // Rage
+      var ragePct  = d.rage_pct || 0;
+      var rageName = d.rage_name || "Maiden's Grace";
+      var bar = document.getElementById('rage-bar');
+      var nameEl = document.getElementById('rage-name-display');
+      bar.className = 'rage-bar-fill '+(RAGE_CLASSES[rageName]||'rage-calm');
+      bar.style.width = Math.min(100,ragePct)+'%';
+      nameEl.textContent = rageName;
+      nameEl.style.color = ragePct>=100?'#dc2626':ragePct>=75?'#ef4444':ragePct>=50?'#f97316':ragePct>=25?'#f59e0b':'#c9a84c';
+
+      // Hollow
+      var hollowBanner = document.getElementById('hollow-banner');
+      if (d.is_hollow) {
+        hollowBanner.classList.remove('hidden');
+        document.getElementById('hollow-streak-badge').textContent = d.hollow_streak>0?'×'+(d.hollow_streak+1):'';
+      } else {
+        hollowBanner.classList.add('hidden');
+      }
+
+      // Boss progress
+      if (d.bosses_total > 0) {
+        var bPct = Math.round(d.bosses_defeated/d.bosses_total*100);
+        document.getElementById('boss-progress-label').textContent = d.bosses_defeated+' / '+d.bosses_total;
+        document.getElementById('boss-progress-bar').style.width = bPct+'%';
+        (d.bosses||[]).forEach(function(b){ bossData[b.key]=b.defeated; });
+        renderBossTab(activeBossTab);
+      }
+
+      // Death log
+      var dl = d.recent_deaths || [];
+      var deathLog = document.getElementById('death-log');
+      if (dl.length) {
+        deathLog.innerHTML = dl.map(function(dd){
+          var bossLabel = dd.boss || (d.last_attempted_boss ? d.last_attempted_boss : null);
+          return '<div class="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 last:border-0">'+
+            '<i class="fas fa-skull text-red-500 text-[10px]"></i>'+
+            (bossLabel
+              ? '<span class="text-gray-300 text-xs font-medium">'+esc(bossLabel)+'</span>'
+              : '<span class="text-gray-600 text-xs italic">No boss tracked</span>')+
+            (dd.life?'<span class="text-gray-700 text-[10px] ml-auto">survived '+fmtSecs(dd.life)+'</span>':'')+
+            '</div>';
+        }).join('');
+      } else {
+        deathLog.innerHTML = '<div class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>';
+      }
+
+      if (d.last_death) {
+        var el=document.getElementById('last-death-text');
+        if(el) el.textContent='Last: '+d.last_death;
+      }
+    }).catch(function(){});
+}
+
+// ── Boss registry + rendering ─────────────────────────────────────────────────
+function loadBossRegistry() {
+  // Boss registry uses game='elden_ring' with game_mode differentiating vanilla vs err.
+  // Old sessions stored game='err' with no game_mode - normalize to the registry scheme.
+  var bossGame = 'elden_ring';
+  var bossMode = (GAME === 'err') ? 'err' : (GAME_MODE || 'vanilla');
+  fetch('/api/soulslike/bosses/?game='+bossGame+'&mode='+bossMode)
+    .then(function(r){return r.json();})
+    .then(function(d) {
+      allBosses = {};
+      (d.bosses||[]).forEach(function(b){
+        if(!allBosses[b.region]) allBosses[b.region]=[];
+        allBosses[b.region].push(b);
+      });
+      renderBossTabs();
+      // Seed session boss rows if this is an old session that has none
+      // (created before unified run type - no sl_session_bosses rows seeded at creation)
+      if (IS_ACTIVE && d.bosses && d.bosses.length > 0) {
+        fetch('/api/soulslike/session/'+TOKEN+'/seed-bosses/', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+        }).catch(function(){});
+      }
+    }).catch(function(){});
+}
+
+function scrollTabs(dir) {
+  var bar = document.getElementById('boss-tab-bar');
+  if (bar) bar.scrollBy({left: dir * 160, behavior: 'smooth'});
+}
+
+function renderBossTabs() {
+  var regions = Object.keys(allBosses);
+  if (!regions.length) return;
+  var tabBar = document.getElementById('boss-tab-bar');
+  var html = regions.map(function(r){
+    return '<button class="boss-tab" data-region="'+esc(r)+'" onclick="switchBossTab(this)">'+esc(r)+'</button>';
+  }).join('');
+  tabBar.innerHTML = html;
+  // Default to first region tab
+  var first = tabBar.querySelector('.boss-tab');
+  if (first) { first.classList.add('active'); activeBossTab = first.dataset.region; }
+  renderBossTab(activeBossTab);
+}
+
+function switchBossTab(btn) {
+  document.querySelectorAll('.boss-tab').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  activeBossTab = btn.dataset.region;
+  renderBossTab(activeBossTab);
+}
+
+function filterBosses(q) {
+  bossSearch = q;
+  if (q) {
+    // Searching = show all regions, dim tabs to show search is active
+    document.querySelectorAll('.boss-tab').forEach(function(b){ b.classList.remove('active'); });
+    renderBossTab('__all__');
+  } else {
+    // Cleared search - restore active tab
+    var activeTab = document.querySelector('.boss-tab[data-region="'+activeBossTab+'"]');
+    if (activeTab) activeTab.classList.add('active');
+    renderBossTab(activeBossTab);
+  }
+}
+
+function renderBossTab(region) {
+  var list = document.getElementById('boss-list');
+  if (!list) return;
+
+  // Collect bosses for this tab
+  var bosses = [];
+  if (!region || region === '__all__' || bossSearch) {
+    Object.values(allBosses).forEach(function(arr){ bosses = bosses.concat(arr); });
+  } else {
+    bosses = allBosses[region] || [];
+  }
+
+  // Filter by search
+  var q = bossSearch.toLowerCase();
+  if (q) {
+    bosses = bosses.filter(function(b){
+      return b.name.toLowerCase().includes(q) || b.location.toLowerCase().includes(q) || b.region.toLowerCase().includes(q);
+    });
+  }
+
+  if (!bosses.length) { list.innerHTML='<div class="text-gray-600 text-xs text-center py-6">No bosses found</div>'; return; }
+
+  // Group by location within current view
+  var groupKey = (region === '__all__' || bossSearch) ? 'region' : 'location';
+  var byGroup={};
+  bosses.forEach(function(b){
+    var g = b[groupKey];
+    if(!byGroup[g]) byGroup[g]=[];
+    byGroup[g].push(b);
+  });
+
+  var html='';
+  Object.keys(byGroup).forEach(function(grp){
+    html+='<div class="boss-region-header">'+esc(grp)+'</div>';
+    byGroup[grp].forEach(function(b){
+      var defeated = bossData[b.key] || false;
+      var focused  = !defeated && currentFocusBoss === b.name;
+      var state    = defeated ? 'defeated' : (focused ? 'focusing' : '');
+      var rowClass = 'boss-row' + (defeated ? ' defeated' : '') + (focused ? ' boss-focusing' : '');
+      var checkClass = 'boss-check' + (defeated ? ' done' : '') + (focused ? ' focusing' : '');
+      var checkIcon = defeated
+        ? '<i class="fas fa-check text-green-400" style="font-size:8px"></i>'
+        : (focused ? '<i class="fas fa-sword text-red-400" style="font-size:8px"></i>' : '');
+      html += '<div class="'+rowClass+'" onclick="tapBoss(\''+esc(b.key)+'\',\''+esc(b.name)+'\',\''+state+'\')" style="cursor:pointer">'+
+        '<div class="'+checkClass+'">'+checkIcon+'</div>'+
+        '<div class="boss-name'+(focused?' text-red-400':'')+'">'+esc(b.name)+'</div>'+
+        '<span class="boss-tier-badge tier-'+b.tier+'">'+esc(b.tier.replace('_',' '))+'</span>'+
+        '</div>';
+    });
+  });
+  list.innerHTML = html;
+}
+
+function setFocus(bossName) {
+  if (!IS_ACTIVE || !IS_OWNER) return;
+  currentFocusBoss = bossName;
+  var banner = document.getElementById('currently-fighting');
+  var nameEl = document.getElementById('fighting-boss-name');
+  if (banner) banner.classList.remove('hidden');
+  if (nameEl) nameEl.textContent = bossName;
+  // Tell server so Listener deaths get attributed
+  fetch('/api/soulslike/session/'+TOKEN+'/set-focus/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+    body: JSON.stringify({boss_name: bossName}),
+  }).catch(function(){});
+  renderBossTab(activeBossTab);
+}
+
+function clearFocus() {
+  currentFocusBoss = '';
+  var banner = document.getElementById('currently-fighting');
+  if (banner) banner.classList.add('hidden');
+  fetch('/api/soulslike/session/'+TOKEN+'/set-focus/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+    body: JSON.stringify({boss_name: ''}),
+  }).catch(function(){});
+  renderBossTab(activeBossTab);
+}
+
+function tapBoss(key, name, state) {
+  if (!IS_ACTIVE || !IS_OWNER) return;
+  if (state === '') {
+    // No state → Fighting
+    currentFocusBoss = name;
+    var banner = document.getElementById('currently-fighting');
+    var nameEl = document.getElementById('fighting-boss-name');
+    if (banner) banner.classList.remove('hidden');
+    if (nameEl) nameEl.textContent = name;
+    fetch('/api/soulslike/session/'+TOKEN+'/set-focus/', {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({boss_name: name}),
+    }).catch(function(){});
+    renderBossTab(activeBossTab);
+
+  } else if (state === 'focusing') {
+    // Fighting → Defeated
+    fetch('/api/soulslike/session/'+TOKEN+'/boss/mark/', {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({boss_key: key}),
+    }).then(function(r){return r.json();}).then(function(d){
+      if (d.ok) {
+        bossData[key] = true;
+        currentFocusBoss = '';
+        var banner = document.getElementById('currently-fighting');
+        if (banner) banner.classList.add('hidden');
+        fetch('/api/soulslike/session/'+TOKEN+'/set-focus/', {
+          method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+          body:JSON.stringify({boss_name: ''}),
+        }).catch(function(){});
+        renderBossTab(activeBossTab);
+      }
+    }).catch(function(){});
+
+  } else if (state === 'defeated') {
+    // Defeated → No state (undo)
+    fetch('/api/soulslike/session/'+TOKEN+'/boss/unmark/', {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({boss_key: key}),
+    }).then(function(r){return r.json();}).then(function(d){
+      if (d.ok) { bossData[key] = false; renderBossTab(activeBossTab); }
+    }).catch(function(){});
+  }
+}
+
+// ── Items ─────────────────────────────────────────────────────────────────────
+function renderItems() {
+  var list = document.getElementById('item-list');
+  if (!list) return;
+  var items = allItems;
+  if (currentFilter==='pending')   items=items.filter(function(i){return !i.collected;});
+  if (currentFilter==='collected') items=items.filter(function(i){return i.collected;});
+  if (!items.length) {
+    list.innerHTML='<div class="text-gray-600 text-xs text-center py-6">'+(currentFilter==='collected'?'Nothing collected yet.':'All items collected!')+'</div>';
+    return;
+  }
+  list.innerHTML=items.map(function(item){
+    var cls=item.collected?' collected':'';
+    var chk=item.collected?' checked':'';
+    return '<div class="item-row'+cls+'">'+
+      '<div class="item-check'+chk+'" data-name="'+esc(item.name)+'" data-collected="'+(item.collected?'1':'0')+'" onclick="toggleItemEl(this)">'+
+      (item.collected?'<i class="fas fa-check text-green-400" style="font-size:10px"></i>':'')+
+      '</div>'+
+      '<span class="item-type-badge type-'+item.type+'">'+esc(item.type)+'</span>'+
+      '<div class="flex-1 min-w-0">'+
+        '<div class="text-sm '+(item.collected?'line-through text-gray-600':'text-white')+'">'+esc(item.name)+'</div>'+
+        (item.hint?'<div class="text-xs text-gray-600 mt-0.5">'+esc(item.hint)+'</div>':'')+
+      '</div>'+
+      '</div>';
+  }).join('');
+}
+
+function filterItems(f) {
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.toggle('active',b.dataset.filter===f);});
+  renderItems();
+}
+
+function toggleItemEl(el) {
+  if (!IS_ACTIVE) return;
+  var name=el.getAttribute('data-name');
+  var col=el.getAttribute('data-collected')==='1';
+  fetch('/api/soulslike/session/'+TOKEN+'/'+(col?'uncollect':'collect')+'/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({item_name:name}),
+  }).then(function(){loadStatus();}).catch(function(){});
+}
+
+// ── Death controls ────────────────────────────────────────────────────────────
+function logDeath() {
+  var boss=prompt('Boss name (optional):')||'';
+  fetch('/api/soulslike/session/'+TOKEN+'/death/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({boss:boss}),
+  }).then(function(){loadStatus();}).catch(function(){});
+}
+
+function resetDeaths() {
+  if(!confirm('Reset death counter and death log to 0?')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/reset-deaths/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+  }).then(function(){
+    document.getElementById('stat-deaths').textContent = '0';
+    document.getElementById('stat-surv-time').textContent = '00:00:00';
+    document.getElementById('stat-death-rate').textContent = '0.0';
+    document.getElementById('stat-session-time').textContent = '00:00:00';
+    document.getElementById('stat-longest').textContent = '00:00:00';
+    document.getElementById('death-log').innerHTML = '<div class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>';
+    loadStatus();
+  }).catch(function(){});
+}
+
+function endRun() {
+  if(!confirm('End this run?')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/end/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+  }).then(function(){window.location.reload();}).catch(function(){});
+}
+
+function copyUrl(path) {
+  navigator.clipboard.writeText('https://questlog.casual-heroes.com'+path).catch(function(){});
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  loadStatus();
+  loadBossRegistry();
+  setInterval(loadStatus, 3000);
+});
+
+// Restore focus banner from status on first load
+var _focusRestored = false;
+var _origLoadStatus = loadStatus;
+loadStatus = function() {
+  fetch('/api/soulslike/session/'+TOKEN+'/status/')
+    .then(function(r){return r.json();})
+    .then(function(d) {
+      if (!_focusRestored && d.last_attempted_boss && IS_ACTIVE && IS_OWNER) {
+        currentFocusBoss = d.last_attempted_boss;
+        var banner = document.getElementById('currently-fighting');
+        var nameEl = document.getElementById('fighting-boss-name');
+        if (banner) banner.classList.remove('hidden');
+        if (nameEl) nameEl.textContent = d.last_attempted_boss;
+        _focusRestored = true;
+      }
+    }).catch(function(){});
+  return _origLoadStatus();
+};
+</script>
+{% endblock %}

@@ -116,6 +116,24 @@
     {{ body_html }}
   </article>
 
+  <!-- Reaction bar -->
+  <div class="flex items-center gap-3 py-5 border-b border-neutral-800">
+    <span class="text-xs text-gray-500 mr-1">React:</span>
+    {% for emoji, reaction, label in reaction_buttons %}
+    <button onclick="toggleReaction('{{ reaction }}')"
+            id="react-btn-{{ reaction }}"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition text-sm
+                   bg-neutral-900 border-neutral-700 hover:border-violet-500 text-gray-400 hover:text-white"
+            data-reaction="{{ reaction }}">
+      <span>{{ emoji }}</span>
+      <span id="react-count-{{ reaction }}" class="text-xs font-medium">0</span>
+    </button>
+    {% endfor %}
+    <span id="react-login-hint" class="text-xs text-gray-600 ml-2 {% if web_user %}hidden{% endif %}">
+      <a href="/register/" class="text-violet-400 hover:underline">Sign in</a> to react
+    </span>
+  </div>
+
   <!-- Comments section -->
   <section id="comments-section" class="mt-10">
     <h2 class="text-xl font-bold text-white mb-6">
@@ -184,6 +202,51 @@ function _csrf() {
   return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1] || '';
 }
 
+// Reactions
+const USER_LOGGED_IN = {% if web_user %}true{% else %}false{% endif %};
+
+async function loadReactions() {
+  try {
+    const r = await fetch(`/api/blog/${ARTICLE_ID}/react/`);
+    const d = await r.json();
+    applyReactionState(d.counts, d.user_reaction);
+  } catch(e) {}
+}
+
+function applyReactionState(counts, userReaction) {
+  ['like','love','fire','skull'].forEach(reaction => {
+    const btn = document.getElementById(`react-btn-${reaction}`);
+    const cnt = document.getElementById(`react-count-${reaction}`);
+    if (!btn || !cnt) return;
+    cnt.textContent = counts[reaction] || 0;
+    const active = userReaction === reaction;
+    btn.className = btn.className
+      .replace(/border-violet-500|text-white|bg-violet-900\/30/g, '')
+      .replace('border-neutral-700', active ? 'border-violet-500' : 'border-neutral-700');
+    if (active) {
+      btn.classList.add('border-violet-500', 'text-white', 'bg-violet-900/30');
+    }
+  });
+}
+
+async function toggleReaction(reaction) {
+  if (!USER_LOGGED_IN) {
+    window.location.href = '/register/?next=' + encodeURIComponent(window.location.pathname);
+    return;
+  }
+  const btn = document.getElementById(`react-btn-${reaction}`);
+  const isActive = btn && btn.classList.contains('border-violet-500');
+  try {
+    const r = await csrfFetch(`/api/blog/${ARTICLE_ID}/react/`, {
+      method: isActive ? 'DELETE' : 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: isActive ? undefined : JSON.stringify({reaction}),
+    });
+    const d = await r.json();
+    if (d.counts) applyReactionState(d.counts, d.user_reaction);
+  } catch(e) {}
+}
+
 function shareTo(platform) {
   const url = encodeURIComponent(window.location.href);
   const title = encodeURIComponent(document.title);
@@ -198,6 +261,7 @@ function copyLink() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  loadReactions();
   // Render publish timestamp
   const tsEl = document.getElementById('article-publish-ts');
   if (tsEl) {

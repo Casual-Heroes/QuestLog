@@ -145,6 +145,14 @@
           </div>
           <div class="flex items-center gap-3 text-xs text-gray-500 flex-shrink-0">
             <span class="art-reading-time" data-body-len="{{ art.body_md|length }}"></span>
+            {% with r=art.reactions %}{% if r.like or r.love or r.fire or r.skull %}
+            <span class="flex items-center gap-1.5">
+              {% if r.like %}<span class="flex items-center gap-0.5">👍<span class="text-xs">{{ r.like }}</span></span>{% endif %}
+              {% if r.love %}<span class="flex items-center gap-0.5">❤️<span class="text-xs">{{ r.love }}</span></span>{% endif %}
+              {% if r.fire %}<span class="flex items-center gap-0.5">🔥<span class="text-xs">{{ r.fire }}</span></span>{% endif %}
+              {% if r.skull %}<span class="flex items-center gap-0.5">💀<span class="text-xs">{{ r.skull }}</span></span>{% endif %}
+            </span>
+            {% endif %}{% endwith %}
             <span><i class="fas fa-comment mr-0.5"></i>{{ art.comment_count }}</span>
             <span id="art-ts-{{ art.id }}" data-ts="{{ art.published_at }}"></span>
           </div>

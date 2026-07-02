@@ -24,6 +24,15 @@
   <link rel="icon" type="image/png" href="{% static 'img/siteassets/homepage/CHLogofav.png' %}?v=2">
   <title>{% block title %}Casual Heroes{% endblock %}</title>
 
+  <!-- Early connection hints: warm up CDN connections before any blocking resources -->
+  <link rel="preconnect" href="https://images.igdb.com" crossorigin>
+  <link rel="dns-prefetch" href="https://images.igdb.com">
+  <link rel="preconnect" href="https://cdn.tailwindcss.com">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
+  <!-- LCP preload hint: immediately after preconnects so image fetch starts ASAP -->
+  {% block lcp_preload %}{% endblock %}
+
   <script src="https://cdn.tailwindcss.com"></script>
   <style>[x-cloak] { display: none !important; }</style>
   <!-- Alpine.js 3.14.1 with SRI -->

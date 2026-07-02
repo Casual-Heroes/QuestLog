@@ -1,0 +1,199 @@
+{% extends "questlog_web/base_web.html" %}
+{% block title %}Souls Leaderboards | QuestLog{% endblock %}
+
+{% block web_content %}
+<style>
+.lb-tab { padding:0.5rem 1rem; font-size:0.7rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#6b7280; border-bottom:2px solid transparent; cursor:pointer; transition:all 0.15s; background:none; border-top:none; border-left:none; border-right:none; }
+.lb-tab.active { color:#d97706; border-bottom-color:#d97706; }
+.cat-btn { padding:0.35rem 0.75rem; font-size:0.65rem; font-weight:700; border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#6b7280; cursor:pointer; background:transparent; transition:all 0.15s; }
+.cat-btn:hover,.cat-btn.active { border-color:#d97706; color:#d97706; background:rgba(217,119,6,0.08); }
+.lb-row { display:grid; align-items:center; padding:0.65rem 1rem; border-bottom:1px solid rgba(255,255,255,0.05); transition:background 0.15s; }
+.lb-row:hover { background:rgba(255,255,255,0.03); }
+.lb-row:last-child { border-bottom:none; }
+.rank { font-size:0.8rem; font-weight:900; color:#4b5563; width:2rem; flex-shrink:0; }
+.rank.gold   { color:#f59e0b; }
+.rank.silver { color:#9ca3af; }
+.rank.bronze { color:#d97706; }
+.tier-badge { font-size:0.6rem; font-weight:700; text-transform:uppercase; padding:0.1rem 0.35rem; border-radius:3px; }
+.game-badge { background:rgba(251,146,60,0.15); color:#fb923c; }
+.err-badge  { background:rgba(167,139,250,0.15); color:#a78bfa; }
+</style>
+
+<div class="max-w-4xl mx-auto px-3 py-4">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3 mb-1">
+    <a href="/soulslike/" class="text-gray-600 hover:text-gray-400 text-xs transition">
+      <i class="fas fa-chevron-left mr-1"></i>SoulsLike Hub
+    </a>
+  </div>
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-2xl font-black text-white flex items-center gap-2">
+        <i class="fas fa-trophy text-amber-500"></i> Souls Leaderboards
+      </h1>
+      <p class="text-xs text-gray-500 mt-1">Track your progress and compete with the community.</p>
+    </div>
+    <!-- Game filter -->
+    <div class="flex gap-2">
+      <button class="cat-btn active" data-game="elden_ring" onclick="setGame(this)">Elden Ring</button>
+      <button class="cat-btn" data-game="err" onclick="setGame(this)">ERR</button>
+    </div>
+  </div>
+
+  <!-- Scope tabs -->
+  <div class="flex border-b border-white/5 mb-4">
+    {% if web_user %}
+    <button class="lb-tab active" data-scope="personal" onclick="setScope(this)">My Records</button>
+    {% endif %}
+    <button class="lb-tab {% if not web_user %}active{% endif %}" data-scope="community" onclick="setScope(this)">Community</button>
+  </div>
+
+  <!-- Category buttons -->
+  <div class="flex flex-wrap gap-2 mb-4">
+    <button class="cat-btn active" data-cat="longest_life"  onclick="setCat(this)">
+      <i class="fas fa-shield-alt mr-1"></i>Iron Tarnished
+    </button>
+    <button class="cat-btn" data-cat="true_grit" onclick="setCat(this)">
+      <i class="fas fa-crosshairs mr-1"></i>True Grit
+    </button>
+    <button class="cat-btn" data-cat="death_machine" onclick="setCat(this)">
+      <i class="fas fa-skull mr-1"></i>Death Machine
+    </button>
+    <button class="cat-btn" data-cat="hollow_lord" onclick="setCat(this)">
+      <i class="fas fa-fire mr-1"></i>Hollow Lord
+    </button>
+    <button class="cat-btn" data-cat="hollow_depth" onclick="setCat(this)">
+      <i class="fas fa-times-circle mr-1"></i>Hollow Depth
+    </button>
+    <button class="cat-btn" data-cat="boss_slayer" onclick="setCat(this)">
+      <i class="fas fa-dragon mr-1"></i>Boss Slayer
+    </button>
+  </div>
+
+  <!-- Category description -->
+  <p class="text-xs text-gray-500 mb-4" id="cat-desc">Longest single life before dying — who can survive the longest?</p>
+
+  <!-- Leaderboard table header -->
+  <div class="bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800">
+    <div class="grid px-4 py-2 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-gray-600" id="table-header"
+         style="grid-template-columns: 2rem 1fr 6rem 6rem 6rem 5rem">
+      <span>#</span><span>Player</span>
+      <span class="text-right" id="col1">Longest Life</span>
+      <span class="text-right" id="col2">Deaths</span>
+      <span class="text-right" id="col3">Death/HR</span>
+      <span class="text-right" id="col4">Bosses</span>
+    </div>
+    <div id="lb-list">
+      <div class="text-gray-600 text-xs text-center py-8">Loading...</div>
+    </div>
+  </div>
+
+  <p class="text-[10px] text-gray-600 mt-4 text-center">
+    Leaderboard entries are recorded when you end a Mortality Run session with at least 1 death.
+    Only public sessions are shown on the Community tab.
+  </p>
+
+</div>
+
+<script>
+var currentCat   = 'longest_life';
+var currentGame  = 'elden_ring';
+var currentScope = '{% if web_user %}personal{% else %}community{% endif %}';
+
+var CAT_META = {
+  'longest_life':  { desc: 'Longest single life before dying — who can survive the longest?',
+                     cols: ['Longest Life','Deaths','Death/HR','Bosses'],
+                     val: function(e){ return e.longest_life_fmt; } },
+  'true_grit':     { desc: 'Lowest True Death/HR (min 5 deaths) — most efficient survival.',
+                     cols: ['Death/HR','Deaths','Longest Life','Bosses'],
+                     val: function(e){ return e.true_death_rate + '/hr'; } },
+  'death_machine': { desc: 'Most deaths in a single session — pure chaos metric.',
+                     cols: ['Deaths','Death/HR','Session Time','Bosses'],
+                     val: function(e){ return e.session_deaths; } },
+  'hollow_lord':   { desc: 'Most cumulative time spent in HOLLOW state.',
+                     cols: ['Hollow Time','Hollow ×','Deaths','Bosses'],
+                     val: function(e){ return e.hollow_time_fmt; } },
+  'hollow_depth':  { desc: 'Most times gone hollow in a single session.',
+                     cols: ['Hollow ×','Hollow Time','Deaths','Bosses'],
+                     val: function(e){ return '×' + e.hollow_streak; } },
+  'boss_slayer':   { desc: 'Most bosses defeated in a single session.',
+                     cols: ['Bosses','Deaths','Longest Life','Session Time'],
+                     val: function(e){ return e.bosses_defeated; } },
+};
+
+function load() {
+  document.getElementById('lb-list').innerHTML = '<div class="text-gray-600 text-xs text-center py-8">Loading...</div>';
+  fetch('/api/soulslike/leaderboards/?category=' + currentCat + '&game=' + currentGame + '&scope=' + currentScope)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      var entries = d.entries || [];
+      var meta = CAT_META[currentCat] || CAT_META['longest_life'];
+
+      // Update column headers
+      var hdr = document.getElementById('table-header');
+      hdr.children[2].textContent = meta.cols[0];
+      hdr.children[3].textContent = meta.cols[1];
+      hdr.children[4].textContent = meta.cols[2];
+      hdr.children[5].textContent = meta.cols[3];
+
+      if (!entries.length) {
+        document.getElementById('lb-list').innerHTML =
+          '<div class="text-gray-600 text-xs text-center py-8">No entries yet. Complete a Mortality Run to appear here!</div>';
+        return;
+      }
+
+      var html = entries.map(function(e) {
+        var rankCls = e.rank === 1 ? ' gold' : e.rank === 2 ? ' silver' : e.rank === 3 ? ' bronze' : '';
+        var modeBadge = (e.game_mode === 'err')
+          ? '<span class="tier-badge err-badge ml-1">ERR</span>'
+          : '<span class="tier-badge game-badge ml-1">ER</span>';
+        return '<div class="lb-row" style="grid-template-columns:2rem 1fr 6rem 6rem 6rem 5rem">' +
+          '<span class="rank' + rankCls + '">' + e.rank + '</span>' +
+          '<div>' +
+            '<span class="text-sm font-bold text-white">' + esc(e.username) + '</span>' +
+            modeBadge +
+          '</div>' +
+          '<span class="text-right text-sm font-bold text-amber-400">' + esc(String(meta.val(e))) + '</span>' +
+          '<span class="text-right text-xs text-gray-400">' + e.session_deaths + '</span>' +
+          '<span class="text-right text-xs text-gray-400">' + e.true_death_rate + '/hr</span>' +
+          '<span class="text-right text-xs text-gray-400">' + e.bosses_defeated + '</span>' +
+        '</div>';
+      }).join('');
+      document.getElementById('lb-list').innerHTML = html;
+    })
+    .catch(function() {
+      document.getElementById('lb-list').innerHTML = '<div class="text-red-500 text-xs text-center py-8">Failed to load leaderboard</div>';
+    });
+}
+
+function setCat(btn) {
+  document.querySelectorAll('[data-cat]').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  currentCat = btn.dataset.cat;
+  var meta = CAT_META[currentCat];
+  document.getElementById('cat-desc').textContent = meta ? meta.desc : '';
+  load();
+}
+
+function setGame(btn) {
+  document.querySelectorAll('[data-game]').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  currentGame = btn.dataset.game;
+  load();
+}
+
+function setScope(btn) {
+  document.querySelectorAll('[data-scope]').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  currentScope = btn.dataset.scope;
+  load();
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.addEventListener('DOMContentLoaded', load);
+</script>
+{% endblock %}

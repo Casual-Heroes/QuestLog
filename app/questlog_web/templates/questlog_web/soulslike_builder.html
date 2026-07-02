@@ -1,0 +1,3894 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Build Planner - Elden Ring | QuestLog{% endblock %}
+{% block og_title %}Elden Ring Build Planner | QuestLog{% endblock %}
+{% block og_description %}Plan your Elden Ring build. Calculate stats, pick weapons, talismans, spells. Share your build with the community.{% endblock %}
+
+{% block web_content %}
+<style>
+/* Souls aesthetic */
+.sl-panel {
+  background: rgba(10,8,6,0.95);
+  border: 1px solid rgba(180,140,60,0.25);
+  border-radius: 6px;
+}
+.sl-panel-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #b48c3c;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(180,140,60,0.2);
+}
+.sl-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.sl-stat-row:last-child { border-bottom: none; }
+.sl-stat-label {
+  width: 4.5rem;
+  font-size: 0.7rem;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.sl-stat-input {
+  width: 3rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  color: #f0d090;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 0.2rem 0;
+  flex-shrink: 0;
+  /* Prevent iOS zoom on focus (font must be >= 16px or use this) */
+  -webkit-text-size-adjust: 100%;
+}
+.sl-stat-input:focus {
+  outline: none;
+  border-color: #b48c3c;
+}
+.sl-stat-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.sl-stat-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.2s, background 0.2s;
+}
+.sl-stat-bar.under  { background: #4ade80; }
+.sl-stat-bar.soft1  { background: #facc15; }
+.sl-stat-bar.soft2  { background: #f97316; }
+.sl-stat-bar.hard   { background: #ef4444; }
+.sl-cap-badge {
+  font-size: 0.6rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 2.5rem;
+  text-align: center;
+}
+.sl-cap-badge.ok   { background: rgba(74,222,128,0.15); color: #4ade80; }
+.sl-cap-badge.s1   { background: rgba(250,204,21,0.15); color: #facc15; }
+.sl-cap-badge.s2   { background: rgba(249,115,22,0.15); color: #f97316; }
+.sl-cap-badge.max  { background: rgba(239,68,68,0.15);  color: #ef4444; }
+
+.sl-equip-slot {
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(180,140,60,0.3);
+  border-radius: 4px;
+  padding: 0.5rem;
+  cursor: pointer;
+  min-height: 3.25rem; /* larger tap target on mobile */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.sl-equip-slot:hover, .sl-equip-slot.active {
+  border-color: #b48c3c;
+  background: rgba(180,140,60,0.08);
+}
+.sl-equip-slot.filled {
+  border-style: solid;
+  border-color: rgba(180,140,60,0.5);
+}
+.sl-slot-name {
+  font-size: 0.65rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.sl-slot-item {
+  font-size: 0.8rem;
+  color: #f0d090;
+  font-weight: 600;
+}
+.sl-slot-empty {
+  font-size: 0.75rem;
+  color: #4b5563;
+  font-style: italic;
+}
+.sl-search-input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: #e5e7eb;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.6rem;
+  width: 100%;
+}
+.sl-search-input:focus {
+  outline: none;
+  border-color: #b48c3c;
+}
+.sl-item-list {
+  max-height: 50vh; /* taller on mobile */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b48c3c transparent;
+}
+.sl-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.1s;
+}
+.sl-item-row:hover { background: rgba(180,140,60,0.1); }
+.sl-item-row.selected { background: rgba(180,140,60,0.2); }
+.sl-item-name { font-size: 0.8rem; color: #e5e7eb; flex: 1; }
+.sl-item-meta { font-size: 0.7rem; color: #6b7280; }
+.sl-item-req  { font-size: 0.65rem; color: #9ca3af; }
+.sl-item-req.unmet { color: #f87171; }
+
+.sl-tag-btn {
+  padding: 0.25rem 0.6rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  color: #6b7280;
+}
+.sl-tag-btn:hover { border-color: #b48c3c; color: #b48c3c; }
+.sl-tag-btn.active { background: rgba(180,140,60,0.2); border-color: #b48c3c; color: #f0d090; }
+
+.sl-level-badge {
+  background: rgba(180,140,60,0.15);
+  border: 1px solid rgba(180,140,60,0.4);
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f0d090;
+}
+.sl-section-tab {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  color: #6b7280;
+  transition: color 0.15s, border-color 0.15s;
+}
+.sl-section-tab.active { color: #b48c3c; border-bottom-color: #b48c3c; }
+.err-sys-tab { color: #6b7280; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+.err-sys-tab.active { color: #b48c3c; border-bottom-color: #b48c3c; }
+.sl-scaling-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.1rem 0.25rem;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.scale-S { background: rgba(180,140,60,0.3); color: #f0d090; }
+.scale-A { background: rgba(74,222,128,0.2); color: #4ade80; }
+.scale-B { background: rgba(96,165,250,0.2); color: #60a5fa; }
+.scale-C { background: rgba(156,163,175,0.2); color: #9ca3af; }
+.scale-D { background: rgba(107,114,128,0.15); color: #6b7280; }
+.scale-E { background: rgba(75,85,99,0.15); color: #4b5563; }
+.scale-- { background: transparent; color: #374151; }
+/* Mobile column tabs */
+.mob-col-tab { background: transparent; color: #6b7280; cursor: pointer; }
+.mob-col-tab.active { background: #292524; color: #b48c3c; }
+@media (max-width: 1023px) {
+  #mob-col-character, #mob-col-equipment, #mob-col-summary { display: none; }
+  #mob-col-character.mob-active, #mob-col-equipment.mob-active, #mob-col-summary.mob-active { display: block; }
+}
+</style>
+
+<div class="max-w-7xl mx-auto px-3 sm:px-4 py-4">
+
+  <!-- Header -->
+  <div class="mb-4">
+    <!-- Row 1: back link + title + level -->
+    <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <a href="/soulslike/" class="text-gray-600 hover:text-gray-400 transition flex-shrink-0">
+          <i class="fas fa-chevron-left text-sm"></i>
+        </a>
+        <div class="flex items-center gap-2 min-w-0">
+          <i class="fas fa-shield-alt text-amber-500 flex-shrink-0"></i>
+          <h1 class="text-lg font-black text-white truncate">Build Planner</h1>
+        </div>
+      </div>
+      <div class="sl-level-badge flex-shrink-0 ml-2">Lv <span id="total-level">1</span></div>
+    </div>
+
+    <!-- Row 2: game selector + action buttons -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <!-- Game selector -->
+      <div class="relative" id="game-selector-wrap">
+        <button onclick="toggleGameMenu()" class="flex items-center gap-1.5 text-xs font-semibold text-gray-300 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 hover:border-amber-700/50 px-3 py-1.5 rounded transition" id="game-selector-btn">
+          <span id="game-selector-label">Elden Ring</span>
+          <i class="fas fa-chevron-down text-gray-500 text-[10px]"></i>
+        </button>
+        <div id="game-menu" class="hidden absolute top-full left-0 mt-1 bg-neutral-900 border border-neutral-700 rounded shadow-xl z-50 min-w-[180px]">
+          <button onclick="selectGame('elden_ring','Elden Ring')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-amber-900/30 hover:text-amber-300 transition flex items-center justify-between">
+            Elden Ring <i class="fas fa-check text-amber-500 text-[10px] hidden" id="check-elden_ring"></i>
+          </button>
+          <button onclick="selectGame('err','Elden Ring Reforged')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-amber-900/30 hover:text-amber-300 transition flex items-center justify-between border-t border-neutral-800">
+            Elden Ring Reforged <i class="fas fa-check text-amber-500 text-[10px] hidden" id="check-err"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 ml-auto">
+        <button onclick="resetBuild()" class="px-2.5 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700/60 text-gray-400 hover:text-red-400 text-xs font-bold rounded transition" title="Reset build">
+          <i class="fas fa-rotate-left sm:mr-1"></i><span class="hidden sm:inline">Reset</span>
+        </button>
+        {% if web_user %}
+        <button onclick="saveBuild()" class="px-2.5 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-bold rounded transition">
+          <i class="fas fa-save sm:mr-1"></i><span class="hidden sm:inline">Save</span>
+        </button>
+        <button onclick="startCollectionRun()" class="px-2.5 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition">
+          <i class="fas fa-play sm:mr-1"></i><span class="hidden sm:inline">Start Run</span>
+        </button>
+        {% else %}
+        <a href="/register/?next=/soulslike/builder/" class="px-3 py-1.5 bg-amber-700/60 hover:bg-amber-700 text-white text-xs font-bold rounded transition">
+          <i class="fas fa-user-plus sm:mr-1"></i><span class="hidden sm:inline">Sign in to Save</span>
+        </a>
+        {% endif %}
+      </div><!-- end action buttons -->
+    </div><!-- end row 2 -->
+  </div><!-- end header -->
+
+  <!-- View-only banner - shows when viewing someone else's shared build -->
+  <div id="view-only-banner" class="hidden bg-neutral-800/80 border border-amber-700/40 rounded-xl px-4 py-2.5 mb-3 flex items-center justify-center gap-3 text-sm text-gray-300 flex-wrap"></div>
+
+  <!-- Build Name -->
+  <div class="mb-4">
+    <input type="text" id="build-name" placeholder="Name your build..."
+           class="bg-transparent border-b border-neutral-700 focus:border-amber-600 text-white text-lg font-bold px-0 py-1 w-full max-w-md focus:outline-none placeholder-neutral-600 transition">
+  </div>
+
+  <!-- Mobile column tabs - hidden on desktop -->
+  <div class="flex lg:hidden border border-neutral-700 rounded-lg overflow-hidden mb-3">
+    <button onclick="switchMobileCol('character')" id="mob-tab-character"
+      class="mob-col-tab active flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition">
+      <i class="fas fa-user mr-1"></i>Character
+    </button>
+    <button onclick="switchMobileCol('equipment')" id="mob-tab-equipment"
+      class="mob-col-tab flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition border-l border-neutral-700">
+      <i class="fas fa-shield-alt mr-1"></i>Equipment
+    </button>
+    <button onclick="switchMobileCol('summary')" id="mob-tab-summary"
+      class="mob-col-tab flex-1 py-2.5 text-xs font-bold uppercase tracking-wider transition border-l border-neutral-700">
+      <i class="fas fa-chart-bar mr-1"></i>Summary
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- LEFT: Class + Optimizer + Attributes + Character -->
+    <div class="space-y-3" id="mob-col-character">
+
+      <!-- Class + Optimizer tabbed panel -->
+      <div class="sl-panel">
+        <div class="sl-panel-title flex items-center gap-0 border-b border-white/5 pb-0 mb-0">
+          <button onclick="switchLeftTab('class')" id="left-tab-class"
+            class="sl-section-tab active" style="padding-top:0.6rem;padding-bottom:0.6rem">Class</button>
+          <button onclick="switchLeftTab('optimizer')" id="left-tab-optimizer"
+            class="sl-section-tab" style="padding-top:0.6rem;padding-bottom:0.6rem">Optimizer</button>
+        </div>
+
+        <!-- Starting Class tab -->
+        <div id="left-panel-class" class="p-2">
+          <div id="class-grid" class="grid grid-cols-2 gap-1.5">
+            <div class="text-gray-600 text-xs text-center py-3">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Optimizer tab -->
+        <div id="left-panel-optimizer" class="hidden">
+          <div class="px-3 pt-3 pb-1">
+            <p class="text-[10px] text-gray-500 mb-3">Enter your target stats. The optimizer finds the class that reaches them at the lowest rune level.</p>
+            <div class="space-y-1.5">
+              {% for stat, label, color in stats_list %}
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-gray-400 w-20 shrink-0">{{ label }}</span>
+                <input type="number" min="0" max="99" value="0"
+                       id="opt-{{ stat }}"
+                       oninput="runOptimizer()"
+                       class="w-14 bg-neutral-800 border border-neutral-700 focus:border-amber-600 rounded px-2 py-0.5 text-xs text-white focus:outline-none text-center">
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div id="optimizer-results" class="px-3 pb-3 mt-3 space-y-0.5">
+            <div class="text-[10px] text-gray-600 text-center py-2">Enter target stats above</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attributes -->
+      <div class="sl-panel">
+        <div class="sl-panel-title flex items-center justify-between">
+          <div>
+            <span>Attributes</span>
+            <span class="text-[10px] text-amber-600 ml-2 font-normal normal-case tracking-normal" id="attr-class-label"></span>
+          </div>
+          <button onclick="resetToClass()" class="text-[10px] text-gray-500 hover:text-amber-500 transition normal-case font-normal tracking-normal">Reset to Class</button>
+        </div>
+        <div id="stats-panel">
+          {% for stat, label, color in stats_list %}
+          <div class="sl-stat-row" id="row-{{ stat }}">
+            <span class="sl-stat-label">{{ label }}</span>
+            <input type="number" class="sl-stat-input" id="stat-{{ stat }}"
+                   value="10"
+                   onchange="onStatChange('{{ stat }}')" oninput="onStatPreview('{{ stat }}')">
+            <div class="sl-stat-bar-wrap">
+              <div class="sl-stat-bar under" id="bar-{{ stat }}" style="width:10%"></div>
+            </div>
+            <span class="sl-cap-badge ok" id="cap-{{ stat }}">-</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="px-3 py-2 border-t border-white/5 flex items-center justify-between">
+          <span class="text-xs text-gray-500">Runes to next level</span>
+          <span class="text-xs text-amber-500 font-bold" id="rune-cost">-</span>
+        </div>
+      </div>
+
+      <!-- Character stats -->
+      <div class="sl-panel">
+        <div class="sl-panel-title">Character</div>
+        <div class="grid grid-cols-2 gap-0">
+          {% for key, label in derived_stats %}
+          <div class="px-3 py-2 border-b border-r border-white/5 last:border-r-0">
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">{{ label }}</div>
+            <div class="text-sm font-bold text-white" id="derived-{{ key }}">-</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CENTER: Equipment tabbed panel -->
+    <div class="space-y-3" id="mob-col-equipment">
+      <div class="sl-panel">
+
+        <!-- Equipment tabs -->
+        <div class="sl-panel-title flex items-center gap-0 border-b border-white/5 pb-0 mb-0 flex-wrap">
+          <button onclick="switchEquipTab('armament')" id="equip-tab-armament" class="sl-section-tab active" style="padding-top:0.6rem;padding-bottom:0.6rem">Armament</button>
+          <button onclick="switchEquipTab('armor')" id="equip-tab-armor" class="sl-section-tab" style="padding-top:0.6rem;padding-bottom:0.6rem">Armor</button>
+          <button onclick="switchEquipTab('talismans')" id="equip-tab-talismans" class="sl-section-tab" style="padding-top:0.6rem;padding-bottom:0.6rem">Talismans</button>
+          <button onclick="switchEquipTab('spirit')" id="equip-tab-spirit" class="sl-section-tab" style="padding-top:0.6rem;padding-bottom:0.6rem">Spirit</button>
+          <button onclick="switchEquipTab('physick')" id="equip-tab-physick" class="sl-section-tab" style="padding-top:0.6rem;padding-bottom:0.6rem">Physick</button>
+          <button onclick="switchEquipTab('curios')" id="equip-tab-curios" class="sl-section-tab hidden" style="padding-top:0.6rem;padding-bottom:0.6rem">Curios</button>
+          <button onclick="switchEquipTab('runes')" id="equip-tab-runes" class="sl-section-tab hidden" style="padding-top:0.6rem;padding-bottom:0.6rem">Binding Runes</button>
+        </div>
+
+        <!-- Armament tab -->
+        <div id="equip-panel-armament" class="p-2 space-y-2">
+          <div class="text-[10px] text-gray-600 uppercase tracking-widest px-1 flex items-center gap-2">
+            <i class="fas fa-hand-paper"></i> Right Hand
+          </div>
+          <div class="space-y-1">
+          {% for wslot, wlabel, wicon, wside in weapon_slots %}{% if wside == 'right' %}
+          <div class="border border-dashed border-amber-900/30 rounded-lg overflow-hidden" id="weapon-row-{{ wslot }}">
+            <div class="sl-equip-slot group border-0 rounded-none" id="slot-{{ wslot }}" onclick="openPicker('weapon','{{ wslot }}')">
+              <div class="w-7 h-9 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0">
+                <i class="{{ wicon }} text-gray-600 text-xs"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="sl-slot-name">{{ wlabel }}</div>
+                <div class="sl-slot-empty truncate" id="slot-{{ wslot }}-name">Empty</div>
+                <div class="text-[10px] text-amber-500 font-bold hidden" id="slot-{{ wslot }}-ar"></div>
+              </div>
+              <button onclick="event.stopPropagation(); clearSlot('{{ wslot }}')"
+                      class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-xs flex-shrink-0 px-1"
+                      id="clear-{{ wslot }}" style="display:none" title="Clear weapon">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div id="aow-row-{{ wslot }}" class="hidden border-t border-amber-900/20 px-2 py-1 flex items-center gap-2 bg-neutral-950/50 cursor-pointer hover:bg-amber-900/10 transition"
+                 onclick="openAowPicker('{{ wslot }}')">
+              <i class="fas fa-fire text-amber-700 text-[10px] flex-shrink-0"></i>
+              <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">AoW</span>
+              <span class="text-[11px] text-amber-600 flex-1 truncate" id="aow-{{ wslot }}-name">None equipped</span>
+              <button onclick="event.stopPropagation(); clearAow('{{ wslot }}')"
+                      class="text-gray-600 hover:text-red-400 transition text-[10px] flex-shrink-0"
+                      id="clear-aow-{{ wslot }}" style="display:none"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="affinity-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50 cursor-pointer hover:bg-purple-900/10 transition"
+                 onclick="openAffinityPicker('{{ wslot }}')">
+              <i class="fas fa-flask text-purple-700 text-[10px] flex-shrink-0"></i>
+              <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">Affinity</span>
+              <span class="text-[11px] text-purple-400 flex-1 truncate" id="affinity-{{ wslot }}-name">Standard</span>
+            </div>
+          </div>
+          {% endif %}{% endfor %}
+          </div>
+          <div class="text-[10px] text-gray-600 uppercase tracking-widest px-1 flex items-center gap-2 mt-1">
+            <i class="fas fa-shield-alt"></i> Left Hand
+          </div>
+          <div class="space-y-1">
+          {% for wslot, wlabel, wicon, wside in weapon_slots %}{% if wside == 'left' %}
+          <div class="border border-dashed border-neutral-700/40 rounded-lg overflow-hidden" id="weapon-row-{{ wslot }}">
+            <div class="sl-equip-slot group border-0 rounded-none" id="slot-{{ wslot }}" onclick="openPicker('weapon','{{ wslot }}')">
+              <div class="w-7 h-9 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0">
+                <i class="{{ wicon }} text-gray-600 text-xs"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="sl-slot-name">{{ wlabel }}</div>
+                <div class="sl-slot-empty truncate" id="slot-{{ wslot }}-name">Empty</div>
+                <div class="text-[10px] text-amber-500 font-bold hidden" id="slot-{{ wslot }}-ar"></div>
+              </div>
+              <button onclick="event.stopPropagation(); clearSlot('{{ wslot }}')"
+                      class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-xs flex-shrink-0 px-1"
+                      id="clear-{{ wslot }}" style="display:none" title="Clear weapon">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div id="aow-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50 cursor-pointer hover:bg-amber-900/10 transition"
+                 onclick="openAowPicker('{{ wslot }}')">
+              <i class="fas fa-fire text-amber-700 text-[10px] flex-shrink-0"></i>
+              <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">AoW</span>
+              <span class="text-[11px] text-amber-600 flex-1 truncate" id="aow-{{ wslot }}-name">None equipped</span>
+              <button onclick="event.stopPropagation(); clearAow('{{ wslot }}')"
+                      class="text-gray-600 hover:text-red-400 transition text-[10px] flex-shrink-0"
+                      id="clear-aow-{{ wslot }}" style="display:none"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="affinity-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50 cursor-pointer hover:bg-purple-900/10 transition"
+                 onclick="openAffinityPicker('{{ wslot }}')">
+              <i class="fas fa-flask text-purple-700 text-[10px] flex-shrink-0"></i>
+              <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">Affinity</span>
+              <span class="text-[11px] text-purple-400 flex-1 truncate" id="affinity-{{ wslot }}-name">Standard</span>
+            </div>
+          </div>
+          {% endif %}{% endfor %}
+          </div>
+        </div>
+
+        <!-- Armor tab -->
+        <div id="equip-panel-armor" class="hidden">
+          <div class="p-2 grid grid-cols-2 gap-1.5">
+            {% for slot, label, icon in armor_slots %}
+            <div class="sl-equip-slot group" id="slot-{{ slot }}" onclick="openPicker('armor','{{ slot }}')">
+              <i class="{{ icon }} text-gray-600 text-xs flex-shrink-0"></i>
+              <div class="flex-1 min-w-0">
+                <div class="sl-slot-name">{{ label }}</div>
+                <div class="sl-slot-empty truncate" id="slot-{{ slot }}-name">Empty</div>
+              </div>
+              <button onclick="event.stopPropagation(); clearSlot('{{ slot }}')"
+                      class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-[10px] flex-shrink-0 px-0.5"
+                      id="clear-{{ slot }}" style="display:none" title="Clear slot">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="px-3 py-2 border-t border-white/5 grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div class="text-[10px] text-gray-500 uppercase">Poise</div>
+              <div class="text-xs font-bold text-white" id="total-poise">0</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-gray-500 uppercase">Weight</div>
+              <div class="text-xs font-bold text-white" id="total-weight">0.0</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-gray-500 uppercase">Roll</div>
+              <div class="text-xs font-bold" id="roll-type">-</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Talismans tab -->
+        <div id="equip-panel-talismans" class="hidden p-2">
+          <div class="grid grid-cols-2 gap-1.5">
+            {% for i in talisman_slots %}
+            <div class="sl-equip-slot group" id="slot-talisman{{ i }}" onclick="openPicker('talisman','talisman{{ i }}')">
+              <div class="w-6 h-6 rounded bg-neutral-800 flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-gem text-gray-600 text-[10px]"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="sl-slot-name">Slot {{ i }}</div>
+                <div class="sl-slot-empty truncate" id="slot-talisman{{ i }}-name">Empty</div>
+              </div>
+              <button onclick="event.stopPropagation(); clearSlot('talisman{{ i }}')"
+                      class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-[10px] flex-shrink-0 px-0.5"
+                      id="clear-talisman{{ i }}" style="display:none" title="Clear slot">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Spirit Ash tab -->
+        <div id="equip-panel-spirit" class="hidden p-3 space-y-3">
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Spirit Ash</div>
+            <div class="sl-equip-slot group" id="slot-spirit-ash" onclick="openPicker('spirit_ash','spirit-ash')">
+              <div class="w-7 h-9 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-ghost text-gray-600 text-xs"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="sl-slot-name">Spirit Ash</div>
+                <div class="sl-slot-empty truncate" id="slot-spirit-ash-name">None</div>
+              </div>
+              <button onclick="event.stopPropagation(); clearSpiritAsh()"
+                      class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-xs flex-shrink-0 px-1"
+                      id="clear-spirit-ash" style="display:none">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div id="spirit-ash-detail" class="hidden mt-1 px-1 text-[10px] text-gray-500 space-y-0.5">
+              <div>FP: <span id="spirit-ash-fp" class="text-amber-500">-</span> · HP: <span id="spirit-ash-hp" class="text-red-400">-</span></div>
+              <div id="spirit-ash-desc" class="text-gray-600 leading-relaxed"></div>
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Upgrade Level</div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-500">+</span>
+              <input type="number" min="0" max="10" value="0" id="spirit-ash-upgrade"
+                     class="w-12 bg-neutral-800 border border-neutral-700 text-gray-300 text-xs text-center rounded px-1 py-0.5 focus:outline-none focus:border-amber-600"
+                     oninput="onSpiritAshUpgrade(this.value)">
+              <span class="text-[10px] text-gray-600" id="spirit-ash-upgrade-label"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wondrous Physick tab -->
+        <div id="equip-panel-physick" class="hidden p-3 space-y-3">
+          <p class="text-[10px] text-gray-500">The Wondrous Physick flask holds up to 2 Crystal Tears which combine their effects when consumed.</p>
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Crystal Tear 1</div>
+            <div class="sl-equip-slot group" id="slot-tear-1" onclick="openTearPicker(1)">
+              <div class="w-7 h-9 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-tint text-blue-700 text-xs"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="sl-slot-name">Tear 1</div>
+                <div class="sl-slot-empty truncate" id="slot-tear-1-name">Empty</div>
+              </div>
+              <button onclick="event.stopPropagation(); clearTear(1)"
+                      class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-xs flex-shrink-0 px-1"
+                      id="clear-tear-1" style="display:none"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Crystal Tear 2</div>
+            <div class="sl-equip-slot group" id="slot-tear-2" onclick="openTearPicker(2)">
+              <div class="w-7 h-9 bg-neutral-800 rounded flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-tint text-blue-700 text-xs"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="sl-slot-name">Tear 2</div>
+                <div class="sl-slot-empty truncate" id="slot-tear-2-name">Empty</div>
+              </div>
+              <button onclick="event.stopPropagation(); clearTear(2)"
+                      class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-xs flex-shrink-0 px-1"
+                      id="clear-tear-2" style="display:none"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <div id="physick-combined-effect" class="hidden bg-neutral-800/40 rounded p-2">
+            <div class="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Combined Effect</div>
+            <div class="text-[10px] text-gray-400" id="physick-effect-text"></div>
+          </div>
+        </div>
+
+        <!-- Curios tab (ERR only) -->
+        <div id="equip-panel-curios" class="hidden p-2">
+          <div id="curio-panel-list"><div class="text-xs text-gray-600 text-center py-3">Loading Curios...</div></div>
+        </div>
+
+        <!-- Binding Runes tab (ERR only) -->
+        <div id="equip-panel-runes" class="hidden">
+          <div class="p-2 space-y-1" id="runeforging-slots">
+            <div class="text-xs text-gray-600 text-center py-3">No Binding Runes in inventory</div>
+          </div>
+          <div class="px-2 pb-2 border-t border-white/5">
+            <button onclick="openRunePicker()"
+              class="w-full text-[11px] text-amber-700 hover:text-amber-400 border border-amber-900/30 hover:border-amber-700/50 rounded py-1.5 transition">
+              <i class="fas fa-plus mr-1"></i>Browse Binding Runes
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- RIGHT: AR + Picker + Spells + Scadu + Build Info -->
+    <div class="space-y-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" id="mob-col-summary">
+
+      <!-- AR Summary -->
+      <div class="sl-panel">
+        <div class="sl-panel-title flex items-center justify-between">
+          <span>Attack Rating</span>
+          <span class="text-[10px] text-gray-500" id="ar-scadu-tag"></span>
+        </div>
+        <div class="p-2 space-y-1" id="ar-summary-list">
+          <div class="text-gray-600 text-xs text-center py-3">No weapons equipped</div>
+        </div>
+      </div>
+
+      <!-- Picker Panel -->
+      <div class="sl-panel" id="picker-panel">
+        <div class="sl-panel-title flex items-center justify-between">
+          <span id="picker-title">Select an equipment slot</span>
+          <button onclick="closePicker()" class="text-gray-500 hover:text-white transition text-xs hidden" id="picker-close">
+            <i class="fas fa-times"></i> Clear
+          </button>
+        </div>
+        <div class="flex border-b border-white/5 flex-wrap" id="picker-tabs">
+          <button class="sl-section-tab active" onclick="switchPickerTab('weapons')" id="tab-weapons">Weapons</button>
+          <button class="sl-section-tab" onclick="switchPickerTab('armor')" id="tab-armor">Armor</button>
+          <button class="sl-section-tab" onclick="switchPickerTab('spells')" id="tab-spells">Spells</button>
+          <button class="sl-section-tab" onclick="switchPickerTab('talismans')" id="tab-talismans">Talismans</button>
+          <button class="sl-section-tab hidden" onclick="switchPickerTab('aow')" id="tab-aow">AoW</button>
+          <button class="sl-section-tab hidden" onclick="switchPickerTab('runeforging')" id="tab-runeforging">Runeforging</button>
+          <button class="sl-section-tab" onclick="switchPickerTab('affinities')" id="tab-affinities">Affinities</button>
+        </div>
+        <div class="p-2">
+          <input type="text" id="picker-search" class="sl-search-input" placeholder="Search..."
+                 oninput="onPickerSearch()" autocomplete="off">
+          <div class="flex flex-wrap gap-1 mt-2" id="picker-type-filters"></div>
+        </div>
+        <div class="sl-item-list" id="picker-results">
+          <div class="text-gray-600 text-xs text-center py-6">Select a slot to browse items</div>
+        </div>
+      </div>
+
+      <!-- Spells equipped -->
+      <div class="sl-panel">
+        <div class="sl-panel-title flex items-center justify-between">
+          <span>Spells</span>
+          <span class="text-[10px] text-gray-500">
+            <span id="spell-slots-used">0</span>/<span id="spell-slots-total">10</span> slots
+          </span>
+        </div>
+        <div class="p-2 space-y-1" id="equipped-spells">
+          <div class="text-gray-600 text-xs text-center py-3">No spells equipped</div>
+        </div>
+        <div class="px-2 pb-2">
+          <button onclick="openPicker('spell','spells')" class="w-full text-xs text-amber-600 hover:text-amber-500 border border-dashed border-amber-900/40 hover:border-amber-700/60 rounded py-1.5 transition">
+            <i class="fas fa-plus mr-1"></i>Add Spell
+          </button>
+        </div>
+      </div>
+
+      <!-- Scadutree Blessing -->
+      <div class="sl-panel">
+        <div class="sl-panel-title flex items-center justify-between">
+          <span>Scadutree Blessing</span>
+          <span class="text-[10px] text-amber-400 font-bold" id="scadu-level-label">Off</span>
+        </div>
+        <div class="p-3 space-y-2">
+          <input type="range" min="0" max="20" value="0" step="1"
+                 id="scadu-slider" oninput="onScaduChange(this.value)"
+                 class="w-full accent-amber-500 cursor-pointer">
+          <div class="flex justify-between text-[10px] text-gray-600">
+            <span>0</span><span>5</span><span>10</span><span>15</span><span>20</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-1 hidden" id="scadu-stats">
+            <div class="bg-neutral-800/60 rounded p-2 text-center">
+              <div class="text-[9px] text-gray-500 uppercase tracking-wider">Dmg Dealt</div>
+              <div class="text-sm text-green-400 font-bold" id="scadu-atk">x1.000</div>
+            </div>
+            <div class="bg-neutral-800/60 rounded p-2 text-center">
+              <div class="text-[9px] text-gray-500 uppercase tracking-wider">Dmg Taken</div>
+              <div class="text-sm text-blue-400 font-bold" id="scadu-def">x1.000</div>
+            </div>
+          </div>
+          <p class="text-[10px] text-gray-600">AR values update with blessing. Dmg taken is reference only.</p>
+        </div>
+      </div>
+
+      {% if web_user %}
+      <!-- My Builds -->
+      <div class="sl-panel">
+        <div class="sl-panel-title flex items-center justify-between">
+          <span>My Builds</span>
+          <button onclick="loadMyBuilds()" class="text-[10px] text-gray-500 hover:text-amber-400 transition normal-case font-normal tracking-normal">
+            <i class="fas fa-refresh mr-1"></i>Refresh
+          </button>
+        </div>
+        <div id="my-builds-list" class="p-2 space-y-1 max-h-48 overflow-y-auto">
+          <div class="text-gray-600 text-xs text-center py-3">Loading your builds...</div>
+        </div>
+        <div class="px-2 pb-2 border-t border-white/5">
+          <a href="/soulslike/builds/" class="block w-full text-center text-[11px] text-gray-500 hover:text-amber-400 transition py-1">
+            Browse all public builds ↗
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Build Info -->
+      <div class="sl-panel">
+        <div class="sl-panel-title">Build Info</div>
+        <div class="p-3 space-y-3">
+          <div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Playstyle</div>
+            <div class="flex flex-wrap gap-1.5" id="playstyle-tags">
+              {% for tag, label in playstyle_tags %}
+              <button class="sl-tag-btn {% if tag == 'pve' %}active{% endif %}" data-tag="{{ tag }}" onclick="setTag('{{ tag }}')">{{ label }}</button>
+              {% endfor %}
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Description</label>
+            <textarea id="build-description" rows="2" placeholder="Describe your build..."
+                      class="sl-search-input resize-none"></textarea>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="build-public" class="rounded border-neutral-600">
+            <label for="build-public" class="text-xs text-gray-400">Share publicly</label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Save confirmation -->
+  <div id="save-banner" class="hidden fixed bottom-4 right-4 bg-green-900/90 border border-green-700 text-green-200 text-sm px-4 py-2 rounded-lg shadow-xl z-50">
+    <i class="fas fa-check mr-2"></i>Build saved! <a id="save-link" href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>
+  </div>
+
+  <!-- Data sources / attribution -->
+  <div class="mt-10 pt-6 border-t border-neutral-800">
+    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Data Sources &amp; Credits</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px]">
+
+      <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
+        <div class="text-amber-500 font-semibold mb-1.5">Weapon AR Calculator</div>
+        <p class="text-gray-300 leading-relaxed mb-2">
+          All AR scaling formulas, correction curves, and reinforcement data extracted from the game's
+          regulation.bin by <span class="text-white font-medium">ThomasJClark</span>.
+          This builder's damage calculation would not exist without his work.
+        </p>
+        <div class="flex gap-2 flex-wrap text-xs">
+          <a href="https://github.com/ThomasJClark/elden-ring-weapon-calculator" target="_blank" rel="noopener"
+             class="text-amber-500 hover:text-amber-300 transition">Original repo ↗</a>
+          <span class="text-neutral-600">·</span>
+          <a href="https://github.com/Casual-Heroes/elden-ring-weapon-calculator" target="_blank" rel="noopener"
+             class="text-amber-500 hover:text-amber-300 transition">Our fork ↗</a>
+          <span class="text-neutral-600">·</span>
+          <span class="text-gray-500">MIT license</span>
+        </div>
+      </div>
+
+      <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
+        <div class="text-amber-500 font-semibold mb-1.5">Elden Ring Reforged</div>
+        <p class="text-gray-300 leading-relaxed mb-2">
+          ERR classes, Curios, Binding Runes, Spirit Ashes, Ashes of War, and all rebalanced data
+          from the ERR wiki and community. All credit to the mod team and wiki contributors.
+        </p>
+        <a href="https://err.fandom.com/wiki/ELDEN_RING_Reforged_Wiki" target="_blank" rel="noopener"
+           class="text-xs text-amber-500 hover:text-amber-300 transition">ERR Wiki ↗</a>
+      </div>
+
+      <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
+        <div class="text-amber-500 font-semibold mb-1.5">Elden Ring Wiki</div>
+        <p class="text-gray-300 leading-relaxed mb-2">
+          Item descriptions, lore, locations, and general game data.
+        </p>
+        <a href="https://eldenring.wiki.fextralife.com/" target="_blank" rel="noopener"
+           class="text-xs text-amber-500 hover:text-amber-300 transition">Fextralife Wiki ↗</a>
+        <p class="text-gray-600 text-[10px] mt-3 leading-relaxed border-t border-neutral-800 pt-2">
+          Fan-made tool. Not affiliated with FromSoftware, Bandai Namco, or the ERR team.
+          Elden Ring &copy; FromSoftware Inc.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Start Run Modal -->
+<div id="run-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl w-full max-w-lg mx-4">
+    <div class="p-5 border-b border-neutral-800 flex items-center justify-between">
+      <h2 class="text-white font-bold flex items-center gap-2">
+        <i class="fas fa-skull text-amber-500 text-sm"></i> Start Run
+      </h2>
+      <button onclick="closeRunModal()" class="text-gray-500 hover:text-white transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="p-5 space-y-4">
+
+      <div>
+        <label class="text-xs text-gray-400 uppercase tracking-wider block mb-1">Run Name</label>
+        <input id="run-name" type="text" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-amber-500 focus:outline-none"
+               placeholder="e.g. Spellsword - First Playthrough">
+      </div>
+
+      <!-- Game mode -->
+      <div>
+        <label class="text-xs text-gray-400 uppercase tracking-wider block mb-1">Game Mode</label>
+        <div class="flex gap-2">
+          <button class="run-gmode-btn sl-tag-btn active" data-mode="vanilla" onclick="setGameMode('vanilla')">Vanilla + DLC</button>
+          <button class="run-gmode-btn sl-tag-btn" data-mode="err" onclick="setGameMode('err')">ERR</button>
+        </div>
+        <p class="text-[10px] text-gray-600 mt-1.5">Loads the full boss list for your selected mode.</p>
+      </div>
+
+      <!-- Spoiler mode -->
+      <div>
+        <label class="text-xs text-gray-400 uppercase tracking-wider block mb-1">Spoiler Mode</label>
+        <div class="flex gap-2">
+          <button class="run-spoiler-btn sl-tag-btn active" data-mode="blind" onclick="setSpoilerMode('blind')">
+            <i class="fas fa-eye-slash mr-1"></i>Blind
+          </button>
+          <button class="run-spoiler-btn sl-tag-btn" data-mode="region" onclick="setSpoilerMode('region')">
+            <i class="fas fa-map-marker-alt mr-1"></i>Region Hints
+          </button>
+          <button class="run-spoiler-btn sl-tag-btn" data-mode="full" onclick="setSpoilerMode('full')">
+            <i class="fas fa-map mr-1"></i>Full Guide
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-600 mt-1.5" id="spoiler-desc">Item names shown, locations hidden.</p>
+      </div>
+
+      <!-- Build items preview -->
+      <div id="run-items-preview" class="bg-neutral-800/50 rounded-lg p-3 max-h-40 overflow-y-auto space-y-1">
+        <p class="text-gray-500 text-xs text-center py-2">Items from your build will appear here</p>
+      </div>
+
+      <div class="p-2.5 bg-amber-900/20 border border-amber-700/30 rounded-lg">
+        <p class="text-[10px] text-amber-500"><i class="fas fa-info-circle mr-1"></i>Get the <a href="/soulslike/listener/" class="underline">QuestLog Listener</a> for auto-detection of deaths via OCR.</p>
+      </div>
+
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeRunModal()" class="px-4 py-2 text-xs text-gray-400 hover:text-white transition">Cancel</button>
+        <button onclick="confirmStartRun()" class="px-5 py-2 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition">
+          <i class="fas fa-skull mr-1"></i>Start Run
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Run started success -->
+<div id="run-started-panel" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+  <div class="bg-neutral-900 border border-green-700/50 rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 text-center space-y-4">
+    <div class="w-14 h-14 rounded-full bg-green-900/40 flex items-center justify-center mx-auto">
+      <i class="fas fa-check text-green-400 text-2xl"></i>
+    </div>
+    <h2 class="text-white font-bold text-lg" id="run-started-title">Run Started!</h2>
+    <p class="text-gray-400 text-sm" id="run-started-desc">Add these as Browser Sources in Meld or OBS.</p>
+    <div class="space-y-2 text-left" id="run-overlay-links">
+      <!-- Populated dynamically based on run type -->
+    </div>
+    <div class="flex gap-2 justify-center pt-2">
+      <a id="go-to-run" href="#" class="px-5 py-2 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition">
+        <i class="fas fa-external-link-alt mr-1"></i>Open Web Tracker
+      </a>
+      <button onclick="closeRunStarted()" class="px-4 py-2 text-xs text-gray-400 hover:text-white border border-neutral-700 rounded-lg transition">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Item detail tooltip -->
+<div id="item-tooltip" class="hidden fixed z-50 bg-neutral-900 border border-amber-700/40 rounded-lg p-3 shadow-2xl max-w-xs text-xs pointer-events-none"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('check-' + BUILD.game)?.classList.remove('hidden');
+  // Initialize mobile column - show character tab by default
+  switchMobileCol('character');
+  loadClasses();
+  loadSpiritAshes();
+  loadCrystalTears();
+  {% if web_user %}loadMyBuilds();{% endif %}
+  loadStatCaps();
+  loadDerivedCurves();
+  loadWeapons();
+  loadSpells();
+  loadTalismans();
+  loadAow();
+  loadArmor();
+  loadAffinities();
+  loadArData();
+  updateDerivedStats();
+
+  // Check for ?view= share token - load a shared build in view-only mode
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewToken = urlParams.get('view');
+  const gameParam = urlParams.get('game');
+  if (viewToken) {
+    // If game specified in URL, switch to it first
+    if (gameParam && gameParam !== BUILD.game) {
+      selectGame(gameParam, gameParam === 'err' ? 'Elden Ring Reforged' : 'Elden Ring');
+    }
+    // Wait for data to load then load the build
+    AR_DATA_READY.then(() => {
+      setTimeout(() => loadBuildViewOnly(viewToken), 800);
+    });
+  }
+});
+
+// ── State ────────────────────────────────────────────────────────────────────
+const BUILD = {
+  game: 'elden_ring',
+  class_id: null,
+  class_name: '',
+  stats: { vigor:10, mind:10, endurance:10, strength:10, dexterity:10, intelligence:10, faith:10, arcane:10 },
+  class_base: { vigor:10, mind:10, endurance:10, strength:10, dexterity:10, intelligence:10, faith:10, arcane:10 },
+  slots: {
+    rh1: null, rh2: null, rh3: null,
+    lh1: null, lh2: null, lh3: null,
+    helm: null, chest: null, gauntlet: null, leg: null,
+    talisman1: null, talisman2: null, talisman3: null, talisman4: null,
+  },
+  aow: { rh1: null, rh2: null, rh3: null, lh1: null, lh2: null, lh3: null },
+  spells: [],
+  playstyle_tag: 'pve',
+  scadutree: 0,
+  spirit_ash: null,          // { name, fp_cost, hp_cost, description }
+  spirit_ash_upgrade: 0,     // 0-10
+  tears: [null, null],       // [tear1, tear2] - each { name, effect }
+};
+
+let CLASSES = [];
+let STAT_CAPS = {};
+let ALL_WEAPONS = [];
+let ALL_SPELLS = [];
+let ALL_TALISMANS = [];
+let ALL_AOW = [];
+let ALL_ARMOR = [];
+let WEAPON_TYPES = [];
+let ALL_CURIOS = [];
+let CURIOS_SYSTEM_NOTE = '';
+let ALL_RUNEFORGING = [];
+let RUNEFORGING_SYSTEM_NOTE = '';
+let ALL_AFFINITIES = [];
+let AFFINITIES_GENERAL_NOTE = '';
+
+// Scadutree Blessing multipliers (identical table for both ER and ERR - from wiki 2.1.2.3)
+// Index 0 = level 0 (no blessing). Index 1-20 = level 1-20.
+const SCADU_DMG_MULT   = [1, 1.025, 1.05, 1.075, 1.1, 1.125, 1.15, 1.175, 1.2, 1.225, 1.25,
+                           1.275, 1.3, 1.325, 1.35, 1.375, 1.4, 1.425, 1.45, 1.475, 1.5];
+const SCADU_DMG_TAKEN  = [1, 0.968, 0.939, 0.913, 0.889, 0.867, 0.846, 0.827, 0.809, 0.793, 0.778,
+                           0.763, 0.75, 0.737, 0.725, 0.714, 0.704, 0.694, 0.684, 0.675, 0.667];
+
+// AR calculator data - exact game scaling curves + attack element correction tables
+let AR_CURVES = {};       // { graphId: [150 floats] }
+let AR_AEC = {};          // { compositeId: { damage_type, enabled:{str,dex,..}, ratio:{str,dex,..} } }
+let AR_REINFORCE = {};    // { reinforceTypeId: { attack:{0:mult,...}, scaling:{str:mult,...}, max_level:25 } }
+let AR_VARIANTS_CACHE = {}; // { weaponName: [ {affinity, base, correct_type, correct, aec_base_id} ] }
+
+let activePicker = null;   // { category, slot }
+let activePickerTab = 'weapons';
+let pickerSearch = '';
+
+// ── Data loading ─────────────────────────────────────────────────────────────
+function loadClasses() {
+  fetch('/api/soulslike/classes/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => {
+      CLASSES = d.classes || [];
+      renderClassGrid();
+      runOptimizer();
+    }).catch(() => {});
+}
+
+function loadStatCaps() {
+  fetch('/api/soulslike/stat-caps/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => {
+      (d.caps || []).forEach(c => { STAT_CAPS[c.stat] = c; });
+      updateAllStatBars();
+    }).catch(() => {});
+}
+
+// Exact lookup-table curves for derived stats (HP/FP/Stamina/rune cost) - only
+// populated for games where the formula is published directly (e.g. ERR's official
+// balance spreadsheet). Empty for games using the closed-form vanilla formula.
+let DERIVED_CURVES = {};
+function loadDerivedCurves() {
+  fetch('/api/soulslike/derived-curves/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => { DERIVED_CURVES = d.curves || {}; })
+    .catch(() => { DERIVED_CURVES = {}; });
+}
+
+function loadWeapons() {
+  fetch('/api/soulslike/weapons/?game=' + BUILD.game + '&limit=1000')
+    .then(r => r.json()).then(d => {
+      ALL_WEAPONS = d.weapons || [];
+      WEAPON_TYPES = d.weapon_types || [];
+    }).catch(() => {});
+}
+
+function loadSpells() {
+  fetch('/api/soulslike/spells/?game=' + BUILD.game + '&limit=1000')
+    .then(r => r.json()).then(d => { ALL_SPELLS = d.spells || []; }).catch(() => {});
+}
+
+function loadTalismans() {
+  fetch('/api/soulslike/talismans/?game=' + BUILD.game + '&limit=1000')
+    .then(r => r.json()).then(d => { ALL_TALISMANS = d.talismans || []; }).catch(() => {});
+}
+
+function loadAow() {
+  if (BUILD.game === 'err') {
+    // ERR's full Ashes of War rebalance table lives in a separate, richer dataset
+    // (sl_err_aow_skills) since nearly every AoW's affinity/effect/armament list changed.
+    fetch('/api/soulslike/err/aow-skills/?limit=1000')
+      .then(r => r.json()).then(d => {
+        ALL_AOW = (d.skills || []).map(s => ({
+          name: s.name, affinity: s.affinity || 'standard', fp_cost: 0,
+          compatible: s.armaments || '', image_url: '',
+          effect: s.effect, scaling_note: s.scaling_note,
+          acquisition: s.acquisition, is_new: s.is_new, is_unique_skill: s.is_unique_skill,
+          unique_weapon_name: s.unique_weapon_name,
+        }));
+      }).catch(() => {});
+  } else {
+    fetch('/api/soulslike/aow/?game=' + BUILD.game + '&limit=1000')
+      .then(r => r.json()).then(d => { ALL_AOW = d.aow || []; }).catch(() => {});
+  }
+}
+
+function loadArmor() {
+  // ERR reuses vanilla ER's armor catalog (confirmed: no notable armor piece changes),
+  // so the item list always loads from elden_ring even in ERR mode.
+  const armorGame = BUILD.game === 'err' ? 'elden_ring' : BUILD.game;
+  fetch('/api/soulslike/armor/?game=' + armorGame + '&limit=1000')
+    .then(r => r.json()).then(d => { ALL_ARMOR = d.armor || []; }).catch(() => {});
+}
+
+function loadCurios() {
+  if (BUILD.game !== 'err') { ALL_CURIOS = []; CURIOS_SYSTEM_NOTE = ''; return; }
+  fetch('/api/soulslike/err/curios/')
+    .then(r => r.json()).then(d => {
+      ALL_CURIOS = d.curios || [];
+      CURIOS_SYSTEM_NOTE = d.system_overview || '';
+      renderCurioPanel();
+    }).catch(() => {});
+}
+
+function loadRuneforging() {
+  if (BUILD.game !== 'err') { ALL_RUNEFORGING = []; RUNEFORGING_SYSTEM_NOTE = ''; return; }
+  fetch('/api/soulslike/err/runeforging/')
+    .then(r => r.json()).then(d => {
+      ALL_RUNEFORGING = d.categories || [];
+      RUNEFORGING_SYSTEM_NOTE = d.system_overview || '';
+    }).catch(() => {});
+}
+
+// ER vanilla affinities (stable - derived from regulation.bin)
+const ER_AFFINITIES = [
+  { name: 'Standard',   whetblade: '-',            scaling_stat: 'Balanced',  effect: 'Default weapon state.' },
+  { name: 'Heavy',      whetblade: 'Iron',          scaling_stat: 'Strength',  effect: 'Increases Strength scaling.' },
+  { name: 'Keen',       whetblade: 'Iron',          scaling_stat: 'Dexterity', effect: 'Increases Dexterity scaling.' },
+  { name: 'Quality',    whetblade: 'Iron',          scaling_stat: 'STR + DEX', effect: 'Balances Strength and Dexterity scaling.' },
+  { name: 'Magic',      whetblade: 'Glintstone',    scaling_stat: 'Intelligence', effect: 'Adds Magic damage, scales with Intelligence.' },
+  { name: 'Cold',       whetblade: 'Glintstone',    scaling_stat: 'Intelligence', effect: 'Adds Magic damage and Frostbite buildup.' },
+  { name: 'Fire',       whetblade: 'Red-Hot',       scaling_stat: 'Strength',  effect: 'Adds Fire damage, scales with Strength.' },
+  { name: 'Flame Art',  whetblade: 'Red-Hot',       scaling_stat: 'Faith',     effect: 'Adds Fire damage, scales with Faith.' },
+  { name: 'Lightning',  whetblade: 'Sanctified',    scaling_stat: 'Dexterity', effect: 'Adds Lightning damage, scales with Dexterity.' },
+  { name: 'Sacred',     whetblade: 'Sanctified',    scaling_stat: 'Faith',     effect: 'Adds Holy damage, scales with Faith.' },
+  { name: 'Poison',     whetblade: 'Black',         scaling_stat: 'Arcane',    effect: 'Adds Poison buildup, scales with Arcane.' },
+  { name: 'Blood',      whetblade: 'Black',         scaling_stat: 'Arcane',    effect: 'Adds Blood Loss buildup, scales with Arcane.' },
+  { name: 'Occult',     whetblade: 'Black',         scaling_stat: 'Arcane',    effect: 'Boosts Arcane scaling, removes Divine damage.' },
+];
+
+function loadAffinities() {
+  if (BUILD.game === 'err') {
+    fetch('/api/soulslike/err/affinities/')
+      .then(r => r.json()).then(d => {
+        ALL_AFFINITIES = d.affinities || [];
+        AFFINITIES_GENERAL_NOTE = d.general_note || '';
+      }).catch(() => {});
+  } else {
+    // ER uses vanilla affinities - hardcoded since they're stable game data
+    ALL_AFFINITIES = ER_AFFINITIES;
+    AFFINITIES_GENERAL_NOTE = '';
+  }
+}
+
+let AR_DATA_READY = Promise.resolve();
+
+function loadArData() {
+  AR_DATA_READY = fetch('/api/soulslike/ar-data/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => {
+      AR_CURVES = d.curves || {};
+      AR_AEC = d.aec || {};
+      AR_REINFORCE = d.reinforce || {};
+    }).catch(() => {});
+  return AR_DATA_READY;
+}
+
+// ── AR (Attack Rating) Calculator ──────────────────────────────────────────────
+// Exact formula + curve data extracted from the game's regulation.bin, sourced via
+// ThomasJClark/elden-ring-weapon-calculator (same data the game itself uses).
+// Damage type indices: 0=phy, 1=mag, 2=fire, 3=lit, 4=holy. Default correction graph
+// is 0 for damage types unless calc_correct_graph_ids overrides it for that index.
+const STAT_KEY_MAP = { str: 'strength', dex: 'dexterity', int: 'intelligence', fai: 'faith', arc: 'arcane' };
+const DEFAULT_DAMAGE_GRAPH_ID = 0;
+
+function fetchWeaponArVariants(weaponName) {
+  const cacheKey = BUILD.game + '|' + weaponName;
+  // Wait for AR curve/AEC data to be ready before resolving variants
+  return AR_DATA_READY.then(() => {
+    if (AR_VARIANTS_CACHE[cacheKey]) return AR_VARIANTS_CACHE[cacheKey];
+    return fetch('/api/soulslike/weapons/' + encodeURIComponent(weaponName) + '/ar-variants/?game=' + BUILD.game)
+      .then(r => r.json()).then(d => {
+        AR_VARIANTS_CACHE[cacheKey] = d.variants || [];
+        return AR_VARIANTS_CACHE[cacheKey];
+      }).catch(() => []);
+  });
+}
+
+// Compute total AR for a given weapon variant + player stats. Returns { total, breakdown }
+// Damage type index -> display name
+const DMG_LABELS = { 0: 'Phys', 1: 'Mag', 2: 'Fire', 3: 'Lit', 4: 'Holy' };
+
+function computeAR(variant, stats) {
+  if (!variant) return null;
+
+  const aec = AR_AEC[String(variant.aec_id)] || {};
+  const requirements = variant.requirements || {};
+
+  // Get max-level reinforce multipliers - always use max upgrade for build planning
+  const reinforce = AR_REINFORCE[String(variant.reinforce_type_id)] || null;
+  // For ERR: attack scales, scaling does NOT (reinforce.scaling is empty {}). ER: both scale.
+  const atkMult  = reinforce ? (reinforce.attack  || {}) : {};
+  const sclMult  = reinforce ? (reinforce.scaling || {}) : {};
+
+  // ineffective = stats below requirement - weapon applies -40% penalty per missing stat
+  const ineffective = ['str', 'dex', 'int', 'fai', 'arc'].filter(statKey => {
+    const req = requirements[statKey];
+    return req && (stats[STAT_KEY_MAP[statKey]] || 1) < req;
+  });
+  // Build a readable requirement warning: "STR 50 (have 14)"
+  const STAT_SHORT = { str:'STR', dex:'DEX', int:'INT', fai:'FAI', arc:'ARC' };
+  const reqMissingText = ineffective.map(k => {
+    const need = requirements[k];
+    const have = stats[STAT_KEY_MAP[k]] || 1;
+    return `${STAT_SHORT[k]} ${need} (have ${have})`;
+  }).join(', ');
+
+  const breakdown = {};   // { dmgIdx: { base, scaling, total } }
+  let total = 0;
+
+  [0, 1, 2, 3, 4].forEach(dmgIdx => {
+    const rawBase = variant.attack[String(dmgIdx)];
+    if (!rawBase) { breakdown[dmgIdx] = null; return; }
+
+    // Apply max-level attack multiplier to base damage
+    const atkMultVal = parseFloat(atkMult[String(dmgIdx)] || atkMult['0'] || 1);
+    const maxBase = rawBase * atkMultVal;
+
+    const scalingAttrs = aec[String(dmgIdx)] || {};
+    let scalingBonus = 0;
+
+    const anyIneffective = ineffective.some(k => scalingAttrs[k]);
+    if (anyIneffective) {
+      // Requirement not met - 40% penalty on the whole value
+      const penalized = maxBase * 0.6;
+      breakdown[dmgIdx] = { base: Math.round(penalized), scaling: 0, total: Math.round(penalized) };
+      total += penalized;
+      return;
+    }
+
+    const graphId = (variant.calc_correct_graph_ids && variant.calc_correct_graph_ids[String(dmgIdx)] != null)
+      ? variant.calc_correct_graph_ids[String(dmgIdx)] : DEFAULT_DAMAGE_GRAPH_ID;
+    const curve = AR_CURVES[String(graphId)];
+
+    ['str', 'dex', 'int', 'fai', 'arc'].forEach(statKey => {
+      if (!scalingAttrs[statKey]) return;
+      // Scaling value - multiplied by max-level scaling mult (1.0 for ERR)
+      const sclMultVal = parseFloat(sclMult[statKey] || 1);
+      const scaling = (variant.scaling[statKey] || 0) * sclMultVal;
+      if (!scaling || !curve) return;
+      const statValue = stats[STAT_KEY_MAP[statKey]] || 1;
+      const correction = curve[Math.min(149, Math.max(0, statValue))] || 0;
+      scalingBonus += correction * scaling;
+    });
+
+    const scalingValue = maxBase * scalingBonus;
+    const dmgTotal = maxBase + scalingValue;
+    breakdown[dmgIdx] = {
+      base: Math.floor(maxBase),
+      scaling: Math.floor(scalingValue),
+      total: Math.floor(dmgTotal),
+    };
+    total += dmgTotal;
+  });
+
+  return { total: Math.floor(total), breakdown, ineffective, reqMissingText };
+}
+
+function updateWeaponAR(slot) {
+  const weapon = BUILD.slots[slot];
+  const arEl = document.getElementById('slot-' + slot + '-ar');
+  if (!weapon) { if (arEl) arEl.classList.add('hidden'); return; }
+
+  fetchWeaponArVariants(weapon.name).then(variants => {
+    if (!variants.length) { if (arEl) arEl.classList.add('hidden'); return; }
+    const equippedAffinity = weapon.equippedAffinity || 'Standard';
+    const variant = variants.find(v => v.affinity === equippedAffinity)
+                 || variants.find(v => v.affinity === 'Standard')
+                 || variants[0];
+
+    // ERR uses effective stats (with rune bonuses); ER uses base BUILD.stats
+    const statsForAR = (BUILD.game === 'err') ? getEffectiveStats() : BUILD.stats;
+    const result = computeAR(variant, statsForAR);
+    if (!result || !arEl) return;
+
+    const scaduLevel = BUILD.scadutree || 0;
+    const scaduMult = SCADU_DMG_MULT[scaduLevel] || 1;
+    const effectiveAR = Math.floor(result.total * scaduMult);
+
+    const reqSuffix = result.ineffective?.length ? ' ⚠' : '';
+    const reqTitle = result.ineffective?.length
+      ? `Requirements not met (-40% penalty). Missing: ${result.reqMissingText}` : '';
+
+    if (scaduLevel > 0) {
+      arEl.textContent = 'AR ' + effectiveAR + ' ★' + scaduLevel + reqSuffix;
+      arEl.title = reqTitle || ('Base AR: ' + result.total + ' x Scadutree ' + scaduMult.toFixed(3));
+    } else {
+      arEl.textContent = 'AR ' + effectiveAR + reqSuffix;
+      arEl.title = reqTitle;
+    }
+    arEl.style.color = result.ineffective?.length ? '#f87171' : '';  // red if req not met
+    arEl.classList.remove('hidden');
+  });
+}
+
+function updateAllWeaponARs() {
+  ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(updateWeaponAR);
+  updateARSummary();
+}
+
+const SLOT_LABELS = {rh1:'RH1', rh2:'RH2', rh3:'RH3', lh1:'LH1', lh2:'LH2', lh3:'LH3'};
+
+function updateARSummary() {
+  const listEl = document.getElementById('ar-summary-list');
+  const tagEl  = document.getElementById('ar-scadu-tag');
+  if (!listEl) return;
+
+  const slots = ['rh1','rh2','rh3','lh1','lh2','lh3'];
+  const statsForAR = (BUILD.game === 'err') ? getEffectiveStats() : BUILD.stats;
+  const scaduLevel = BUILD.scadutree || 0;
+  const scaduMult  = SCADU_DMG_MULT[scaduLevel] || 1;
+
+  if (tagEl) {
+    tagEl.textContent = scaduLevel > 0 ? 'Scadu ' + scaduMult.toFixed(3) + 'x' : '';
+  }
+
+  const armed = slots.filter(s => BUILD.slots[s]);
+  if (!armed.length) {
+    listEl.innerHTML = '<div class="text-gray-600 text-xs text-center py-3">No weapons equipped</div>';
+    return;
+  }
+
+  // Fetch all variants in parallel then render
+  Promise.all(armed.map(slot => {
+    const w = BUILD.slots[slot];
+    const equippedAffinity = w.equippedAffinity || 'Standard';
+    return fetchWeaponArVariants(w.name).then(variants => {
+      const variant = variants.find(v => v.affinity === equippedAffinity)
+                   || variants.find(v => v.affinity === 'Standard')
+                   || variants[0];
+      if (!variant) return null;
+      const result = computeAR(variant, statsForAR);
+      if (!result) return null;
+      const effAR = Math.floor(result.total * scaduMult);
+      // Build per-damage-type breakdown string: "204+210" for phys, show others if present
+      const dmgParts = [0,1,2,3,4].map(i => {
+        const b = result.breakdown[i];
+        if (!b || b.total === 0) return null;
+        const val = Math.floor(b.total * scaduMult);
+        return b.scaling > 0
+          ? `<span class="text-gray-400">${Math.floor(b.base * scaduMult)}</span><span class="text-gray-600">+</span><span class="text-amber-300">${Math.floor(b.scaling * scaduMult)}</span>`
+          : `<span class="text-gray-400">${val}</span>`;
+      }).filter(Boolean);
+      return { slot, name: w.name, affinity: equippedAffinity, effAR, dmgParts,
+               ineffective: result.ineffective, reqMissing: result.reqMissingText };
+    });
+  })).then(results => {
+    const valid = results.filter(Boolean);
+    if (!valid.length) {
+      listEl.innerHTML = '<div class="text-gray-600 text-xs text-center py-3">AR data unavailable</div>';
+      return;
+    }
+    listEl.innerHTML = valid.map(r => {
+      const scaduBadge = scaduLevel > 0 ? `<span class="text-[9px] text-amber-500 ml-1">★${scaduLevel}</span>` : '';
+      const affinityTag = (r.affinity && r.affinity !== 'Standard')
+        ? `<span class="text-[9px] text-purple-400">${escapeHtml(r.affinity)}</span>` : '';
+      const reqWarning = r.ineffective?.length
+        ? `<span class="text-[9px] text-red-500 ml-1" title="Requirements not met - -40% damage penalty. Missing: ${escapeHtml(r.reqMissing || '')}">⚠ Req</span>` : '';
+      return `
+        <div class="px-1 py-1.5 rounded hover:bg-white/5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="text-[9px] text-gray-500 font-mono w-6 shrink-0">${SLOT_LABELS[r.slot]}</span>
+              <span class="text-xs text-gray-300 truncate">${escapeHtml(r.name)}</span>
+              ${affinityTag}${reqWarning}
+            </div>
+            <div class="text-right shrink-0 ml-2 flex items-center gap-1">
+              <span class="text-sm font-bold text-amber-400">${r.effAR}</span>${scaduBadge}
+            </div>
+          </div>
+          ${r.dmgParts.length > 1 ? `<div class="text-[10px] ml-7.5 mt-0.5 flex gap-2">${r.dmgParts.join('<span class="text-neutral-700 mx-0.5">|</span>')}</div>` : ''}
+        </div>`;
+    }).join('');
+  });
+}
+
+// Returns BUILD.stats merged with ERR binding rune bonuses for AR calculation
+function getEffectiveStats() {
+  const bonuses = calcRuneStatBonuses();
+  const eff = {};
+  ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'].forEach(k => {
+    eff[k] = Math.min(99, (BUILD.stats[k] || 10) + (bonuses[k] || 0));
+  });
+  return eff;
+}
+
+function onScaduChange(val) {
+  BUILD.scadutree = parseInt(val) || 0;
+  const lvl = BUILD.scadutree;
+  const labelEl = document.getElementById('scadu-level-label');
+  const statsEl = document.getElementById('scadu-stats');
+  const atkEl = document.getElementById('scadu-atk');
+  const defEl = document.getElementById('scadu-def');
+  if (lvl === 0) {
+    if (labelEl) labelEl.textContent = 'Off';
+    if (statsEl) statsEl.classList.add('hidden');
+  } else {
+    if (labelEl) labelEl.textContent = 'Level ' + lvl;
+    if (statsEl) statsEl.classList.remove('hidden');
+    if (atkEl) atkEl.textContent = 'x' + SCADU_DMG_MULT[lvl].toFixed(3);
+    if (defEl) defEl.textContent = 'x' + SCADU_DMG_TAKEN[lvl].toFixed(3);
+  }
+  updateAllWeaponARs();
+}
+
+// ── Weapon upgrade levels ─────────────────────────────────────────────────────
+
+// ── Spirit Ashes ──────────────────────────────────────────────────────────────
+let ALL_SPIRIT_ASHES = [];
+
+function loadMyBuilds() {
+  const el = document.getElementById('my-builds-list');
+  if (!el) return;
+  el.innerHTML = '<div class="text-gray-600 text-xs text-center py-2">Loading...</div>';
+  fetch('/api/soulslike/builds/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => {
+      const builds = d.builds || [];
+      if (!builds.length) {
+        el.innerHTML = '<div class="text-gray-600 text-xs text-center py-2">No saved builds yet</div>';
+        return;
+      }
+      el.innerHTML = builds.map(b => `
+        <div class="flex items-center justify-between px-1 py-1.5 rounded hover:bg-white/5 group">
+          <div class="flex-1 min-w-0 cursor-pointer" onclick="loadBuild('${b.share_token}')">
+            <div class="text-xs text-gray-200 truncate font-medium">${escapeHtml(b.name)}</div>
+            <div class="text-[10px] text-gray-500">Lv ${b.level} · ${escapeHtml(b.tag || 'pve')} · ${b.is_public ? '<span class="text-green-600">Public</span>' : 'Private'}</div>
+          </div>
+          <button onclick="deleteBuild(${b.id})" title="Delete build"
+                  class="flex-shrink-0 ml-2 text-gray-700 hover:text-red-400 transition opacity-0 group-hover:opacity-100 text-xs px-1">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>`).join('');
+    }).catch(() => {
+      el.innerHTML = '<div class="text-red-500 text-xs text-center py-2">Failed to load</div>';
+    });
+}
+
+function loadBuild(shareToken) {
+  fetch('/api/soulslike/builds/' + shareToken + '/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => {
+      if (d.error) { alert(d.error); return; }
+      loadBuildData(d);
+      // Hide view-only banner if switching to own build
+      document.getElementById('view-only-banner')?.classList.add('hidden');
+      window._viewOnlyBuild = null;
+      document.getElementById('build-name')?.removeAttribute('readonly');
+      document.getElementById('build-description')?.removeAttribute('readonly');
+      window.history.replaceState({}, '', '/soulslike/builder/');
+      // Show loaded notification
+      const banner = document.getElementById('save-banner');
+      banner.innerHTML = '<i class="fas fa-download mr-2"></i>Build "' + escapeHtml(d.name) + '" loaded! <a href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>';
+      banner.classList.remove('hidden');
+      setTimeout(() => {
+        banner.classList.add('hidden');
+        banner.innerHTML = '<i class="fas fa-check mr-2"></i>Build saved! <a id="save-link" href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>';
+      }, 4000);
+    }).catch(e => { console.error(e); alert('Failed to load build'); });
+}
+
+function loadBuildViewOnly(shareToken) {
+  // Determine game from URL or try both
+  const gameParam = new URLSearchParams(window.location.search).get('game') || BUILD.game;
+  fetch('/api/soulslike/builds/' + shareToken + '/?game=' + gameParam)
+    .then(r => r.json()).then(d => {
+      if (d.error) {
+        // Try other game if not found
+        const other = gameParam === 'err' ? 'elden_ring' : 'err';
+        return fetch('/api/soulslike/builds/' + shareToken + '/?game=' + other)
+          .then(r => r.json()).then(d2 => {
+            if (d2.error) { showViewError(); return; }
+            // Switch game mode first
+            selectGame(other, other === 'err' ? 'Elden Ring Reforged' : 'Elden Ring');
+            setTimeout(() => applyViewOnlyBuild(d2), 600);
+          });
+      }
+      applyViewOnlyBuild(d);
+    }).catch(showViewError);
+}
+
+function showViewError() {
+  const banner = document.getElementById('save-banner');
+  banner.innerHTML = '<i class="fas fa-exclamation-triangle mr-2 text-red-400"></i>Build not found or private.';
+  banner.classList.remove('hidden');
+  setTimeout(() => banner.classList.add('hidden'), 4000);
+}
+
+function applyViewOnlyBuild(d) {
+  // Load the build data into the builder
+  loadBuildData(d);
+
+  // Show view-only banner with author + fork option
+  const viewBanner = document.getElementById('view-only-banner');
+  if (viewBanner) {
+    viewBanner.innerHTML = `
+      <i class="fas fa-eye mr-2 text-amber-400"></i>
+      Viewing <strong class="text-white mx-1">${escapeHtml(d.name)}</strong>
+      by <span class="text-amber-400 mx-1">${escapeHtml(d.author || 'Unknown')}</span>
+      <span class="text-gray-500 mx-2">·</span>
+      {% if web_user %}
+      <button onclick="forkBuild()" class="text-green-400 hover:text-green-300 transition font-semibold">
+        <i class="fas fa-code-branch mr-1"></i>Fork to My Builds
+      </button>
+      {% else %}
+      <a href="/register/?next=${encodeURIComponent(window.location.href)}" class="text-green-400 hover:text-green-300 transition font-semibold">
+        Sign in to fork
+      </a>
+      {% endif %}
+    `;
+    viewBanner.classList.remove('hidden');
+  }
+
+  // Disable save/edit controls
+  document.getElementById('build-name')?.setAttribute('readonly', true);
+  document.getElementById('build-description')?.setAttribute('readonly', true);
+  window._viewOnlyBuild = d;
+}
+
+function forkBuild() {
+  const d = window._viewOnlyBuild;
+  if (!d) return;
+  // Remove readonly so save works
+  document.getElementById('build-name')?.removeAttribute('readonly');
+  document.getElementById('build-description')?.removeAttribute('readonly');
+  // Change name to indicate fork
+  const nameEl = document.getElementById('build-name');
+  if (nameEl) nameEl.value = 'Fork of ' + d.name;
+  document.getElementById('view-only-banner')?.classList.add('hidden');
+  window._viewOnlyBuild = null;
+  // Update URL to remove ?view= param
+  window.history.replaceState({}, '', '/soulslike/builder/');
+  saveBuild();
+}
+
+// Shared build data applier used by both loadBuild and loadBuildViewOnly
+function loadBuildData(d) {
+  Object.keys(BUILD.slots).forEach(s => { if (BUILD.slots[s]) clearSlot(s); });
+  BUILD.spells = [];
+  renderEquippedSpells();
+
+  const nameEl = document.getElementById('build-name');
+  if (nameEl) nameEl.value = d.name || '';
+  const descEl = document.getElementById('build-description');
+  if (descEl) descEl.value = d.description || '';
+  if (d.tag) setTag(d.tag);
+  const pubEl = document.getElementById('build-public');
+  if (pubEl) pubEl.checked = !!d.is_public;
+  if (d.class_id) selectClass(d.class_id);
+
+  if (d.stats) {
+    Object.keys(d.stats).forEach(k => {
+      BUILD.stats[k] = d.stats[k];
+      BUILD.class_base[k] = BUILD.class_base[k] || d.stats[k];
+      const inp = document.getElementById('stat-' + k);
+      if (inp) inp.value = d.stats[k];
+    });
+  }
+
+  const weaponSlots = ['rh1','rh2','rh3','lh1','lh2','lh3'];
+  const weaponPromises = weaponSlots.map(slot => {
+    const w = d.weapons?.[slot];
+    if (!w) return Promise.resolve();
+    return fetchWeaponArVariants(w.name).then(() => {
+      const found = ALL_WEAPONS.find(x => x.id === w.id || x.name === w.name);
+      if (found) { activePicker = { category: 'weapon', slot }; equipItem('weapon', found); }
+    });
+  });
+
+  ['helm','chest','gauntlet','leg'].forEach(slot => {
+    const a = d.armor?.[slot];
+    if (!a) return;
+    const found = ALL_ARMOR.find(x => x.id === a.id || x.name === a.name);
+    if (found) { activePicker = { category: 'armor', slot }; equipItem('armor', found); }
+  });
+
+  ['talisman1','talisman2','talisman3','talisman4'].forEach((slot, i) => {
+    const t = d.talismans?.[i];
+    if (!t) return;
+    const found = ALL_TALISMANS.find(x => x.id === t.id || x.name === t.name);
+    if (found) { activePicker = { category: 'talisman', slot }; equipItem('talisman', found); }
+  });
+
+  (d.spells || []).forEach(s => {
+    if (!s) return;
+    const found = ALL_SPELLS.find(x => x.id === s.id || x.name === s.name);
+    if (found) equipSpell(found);
+  });
+
+  activePicker = null;
+
+  Promise.all(weaponPromises).then(() => {
+    // Restore AoW for each weapon slot after weapons are loaded
+    weaponSlots.forEach(slot => {
+      const aowName = d.weapons?.[slot + '_aow'];
+      if (!aowName || !BUILD.slots[slot]) return;
+      const found = ALL_AOW.find(a => a.name === aowName);
+      if (found) {
+        activePicker = { category: 'aow', slot };
+        equipAow(found);
+        activePicker = null;
+      }
+    });
+    updateAllStatBars();
+    updateDerivedStats();
+    updateAllWeaponARs();
+    updateEquipLoad();
+    updatePoise();
+  });
+}
+
+function deleteBuild(buildId) {
+  if (!confirm('Delete this build? This cannot be undone.')) return;
+  csrfFetch('/api/soulslike/builds/' + buildId + '/delete/?game=' + BUILD.game, { method: 'DELETE' })
+    .then(r => r.json()).then(d => {
+      if (d.ok) loadMyBuilds();
+      else alert(d.error || 'Delete failed');
+    }).catch(() => alert('Delete failed'));
+}
+
+function loadSpiritAshes() {
+  fetch('/api/soulslike/spirit-ashes/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => { ALL_SPIRIT_ASHES = d.ashes || []; })
+    .catch(() => {});
+}
+
+function openSpiritAshPicker() {
+  activePicker = { category: 'spirit_ash', slot: 'spirit-ash' };
+  activeAshTypeFilter = '';
+  document.getElementById('picker-title').textContent = 'Select Spirit Ash';
+  document.getElementById('picker-close')?.classList.remove('hidden');
+  document.getElementById('picker-search').value = '';
+  // Clear existing type filter chips and re-render
+  const wrap = document.getElementById('picker-type-filters');
+  if (wrap) wrap.innerHTML = '';
+  // Show results directly in picker-results without switching tab
+  renderSpiritAshPicker();
+  if (window.innerWidth < 1024) switchMobileCol('summary');
+}
+
+let activeAshTypeFilter = '';  // 'grave' | 'ghost' | ''
+
+function renderSpiritAshPicker() {
+  const el = document.getElementById('picker-results');
+  if (!el) return;
+  const q = (document.getElementById('picker-search')?.value || '').toLowerCase();
+
+  // Type filter chips
+  const wrap = document.getElementById('picker-type-filters');
+  if (wrap && activePicker?.category === 'spirit_ash') {
+    if (!wrap.querySelector('.ash-filter')) {
+      ['','grave','ghost'].forEach(t => {
+        const btn = document.createElement('button');
+        btn.className = 'sl-tag-btn text-[10px] py-0.5 px-1.5 ash-filter' + (activeAshTypeFilter === t ? ' active' : '');
+        btn.textContent = t === '' ? 'All' : t === 'grave' ? 'Grave (common)' : 'Ghost (named)';
+        btn.onclick = () => { activeAshTypeFilter = t; renderSpiritAshPicker(); };
+        wrap.appendChild(btn);
+      });
+    }
+  }
+
+  const items = ALL_SPIRIT_ASHES.filter(a =>
+    (!q || a.name.toLowerCase().includes(q)) &&
+    (!activeAshTypeFilter || a.summon_type === activeAshTypeFilter)
+  );
+
+  el.innerHTML = items.map(a => {
+    const enrageInfo = a.enrage_fp_cost ? ` · Enrage ${a.enrage_fp_cost} FP` : '';
+    const glovewort = a.summon_type === 'ghost' ? 'Ghost Glovewort' : 'Grave Glovewort';
+    return `<div class="sl-item-row" onclick="equipSpiritAsh(${JSON.stringify(a).replace(/"/g,'&quot;')})">
+      <div class="flex-1">
+        <div class="sl-item-name flex items-center gap-1">
+          ${escapeHtml(a.name)}
+          ${a.is_new_to_err ? '<span class="text-[9px] text-amber-500 uppercase">New</span>' : ''}
+        </div>
+        <div class="sl-item-meta">${glovewort} · FP ${a.fp_cost || '-'}${enrageInfo}</div>
+        ${a.passive_behavior ? `<div class="text-[10px] text-gray-600 leading-relaxed">${escapeHtml(a.passive_behavior)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('') || '<div class="text-gray-600 text-xs text-center py-4">No spirit ashes found</div>';
+}
+
+function equipSpiritAsh(ash) {
+  BUILD.spirit_ash = ash;
+  const nameEl = document.getElementById('slot-spirit-ash-name');
+  const detailEl = document.getElementById('spirit-ash-detail');
+  const clearBtn = document.getElementById('clear-spirit-ash');
+  if (nameEl) { nameEl.textContent = ash.name; nameEl.className = 'sl-slot-item truncate'; }
+  if (detailEl) {
+    detailEl.classList.remove('hidden');
+    const fpLabel = ash.enrage_fp_cost ? `${ash.fp_cost} (enrage: ${ash.enrage_fp_cost})` : (ash.fp_cost || '-');
+    document.getElementById('spirit-ash-fp').textContent = fpLabel;
+    document.getElementById('spirit-ash-hp').textContent = ash.hp_cost || '-';
+    document.getElementById('spirit-ash-desc').textContent = (ash.passive_behavior || ash.description || '');
+  }
+  if (clearBtn) clearBtn.style.display = '';
+  document.getElementById('slot-spirit-ash')?.classList.add('filled');
+  closePicker();
+}
+
+function clearSpiritAsh() {
+  BUILD.spirit_ash = null;
+  BUILD.spirit_ash_upgrade = 0;
+  const nameEl = document.getElementById('slot-spirit-ash-name');
+  if (nameEl) { nameEl.textContent = 'None'; nameEl.className = 'sl-slot-empty truncate'; }
+  document.getElementById('spirit-ash-detail')?.classList.add('hidden');
+  document.getElementById('slot-spirit-ash')?.classList.remove('filled');
+  const clearBtn = document.getElementById('clear-spirit-ash');
+  if (clearBtn) clearBtn.style.display = 'none';
+  const upg = document.getElementById('spirit-ash-upgrade');
+  if (upg) upg.value = 0;
+  document.getElementById('spirit-ash-upgrade-label').textContent = '';
+}
+
+function onSpiritAshUpgrade(val) {
+  const level = Math.max(0, Math.min(10, parseInt(val) || 0));
+  BUILD.spirit_ash_upgrade = level;
+  const label = document.getElementById('spirit-ash-upgrade-label');
+  if (label) label.textContent = level === 10 ? 'Max' : level === 0 ? 'Base' : `+${level}`;
+}
+
+// ── Wondrous Physick / Crystal Tears ─────────────────────────────────────────
+let ALL_CRYSTAL_TEARS = [];
+let activeTearSlot = 1;
+
+function loadCrystalTears() {
+  // ERR has sl_err_crystal_tears; ER uses the same table filtered by game
+  fetch('/api/soulslike/crystal-tears/?game=' + BUILD.game)
+    .then(r => r.json()).then(d => { ALL_CRYSTAL_TEARS = d.tears || []; })
+    .catch(() => {});
+}
+
+function openTearPicker(slot) {
+  activeTearSlot = slot;
+  activePicker = { category: 'tear', slot: 'tear-' + slot };
+  document.getElementById('picker-title').textContent = 'Select Crystal Tear ' + slot;
+  document.getElementById('picker-close')?.classList.remove('hidden');
+  document.getElementById('picker-search').value = '';
+  pickerSearch = '';
+  renderTearPicker();
+  if (window.innerWidth < 1024) switchMobileCol('summary');
+}
+
+function renderTearPicker() {
+  const el = document.getElementById('picker-results');
+  if (!el) return;
+  const q = (document.getElementById('picker-search')?.value || '').toLowerCase();
+  const items = ALL_CRYSTAL_TEARS.filter(t => !q || t.name.toLowerCase().includes(q));
+  el.innerHTML = items.map(t => `
+    <div class="sl-item-row" onclick="equipTear(${activeTearSlot}, ${JSON.stringify(t).replace(/"/g,'&quot;')})">
+      <div class="flex-1">
+        <div class="sl-item-name">${escapeHtml(t.name)}</div>
+        <div class="text-[10px] text-gray-400 mt-0.5 leading-relaxed">${escapeHtml(t.effect || '')}</div>
+      </div>
+    </div>`).join('') || '<div class="text-gray-600 text-xs text-center py-4">No tears found</div>';
+}
+
+function equipTear(slot, tear) {
+  BUILD.tears[slot - 1] = tear;
+  const nameEl = document.getElementById('slot-tear-' + slot + '-name');
+  const clearBtn = document.getElementById('clear-tear-' + slot);
+  if (nameEl) { nameEl.textContent = tear.name; nameEl.className = 'sl-slot-item truncate'; }
+  if (clearBtn) clearBtn.style.display = '';
+  document.getElementById('slot-tear-' + slot)?.classList.add('filled');
+  updatePhysickEffect();
+  closePicker();
+}
+
+function clearTear(slot) {
+  BUILD.tears[slot - 1] = null;
+  const nameEl = document.getElementById('slot-tear-' + slot + '-name');
+  const clearBtn = document.getElementById('clear-tear-' + slot);
+  if (nameEl) { nameEl.textContent = 'Empty'; nameEl.className = 'sl-slot-empty truncate'; }
+  if (clearBtn) clearBtn.style.display = 'none';
+  document.getElementById('slot-tear-' + slot)?.classList.remove('filled');
+  updatePhysickEffect();
+}
+
+function updatePhysickEffect() {
+  const effectEl = document.getElementById('physick-combined-effect');
+  const textEl = document.getElementById('physick-effect-text');
+  const filled = BUILD.tears.filter(Boolean);
+  if (!filled.length) { effectEl?.classList.add('hidden'); return; }
+  effectEl?.classList.remove('hidden');
+  if (textEl) textEl.textContent = filled.map(t => t.name + ': ' + (t.effect || '')).join('\n\n');
+}
+
+// ── Class picker ─────────────────────────────────────────────────────────────
+function renderClassGrid() {
+  const grid = document.getElementById('class-grid');
+  grid.innerHTML = CLASSES.map(c => `
+    <button onclick="selectClass(${c.id})"
+            id="class-btn-${c.id}"
+            class="text-left px-2 py-1.5 rounded border transition text-xs
+                   ${BUILD.class_id === c.id
+                     ? 'border-amber-600 bg-amber-900/20 text-amber-300'
+                     : 'border-neutral-700 hover:border-amber-700/50 text-gray-300'}">
+      <div class="font-bold">${escapeHtml(c.name)}</div>
+      <div class="text-[10px] text-gray-500">Lv ${c.level}</div>
+    </button>`).join('');
+}
+
+function selectClass(id) {
+  const c = CLASSES.find(x => x.id === id);
+  if (!c) return;
+  BUILD.class_id = id;
+  BUILD.class_name = c.name;
+  const keys = ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'];
+  keys.forEach(k => {
+    BUILD.stats[k] = c[k];
+    BUILD.class_base[k] = c[k];
+    const el = document.getElementById('stat-' + k);
+    el.value = c[k];
+    // Don't set el.min - browser clamps mid-type (e.g. typing "30" clamps at "3" if min=9).
+    // The floor is enforced in onStatChange() via Math.max(minVal, ...) instead.
+  });
+  // Update class label in Attributes panel
+  const labelEl = document.getElementById('attr-class-label');
+  if (labelEl) labelEl.textContent = c.name + ' (Lv ' + (c.level || 1) + ')';
+  renderClassGrid();
+  updateAllStatBars();
+  updateDerivedStats();
+  runOptimizer();  // refresh optimizer to highlight selected class
+}
+
+function resetToClass() {
+  if (!BUILD.class_id) return;
+  selectClass(BUILD.class_id);
+}
+
+// ── Optimal Class Optimizer ───────────────────────────────────────────────────
+const STAT_KEYS = ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'];
+
+function switchMobileCol(col) {
+  ['character','equipment','summary'].forEach(c => {
+    const el = document.getElementById('mob-col-' + c);
+    const tab = document.getElementById('mob-tab-' + c);
+    if (el) el.classList.toggle('mob-active', c === col);
+    if (tab) tab.classList.toggle('active', c === col);
+  });
+  // Trigger AR summary refresh when switching to summary tab
+  if (col === 'summary') updateARSummary();
+}
+
+function switchLeftTab(tab) {
+  ['class','optimizer'].forEach(t => {
+    document.getElementById('left-panel-' + t)?.classList.toggle('hidden', t !== tab);
+    document.getElementById('left-tab-' + t)?.classList.toggle('active', t === tab);
+  });
+  if (tab === 'optimizer') runOptimizer();
+}
+
+function switchEquipTab(tab) {
+  ['armament','armor','talismans','spirit','physick','curios','runes'].forEach(t => {
+    document.getElementById('equip-panel-' + t)?.classList.toggle('hidden', t !== tab);
+    document.getElementById('equip-tab-' + t)?.classList.toggle('active', t === tab);
+  });
+}
+
+function runOptimizer() {
+  const resultsEl = document.getElementById('optimizer-results');
+  if (!resultsEl) return;
+
+  // Read target stats - 0 means "don't care" (ignored in calc)
+  const targets = {};
+  STAT_KEYS.forEach(k => {
+    targets[k] = parseInt(document.getElementById('opt-' + k)?.value || 0) || 0;
+  });
+
+  const anyTarget = STAT_KEYS.some(k => targets[k] > 0);
+  if (!anyTarget || !CLASSES.length) {
+    resultsEl.innerHTML = '<div class="text-[10px] text-gray-600 text-center py-2">Enter target stats above</div>';
+    return;
+  }
+
+  // Spreadsheet formula exactly:
+  // Class RL = SUM(MAX(class_base[stat], target[stat]) for all stats) - 79
+  // For stats with target=0, use the class base (those stats still count toward RL).
+  // This matches: =SUM(D4:D11)-79 where each cell = MAX(class_base, target).
+  const scored = CLASSES.map(c => {
+    let sumStats = 0;
+    STAT_KEYS.forEach(k => {
+      const base = c[k] || 0;
+      const tgt  = targets[k] || 0;
+      sumStats += tgt > 0 ? Math.max(base, tgt) : base;
+    });
+    const rl = sumStats - 79;  // 79 = sum of all stats at Wretch (10x8 - 1 for Wretch being Lv1)
+    return { c, rl };
+  });
+
+  scored.sort((a, b) => a.rl - b.rl);
+  const bestRL = scored[0].rl;
+
+  resultsEl.innerHTML = scored.map(s => {
+    const isBest   = s.rl === bestRL;
+    const isSelected = BUILD.class_id === s.c.id;
+    const extra    = s.rl - bestRL;
+    return `<div class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition
+                        ${isSelected ? 'bg-amber-900/20 border border-amber-700/40' : 'hover:bg-white/5 border border-transparent'}"
+                 onclick="selectClass(${s.c.id})">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-xs font-bold ${isBest ? 'text-amber-400' : 'text-gray-300'}">${escapeHtml(s.c.name)}</span>
+          ${isBest ? '<span class="text-[9px] bg-amber-700/30 text-amber-400 px-1 rounded uppercase tracking-wide">Optimal</span>' : ''}
+          ${isSelected ? '<span class="text-[9px] text-purple-400">Selected</span>' : ''}
+        </div>
+      </div>
+      <div class="text-right shrink-0">
+        <div class="text-sm font-bold ${isBest ? 'text-amber-400' : 'text-gray-400'}">Lv ${s.rl}</div>
+        ${extra > 0 ? `<div class="text-[9px] text-gray-600">+${extra} vs best</div>` : '<div class="text-[9px] text-green-500">-</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Stat calculator ───────────────────────────────────────────────────────────
+function onStatPreview(stat) {
+  // Called on every keystroke - update bar/AR live but don't clamp the input
+  // so user can type multi-digit numbers freely (e.g. "30" without "3" being clamped to min)
+  const el = document.getElementById('stat-' + stat);
+  const runeBonus = parseInt(el.dataset.runeBonus || 0);
+  const displayedVal = parseInt(el.value) || 0;
+  if (isNaN(displayedVal) || displayedVal === 0) return;  // mid-type, don't commit
+  const baseVal = Math.max(1, Math.min(99, displayedVal - runeBonus));
+  BUILD.stats[stat] = baseVal;
+  updateStatBar(stat);
+  updateDerivedStats();
+  updateAllWeaponARs();
+}
+
+function onStatChange(stat) {
+  // Called on blur/enter - clamp to valid range and commit
+  const el = document.getElementById('stat-' + stat);
+  const runeBonus = parseInt(el.dataset.runeBonus || 0);
+  let displayedVal = parseInt(el.value) || 1;
+  let baseVal = displayedVal - runeBonus;
+  const minVal = BUILD.class_base[stat] || 1;
+  baseVal = Math.max(minVal, Math.min(99 - runeBonus, baseVal));
+  BUILD.stats[stat] = baseVal;
+  updateStatBar(stat);  // re-sets input.value = baseVal + runeBonus
+  updateDerivedStats();
+  updateAllWeaponARs();
+}
+
+function updateAllStatBars() {
+  Object.keys(BUILD.stats).forEach(updateStatBar);
+}
+
+function updateStatBar(stat) {
+  const runeBonuses = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
+  const base = BUILD.stats[stat] || 10;
+  const bonus = runeBonuses[stat] || 0;
+  const val = Math.min(99, base + bonus);
+  // Show bonus on the input field as a tooltip/highlight when active
+  const input = document.getElementById('stat-' + stat);
+  if (input) {
+    // Show the effective (boosted) value in the input box.
+    // We track whether the current value was rune-modified so onStatChange()
+    // still reads the real BASE from BUILD.stats, not the displayed bonus value.
+    input.value = val;
+    if (bonus > 0) {
+      input.title = `Base: ${base} + Rune bonus: +${bonus}`;
+      input.style.color = '#fbbf24';
+      input.dataset.runeBonus = bonus;
+    } else {
+      input.title = '';
+      input.style.color = '';
+      delete input.dataset.runeBonus;
+    }
+  }
+  const cap = STAT_CAPS[stat];
+  const bar = document.getElementById('bar-' + stat);
+  const badge = document.getElementById('cap-' + stat);
+  if (!bar || !badge) return;
+
+  const pct = Math.round((val / 99) * 100);
+  bar.style.width = pct + '%';
+
+  if (!cap) { bar.className = 'sl-stat-bar under'; badge.textContent = '-'; return; }
+
+  const s1 = cap.soft_cap_1 || 99;
+  const s2 = cap.soft_cap_2 || 99;
+  const s3 = cap.soft_cap_3 || null;
+
+  if (val < s1) {
+    bar.className = 'sl-stat-bar under';
+    badge.className = 'sl-cap-badge ok';
+    badge.textContent = s1 - val + ' to soft cap';
+  } else if (val < s2) {
+    bar.className = 'sl-stat-bar soft1';
+    badge.className = 'sl-cap-badge s1';
+    badge.textContent = s3 ? 'Soft 1 (' + (s2 - val) + ' to S2)' : 'Soft 1';
+  } else if (s3 && val < s3) {
+    bar.className = 'sl-stat-bar soft2';
+    badge.className = 'sl-cap-badge s2';
+    badge.textContent = 'Soft 2 (' + (s3 - val) + ' to S3)';
+  } else if (val < 99) {
+    bar.className = 'sl-stat-bar soft2';
+    badge.className = 'sl-cap-badge s2';
+    badge.textContent = s3 ? 'Soft 3' : 'Soft 2';
+  } else {
+    bar.className = 'sl-stat-bar hard';
+    badge.className = 'sl-cap-badge max';
+    badge.textContent = 'MAX';
+  }
+}
+
+// Rune cost to level up
+function runeCostToLevel(level) {
+  // ERR: exact lookup table from the mod's official balance spreadsheet
+  if (DERIVED_CURVES.rune_cost_to_level) {
+    const curve = DERIVED_CURVES.rune_cost_to_level;
+    const nextLevel = Math.min(curve.length, level + 1);
+    return curve[nextLevel - 1] || 0;
+  }
+  // Vanilla ER: exact formula verified against Fextralife wiki table
+  const L = (level + 1) + 81;
+  const x = Math.max(0, (L - 92) * 0.02);
+  return Math.floor((x + 0.1) * L * L) + 1;
+}
+
+function updateDerivedStats() {
+  const s = BUILD.stats;
+  const runeBonuses = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
+  // Effective stats = base + rune bonuses, capped at 99
+  const eff = {};
+  ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'].forEach(k => {
+    eff[k] = Math.min(99, (s[k] || 10) + (runeBonuses[k] || 0));
+  });
+  // Level = class starting level + points spent above class base (rune bonuses don't count toward level)
+  const classLevel = BUILD.class_id ? (CLASSES.find(c => c.id === BUILD.class_id)?.level || 1) : 1;
+  const keys = ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'];
+  const pointsSpent = keys.reduce((sum, k) => sum + Math.max(0, (s[k] || 0) - (BUILD.class_base[k] || 0)), 0);
+  const levelCap = BUILD.game === 'err' ? 200 : 713;
+  const totalLevel = Math.min(levelCap, classLevel + pointsSpent);
+  document.getElementById('total-level').textContent = Math.max(1, totalLevel);
+
+  // HP/FP/Stamina use effective (rune-boosted) stats
+  const hp = calcHP(eff.vigor);
+  const fp = calcFP(eff.mind);
+  const stam = calcStamina(eff.endurance);
+  const eqLoad = calcEquipLoad(eff.endurance);
+
+  const el = id => document.getElementById('derived-' + id);
+  if (el('hp'))     el('hp').textContent    = hp;
+  if (el('fp'))     el('fp').textContent    = fp;
+  if (el('stam'))   el('stam').textContent  = stam;
+  if (el('eqload')) el('eqload').textContent = eqLoad.toFixed(1);
+
+  // Equip load & roll type
+  updateEquipLoad();
+
+  // Rune cost
+  const runeCost = runeCostToLevel(Math.max(1, totalLevel));
+  const runeEl = document.getElementById('rune-cost');
+  if (runeEl) runeEl.textContent = runeCost > 0 ? runeCost.toLocaleString() : '-';
+}
+
+// Vanilla ER formulas verified against Fextralife wiki breakpoint tables.
+// ERR uses exact lookup tables (DERIVED_CURVES) from the mod's own balance spreadsheet
+// instead, since ERR's growth curve is non-monotonic (e.g. VIG growth rate INCREASES
+// at stat 30) and can't be expressed as the same kind of piecewise formula.
+function calcHP(vig) {
+  if (DERIVED_CURVES.vigor_hp) return DERIVED_CURVES.vigor_hp[Math.min(149, Math.max(0, vig))] || 0;
+  if (vig <= 25)  return Math.round(300 + (vig - 1) * (500 / 24));
+  if (vig <= 40)  return Math.round(800 + (vig - 25) * (650 / 15));
+  if (vig <= 60)  return Math.round(1450 + (vig - 40) * (450 / 20));
+  return Math.round(1900 + (vig - 60) * (200 / 39));
+}
+
+function calcFP(mnd) {
+  if (DERIVED_CURVES.mind_fp) return DERIVED_CURVES.mind_fp[Math.min(149, Math.max(0, mnd))] || 0;
+  if (mnd <= 15)  return Math.round(40 + (mnd - 1) * (55 / 14));
+  if (mnd <= 40)  return Math.round(95 + (mnd - 15) * (140 / 25));
+  if (mnd <= 60)  return Math.round(235 + (mnd - 40) * (115 / 20));
+  return Math.round(350 + (mnd - 60) * (100 / 39));
+}
+
+function calcStamina(end) {
+  if (DERIVED_CURVES.endurance_stamina) return DERIVED_CURVES.endurance_stamina[Math.min(149, Math.max(0, end))] || 0;
+  if (end <= 15)  return Math.round(80 + (end - 1) * (25 / 14));
+  if (end <= 30)  return Math.round(105 + (end - 15) * (25 / 15));
+  if (end <= 50)  return Math.round(130 + (end - 30) * (25 / 20));
+  return Math.round(155 + (end - 50) * (15 / 49));
+}
+
+function calcEquipLoad(end) {
+  // Breakpoints: 1=45.0, 8≈46.5, 25=72.0, 60=120.0, 99=160.0
+  if (end <= 8)   return parseFloat((45.0 + (end - 1) * (1.5 / 7)).toFixed(1));
+  if (end <= 25)  return parseFloat((46.5 + (end - 8) * (25.5 / 17)).toFixed(1));
+  if (end <= 60)  return parseFloat((72.0 + (end - 25) * (48.0 / 35)).toFixed(1));
+  return parseFloat((120.0 + (end - 60) * (40.0 / 39)).toFixed(1));
+}
+
+function updateEquipLoad() {
+  const eqLoad = calcEquipLoad(BUILD.stats.endurance);
+  const el_eq = document.getElementById('derived-eqload');
+  if (el_eq) el_eq.textContent = eqLoad.toFixed(1);
+
+  // Sum equipped armor weight
+  let totalWeight = 0;
+  ['helm','chest','gauntlet','leg'].forEach(slot => {
+    const item = BUILD.slots[slot];
+    if (item) totalWeight += item.weight || 0;
+  });
+  ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
+    const item = BUILD.slots[slot];
+    if (item) totalWeight += item.weight || 0;
+  });
+
+  const weightEl = document.getElementById('total-weight');
+  if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
+
+  const ratio = totalWeight / eqLoad;
+  const rollEl = document.getElementById('roll-type');
+  if (rollEl) {
+    if (ratio <= 0.299)     { rollEl.textContent = 'Light'; rollEl.className = 'text-xs font-bold text-blue-400'; }
+    else if (ratio <= 0.699){ rollEl.textContent = 'Medium'; rollEl.className = 'text-xs font-bold text-green-400'; }
+    else if (ratio <= 0.999){ rollEl.textContent = 'Heavy'; rollEl.className = 'text-xs font-bold text-yellow-400'; }
+    else                    { rollEl.textContent = 'Overloaded'; rollEl.className = 'text-xs font-bold text-red-400'; }
+  }
+}
+
+// ── Picker ───────────────────────────────────────────────────────────────────
+function openPicker(category, slot) {
+  // Spirit ash and tears have their own renderers
+  if (category === 'spirit_ash') { openSpiritAshPicker(); return; }
+
+  activePicker = { category, slot };
+  const closeBtn = document.getElementById('picker-close');
+  if (closeBtn) closeBtn.classList.remove('hidden');
+  const tabMap = { weapon: 'weapons', spell: 'spells', talisman: 'talismans', armor: 'armor' };
+  switchPickerTab(tabMap[category] || 'weapons');
+  document.getElementById('picker-search').value = '';
+  pickerSearch = '';
+  renderPickerResults();
+  if (window.innerWidth < 1024) switchMobileCol('summary');
+}
+
+function closePicker() {
+  activePicker = null;
+  document.getElementById('picker-results').innerHTML =
+    '<div class="text-gray-600 text-xs text-center py-6">Select a slot to browse items</div>';
+  document.getElementById('picker-close').classList.add('hidden');
+  document.getElementById('picker-search').value = '';
+}
+
+// ── Clear individual slot ─────────────────────────────────────────────────────
+function clearSlot(slot) {
+  BUILD.slots[slot] = null;
+  const nameEl = document.getElementById('slot-' + slot + '-name');
+  const slotEl = document.getElementById('slot-' + slot);
+  const clearBtn = document.getElementById('clear-' + slot);
+  if (nameEl)   { nameEl.textContent = 'Empty'; nameEl.className = 'sl-slot-empty truncate'; }
+  if (slotEl)   slotEl.classList.remove('filled');
+  if (clearBtn) clearBtn.style.display = 'none';
+  // If it's a weapon slot, also hide and clear the AoW row, affinity row, and AR badge
+  if (SLOT_CATEGORY[slot] === 'weapon') {
+    BUILD.aow[slot] = null;
+    const aowNameEl = document.getElementById('aow-' + slot + '-name');
+    const aowClearBtn = document.getElementById('clear-aow-' + slot);
+    if (aowNameEl) { aowNameEl.textContent = 'None equipped'; aowNameEl.style.color = ''; }
+    if (aowClearBtn) aowClearBtn.style.display = 'none';
+    const aowRow = document.getElementById('aow-row-' + slot);
+    if (aowRow) aowRow.classList.add('hidden');
+    const affinityRow = document.getElementById('affinity-row-' + slot);
+    if (affinityRow) affinityRow.classList.add('hidden');
+    const affinityName = document.getElementById('affinity-' + slot + '-name');
+    if (affinityName) affinityName.textContent = 'Standard';
+    document.getElementById('tab-aow')?.classList.add('hidden');
+    const arEl = document.getElementById('slot-' + slot + '-ar');
+    if (arEl) arEl.classList.add('hidden');
+    updateARSummary();
+  }
+  updateEquipLoad();
+  updatePoise();
+}
+
+// ── Full build reset ──────────────────────────────────────────────────────────
+function resetBuildSilent() {
+  // Clear all slots (clearSlot handles AoW rows for weapon slots)
+  Object.keys(BUILD.slots).forEach(s => clearSlot(s));
+  // Clear AoW state
+  Object.keys(BUILD.aow).forEach(s => { BUILD.aow[s] = null; });
+  // Clear spells
+  BUILD.spells = [];
+  renderEquippedSpells();
+  // Reset stats to base 10
+  BUILD.class_id = null;
+  BUILD.class_name = '';
+  const keys = ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'];
+  keys.forEach(k => {
+    BUILD.stats[k] = 10;
+    BUILD.class_base[k] = 10;
+    const el = document.getElementById('stat-' + k);
+    if (el) el.value = 10;
+  });
+  // Clear class selection
+  renderClassGrid();
+  updateAllStatBars();
+  updateDerivedStats();
+  // Clear build name/desc
+  const nameEl = document.getElementById('build-name');
+  const descEl = document.getElementById('build-description');
+  if (nameEl) nameEl.value = '';
+  if (descEl) descEl.value = '';
+  // Reset playstyle
+  setTag('pve');
+}
+
+function resetBuild() {
+  if (!confirm('Reset the entire build? This cannot be undone.')) return;
+  resetBuildSilent();
+}
+
+// ── Game selector ─────────────────────────────────────────────────────────────
+function toggleGameMenu() {
+  const menu = document.getElementById('game-menu');
+  menu.classList.toggle('hidden');
+}
+
+function selectGame(gameKey, label) {
+  document.getElementById('check-' + BUILD.game)?.classList.add('hidden');
+  BUILD.game = gameKey;
+  AR_VARIANTS_CACHE = {};  // clear per-weapon cache - variants differ between ER and ERR
+  document.getElementById('check-' + gameKey)?.classList.remove('hidden');
+  document.getElementById('game-selector-label').textContent = label;
+  document.getElementById('game-menu').classList.add('hidden');
+  // Reload all data for this game
+  AR_CURVES = {};
+  AR_AEC = {};
+  AR_REINFORCE = {};
+  loadArData();
+  loadClasses();
+  loadStatCaps();
+  loadDerivedCurves();
+  loadWeapons();
+  loadSpells();
+  loadTalismans();
+  loadAow();
+  loadArmor();
+  loadCurios();
+  loadRuneforging();
+  loadAffinities();
+  loadSpiritAshes();
+  loadCrystalTears();
+  {% if web_user %}loadMyBuilds();{% endif %}
+  resetBuildSilent();
+  // Curios and Runeforging are ERR-only; Affinities exist in both games
+  ['tab-curios', 'tab-runeforging'].forEach(id => {
+    document.getElementById(id)?.classList.toggle('hidden', gameKey !== 'err');
+  });
+  // Affinities tab always visible
+  document.getElementById('tab-affinities')?.classList.remove('hidden');
+  toggleErrPanels(gameKey === 'err');
+}
+
+// Close game menu when clicking outside
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('game-selector-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('game-menu')?.classList.add('hidden');
+  }
+});
+
+function switchPickerTab(tab) {
+  activePickerTab = tab;
+  activeTypeFilter = '';
+  activeSpellType = '';
+  activeSpellSchool = '';
+  activeArmorWeightFilter = '';
+  // Clear search and filter chips on every tab switch
+  resetPickerSearch();
+  const wrap = document.getElementById('picker-type-filters');
+  if (wrap) wrap.innerHTML = '';
+  ['weapons','armor','spells','talismans','aow','curios','runeforging','affinities'].forEach(t => {
+    document.getElementById('tab-' + t)?.classList.toggle('active', t === tab);
+  });
+  renderTypeFilters();
+  renderPickerResults();
+}
+
+let activeTypeFilter = '';
+let activeSpellType = '';        // 'Sorcery' | 'Incantation' | ''
+let activeSpellSchool = '';      // school keyword filter
+let activeArmorWeightFilter = ''; // '' | 'light' | 'medium' | 'heavy'
+
+// School keyword maps - spell name must contain one of these strings (case-insensitive)
+// Exact spell→school mapping from ERR wiki. A spell can belong to multiple schools.
+// spellSchools[spellName] = [school, ...] for sorceries or incantations.
+// ── ER spell→school mapping (vanilla + DLC, exact per wiki) ──────────────────
+const ER_SPELL_SCHOOLS = {
+  // Sorceries - Carian
+  'Magic Glintblade':           ['Carian'],
+  'Glintblade Trio':            ['Carian'],
+  'Glintblade Phalanx':         ['Carian'],
+  'Carian Phalanx':             ['Carian'],
+  'Greatblade Phalanx':         ['Carian'],
+  'Magic Downpour':             ['Carian'],
+  'Loretta\'s Greatbow':        ['Carian'],
+  'Loretta\'s Mastery':         ['Carian'],
+  'Rennala\'s Full Moon':       ['Carian','Full Moon'],
+  'Ranni\'s Dark Moon':         ['Carian','Full Moon'],
+  'Rellana\'s Twin Moons':      ['Carian','Full Moon'],
+  'Carian Slicer':              ['Carian'],
+  'Carian Greatsword':          ['Carian'],
+  'Carian Piercer':             ['Carian'],
+  'Adula\'s Moonblade':         ['Carian','Cold'],
+  'Lucidity':                   ['Carian'],
+  'Carian Retaliation':         ['Carian'],
+  'Miriam\'s Vanishing':        ['Carian'],
+  // Sorceries - Cold
+  'Glintstone Icecrag':         ['Cold'],
+  'Freezing Mist':              ['Cold'],
+  'Frozen Armament':            ['Cold'],
+  'Zamor Ice Storm':            ['Cold'],
+  // Sorceries - Crystalian
+  'Shattering Crystal':         ['Crystalian'],
+  'Crystal Torrent':            ['Crystalian'],
+  'Crystal Release':            ['Crystalian'],
+  // Sorceries - Death (Ghostflame)
+  'Rancorcall':                 ['Death'],
+  'Ancient Death Rancor':       ['Death'],
+  'Rings of Spectral Light':    ['Death'],
+  'Explosive Ghostflame':       ['Death'],
+  'Fia\'s Mist':                ['Death'],
+  'Tibia\'s Summons':           ['Death'],
+  'Mass of Putrescence':        ['Death'],
+  'Vortex of Putrescence':      ['Death'],
+  // Sorceries - Finger
+  'Glintstone Nail':            ['Finger'],
+  'Glintstone Nails':           ['Finger'],
+  'Fleeting Microcosm':         ['Finger'],
+  'Cherishing Fingers':         ['Finger'],
+  // Sorceries - Glintstone
+  'Glintstone Pebble':          ['Glintstone'],
+  'Swift Glintstone Shard':     ['Glintstone'],
+  'Great Glintstone Shard':     ['Glintstone'],
+  'Glintstone Cometshard':      ['Glintstone'],
+  'Comet':                      ['Glintstone'],
+  'Shard Spiral':               ['Glintstone'],
+  'Glintstone Stars':           ['Glintstone'],
+  'Star Shower':                ['Glintstone'],
+  'Glintstone Arc':             ['Glintstone'],
+  'Crystal Barrage':            ['Glintstone'],
+  'Crystal Burst':              ['Glintstone'],
+  'Cannon of Haima':            ['Glintstone'],
+  'Gavel of Haima':             ['Glintstone'],
+  'Shatter Earth':              ['Glintstone'],
+  'Rock Blaster':               ['Glintstone'],
+  'Scholar\'s Armament':        ['Glintstone'],
+  'Scholar\'s Shield':          ['Glintstone'],
+  'Starlight':                  ['Glintstone'],
+  'Terra Magica':               ['Glintstone'],
+  'Thops\'s Barrier':           ['Glintstone'],
+  'Comet Azur':                 ['Glintstone','Primeval'],
+  'Stars of Ruin':              ['Glintstone','Primeval'],
+  'Founding Rain of Stars':     ['Glintstone','Primeval'],
+  // Sorceries - Gravity
+  'Gravity Well':               ['Gravity'],
+  'Collapsing Stars':           ['Gravity'],
+  'Gravitational Missile':      ['Gravity'],
+  'Rock Sling':                 ['Gravity'],
+  'Blades of Stone':            ['Gravity'],
+  'Meteorite':                  ['Gravity'],
+  'Meteorite of Astel':         ['Gravity'],
+  // Sorceries - Magma
+  'Magma Shot':                 ['Magma'],
+  'Roiling Magma':              ['Magma'],
+  'Gelmir\'s Fury':             ['Magma'],
+  'Rykard\'s Rancor':           ['Magma'],
+  // Sorceries - Night
+  'Ambush Shard':               ['Night'],
+  'Night Shard':                ['Night'],
+  'Night Comet':                ['Night'],
+  'Night Maiden\'s Mist':       ['Night'],
+  'Unseen Blade':               ['Night'],
+  'Unseen Form':                ['Night'],
+  'Eternal Darkness':           ['Night'],
+  // Sorceries - Oracle
+  'Oracle Bubbles':             ['Oracle'],
+  'Great Oracular Bubble':      ['Oracle'],
+  // Sorceries - Thorn / Aberrant
+  'Briars of Sin':              ['Thorn'],
+  'Briars of Punishment':       ['Thorn'],
+  'Mantle of Thorns':           ['Thorn'],
+  'Impenetrable Thorns':        ['Thorn'],
+  'Blood Star Slicer':          ['Thorn'],
+  'Briars of Guilt':            ['Thorn'],
+  'Briars of Penance':          ['Thorn'],
+  'Briars of Resentment':       ['Thorn'],
+  // Incantations - Bestial
+  'Beast Claw':                 ['Bestial'],
+  'Gurranq\'s Beast Claw':      ['Bestial'],
+  'Bestial Sling':              ['Bestial'],
+  'Stone of Gurranq':           ['Bestial'],
+  'Bestial Constitution':       ['Bestial'],
+  'Bestial Vitality':           ['Bestial'],
+  // Incantations - Black Flame (Godskin)
+  'Black Flame':                ['Black Flame'],
+  'Scouring Black Flame':       ['Black Flame'],
+  'Black Flame Ritual':         ['Black Flame'],
+  'Black Flame Blade':          ['Black Flame'],
+  'Black Flame\'s Protection':  ['Black Flame'],
+  'Noble Presence':             ['Black Flame'],
+  // Incantations - Blood Oath
+  'Swarm of Flies':             ['Blood Oath'],
+  'Bloodflame Talons':          ['Blood Oath'],
+  'Furious Blade of Ansbach':   ['Blood Oath'],
+  'Bloodboon':                  ['Blood Oath'],
+  'Bloodflame Blade':           ['Blood Oath'],
+  // Incantations - Dragon Communion
+  'Dragonfire':                 ['Dragon Communion'],
+  'Agheel\'s Flame':            ['Dragon Communion'],
+  'Magma Breath':               ['Dragon Communion'],
+  'Theodorix\'s Magma':         ['Dragon Communion'],
+  'Glintstone Breath':          ['Dragon Communion'],
+  'Smarag\'s Glintstone Breath': ['Dragon Communion'],
+  'Rotten Breath':              ['Dragon Communion'],
+  'Ekzykes\'s Decay':           ['Dragon Communion'],
+  'Dragonice':                  ['Dragon Communion'],
+  'Borealis\'s Mist':           ['Dragon Communion'],
+  'Ghostflame Breath':          ['Dragon Communion'],
+  'Placidusax\'s Ruin':         ['Dragon Communion'],
+  'Dragonclaw':                 ['Dragon Communion'],
+  'Dragonmaw':                  ['Dragon Communion'],
+  'Greyoll\'s Roar':            ['Dragon Communion'],
+  'Bayle\'s Tyranny':           ['Dragon Communion'],
+  'Bayle\'s Flame Lightning':   ['Dragon Communion'],
+  // Incantations - Dragon Cult
+  'Lightning Spear':            ['Dragon Cult'],
+  'Knight\'s Lightning Spear':  ['Dragon Cult'],
+  'Lightning Strike':           ['Dragon Cult'],
+  'Honed Bolt':                 ['Dragon Cult'],
+  'Ancient Dragons\' Lightning Spear': ['Dragon Cult'],
+  'Ancient Dragons\' Lightning Strike': ['Dragon Cult'],
+  'Lansseax\'s Glaive':         ['Dragon Cult'],
+  'Fortissax\'s Lightning Spear': ['Dragon Cult'],
+  'Frozen Lightning Spear':     ['Dragon Cult'],
+  'Death Lightning':            ['Dragon Cult'],
+  'Electrify Armament':         ['Dragon Cult'],
+  'Electrocharge':              ['Dragon Cult'],
+  'Dragonbolt Blessing':        ['Dragon Cult'],
+  'Vyke\'s Dragonbolt':         ['Dragon Cult'],
+  'Dragonbolt of Florissax':    ['Dragon Cult'],
+  // Incantations - Erdtree (includes Crucible aspects)
+  'Golden Vow':                 ['Erdtree'],
+  'Barrier of Gold':            ['Erdtree'],
+  'Golden Lightning Fortification': ['Erdtree'],
+  'Protection of the Erdtree':  ['Erdtree'],
+  'Wrath of Gold':              ['Erdtree'],
+  'Wrath from Afar':            ['Erdtree'],
+  'Heal from Afar':             ['Erdtree'],
+  'Erdtree Heal':               ['Erdtree'],
+  'Blessing\'s Boon':           ['Erdtree'],
+  'Blessing of the Erdtree':    ['Erdtree'],
+  'Minor Erdtree':              ['Erdtree'],
+  'Aspects of the Crucible: Breath':  ['Erdtree','Crucible'],
+  'Aspects of the Crucible: Tail':    ['Erdtree','Crucible'],
+  'Aspect of the Crucible: Horns':    ['Erdtree','Crucible'],
+  'Aspects of the Crucible: Thorns':  ['Erdtree','Crucible'],
+  'Aspects of the Crucible: Bloom':   ['Erdtree','Crucible'],
+  'Land of Shadow':             ['Erdtree'],
+  'Elden Stars':                ['Erdtree'],
+  'Black Blade':                ['Erdtree'],
+  // Incantations - Frenzied Flame
+  'The Flame of Frenzy':        ['Frenzied Flame'],
+  'Unendurable Frenzy':         ['Frenzied Flame'],
+  'Midra\'s Flame of Frenzy':   ['Frenzied Flame'],
+  'Frenzied Burst':             ['Frenzied Flame'],
+  'Howl of Shabriri':           ['Frenzied Flame'],
+  'Inescapable Frenzy':         ['Frenzied Flame'],
+  // Incantations - Giants' Flame
+  'Catch Flame':                ['Giants\' Flame'],
+  'O, Flame!':                  ['Giants\' Flame'],
+  'Flame Sling':                ['Giants\' Flame'],
+  'Giantsflame Take Thee':      ['Giants\' Flame'],
+  'Flame, Fall Upon Them':      ['Giants\' Flame'],
+  'Flame of the Fell God':      ['Giants\' Flame'],
+  'Surge, O Flame!':            ['Giants\' Flame'],
+  'Whirl, O Flame!':            ['Giants\' Flame'],
+  'Burn, O Flame!':             ['Giants\' Flame'],
+  'Flame, Cleanse Me':          ['Giants\' Flame'],
+  'Flame, Protect Me':          ['Giants\' Flame'],
+  'Flame, Grant Me Strength':   ['Giants\' Flame'],
+  'Fire\'s Deadly Sin':         ['Giants\' Flame'],
+  // Incantations - Golden Order
+  'Discus of Light':            ['Golden Order'],
+  'Triple Rings of Light':      ['Golden Order'],
+  'Radagon\'s Rings of Light':  ['Golden Order'],
+  'Litany of Proper Death':     ['Golden Order'],
+  'Order Healing':              ['Golden Order'],
+  'Order\'s Blade':             ['Golden Order'],
+  'Immutable Shield':           ['Golden Order'],
+  'Law of Causality':           ['Golden Order'],
+  'Law of Regression':          ['Golden Order'],
+  // Incantations - Messmer's Flame
+  'Fire Serpent':               ['Messmer\'s Flame'],
+  'Rain of Fire':               ['Messmer\'s Flame'],
+  'Messmer\'s Orb':             ['Messmer\'s Flame'],
+  // Incantations - Miquellan
+  'Multilayered Ring of Light': ['Miquellan'],
+  'Light of Miquella':          ['Miquellan'],
+  // Incantations - Servants of Rot
+  'Poison Mist':                ['Servants of Rot'],
+  'Poison Armament':            ['Servants of Rot'],
+  'Pest Threads':               ['Servants of Rot'],
+  'Pest-Thread Spears':         ['Servants of Rot'],
+  'Scarlet Aeonia':             ['Servants of Rot'],
+  'Rotten Butterflies':         ['Servants of Rot'],
+  // Incantations - Spiral Tower
+  'Golden Arcs':                ['Spiral Tower'],
+  'Giant Golden Arc':           ['Spiral Tower'],
+  'Spira':                      ['Spiral Tower'],
+  'Watchful Spirit':            ['Spiral Tower'],
+  'Divine Bird Feathers':       ['Spiral Tower'],
+  'Divine Beast Tornado':       ['Spiral Tower'],
+  'Roar of Rugalea':            ['Spiral Tower'],
+  // Incantations - Two Fingers
+  'Urgent Heal':                ['Two Fingers'],
+  'Heal':                       ['Two Fingers'],
+  'Great Heal':                 ['Two Fingers'],
+  'Lord\'s Heal':               ['Two Fingers'],
+  'Cure Poison':                ['Two Fingers'],
+  'Lord\'s Aid':                ['Two Fingers'],
+  'Magic Fortification':        ['Two Fingers'],
+  'Flame Fortification':        ['Two Fingers'],
+  'Lightning Fortification':    ['Two Fingers'],
+  'Divine Fortification':       ['Two Fingers'],
+  'Lord\'s Divine Fortification': ['Two Fingers'],
+  'Rejection':                  ['Two Fingers'],
+  'Shadow Bait':                ['Two Fingers'],
+  'Darkness':                   ['Two Fingers'],
+  'Assassin\'s Approach':       ['Two Fingers'],
+};
+
+// ── ERR spell→school mapping (ERR wiki - same ER schools + new ERR spells) ───
+const ERR_SPELL_SCHOOLS = {
+  // All ER schools carry over - ERR spells use same school names
+  // New ERR sorceries
+  'Ancient Tracer':             ['Untyped'],
+  'Blazing Wall':               ['Redmane'],
+  'Blasphemous Spark':          ['Magma'],
+  'Burgeoning Root':            ['Death'],
+  'Carian Verge':               ['Carian'],
+  'Cerulean Sea':               ['Primeval'],
+  'Creeping Rancor':            ['Death'],
+  'Crystal Volley':             ['Crystalian'],
+  'Distant Stars':              ['Cold'],
+  'Duskflare Barrage':          ['Death'],
+  'Eclipsed Blade':             ['Death'],
+  'Eclipsed Sun':               ['Death'],
+  'Electromagnetic Discharge':  ['Gravity'],
+  'False Constellation':        ['Night'],
+  'False Heavens':              ['Night'],
+  'Fist of the Heavens':        ['Redmane'],
+  'Flashfrost Cutter':          ['Carian','Cold'],
+  'Glintblade Hail':            ['Carian'],
+  'Glintblade Trio':            ['Carian'],
+  'Glintstone Snowdrift':       ['Cold'],
+  'Guiding Microcosm':          ['Finger'],
+  'Molten Armament':            ['Magma'],
+  'Moonchill':                  ['Cold'],
+  'Rancor':                     ['Death'],
+  'Raving Rancor':              ['Death'],
+  'Rime Cascade':               ['Cold'],
+  'Rings of Spectral Light':    ['Death'],
+  'Scornful Gaze':              ['Untyped'],
+  'Serpentine Blaze':           ['Magma'],
+  'Silver Attunement':          ['Night'],
+  'Singularity':                ['Gravity'],
+  'Stone Sling':                ['Gravity'],
+  'Transmigration Call':        ['Untyped'],
+  'Unstable Fissure':           ['Magma'],
+  'Volcanic Storm':             ['Magma'],
+  'Warding Microcosm':          ['Finger'],
+  // New ERR incantations
+  'Binding Stake':              ['Golden Order'],
+  'Blessed Aeonia':             ['Servants of Rot'],
+  'Bloodrose Mist':             ['Blood Oath'],
+  'Bolt of Gransax':            ['Dragon Cult'],
+  'Contorting Frenzy':          ['Frenzied Flame'],
+  'Dragonlord\'s Domain':       ['Dragon Communion'],
+  'Dragonrend':                 ['Dragon Communion'],
+  'Frenzyflame Armament':       ['Frenzied Flame'],
+  'Frenzyspore Mist':           ['Frenzied Flame'],
+  'Frozen Dragonbolt':          ['Dragon Cult'],
+  'Frozen Lightning Wisp':      ['Dragon Cult'],
+  'Glyph of Suppression':       ['Frenzied Flame','Golden Order'],
+  'Golden Star':                ['Erdtree'],
+  'Grasp of Eochaid':           ['Untyped'],
+  'Javelin of Gold':            ['Golden Order'],
+  'Kindling Spirit':            ['Erdtree'],
+  'Mark of the Beast':          ['Frenzied Flame','Golden Order'],
+  'Morion\'s Doom':             ['Dragon Communion'],
+  'Ordered Disarray':           ['Frenzied Flame','Golden Order'],
+  'Pledged Blade':              ['Miquellan'],
+  'Poison Bolt':                ['Servants of Rot'],
+  'Poison Moth Flight':         ['Servants of Rot'],
+  'Projection of Gold':         ['Erdtree'],
+  'Putrid Mist':                ['Servants of Rot'],
+  'Retch Gore':                 ['Blood Oath'],
+  'Rotten Armament':            ['Servants of Rot'],
+  'Scarlet Papillon':           ['Servants of Rot'],
+  'Stakes of Gold':             ['Golden Order'],
+};
+
+// Active map - resolved at filter time based on BUILD.game
+// For ERR: merge ER base + ERR overrides/additions
+function getSpellSchools(spellName) {
+  if (BUILD.game === 'err') {
+    return ERR_SPELL_SCHOOLS[spellName] || ER_SPELL_SCHOOLS[spellName] || [];
+  }
+  return ER_SPELL_SCHOOLS[spellName] || [];
+}
+
+// Keeping SPELL_SCHOOLS as alias for legacy references
+const SPELL_SCHOOLS = {
+  'Adula\'s Moonblade':         ['Carian','Cold'],
+  'Ambush Shard':               ['Night'],
+  'Ancient Death Rancor':       ['Death'],
+  'Ancient Tracer':             ['Untyped'],
+  'Blades of Stone':            ['Gravity'],
+  'Blasphemous Spark':          ['Magma'],
+  'Blazing Wall':               ['Redmane'],
+  'Blood Star Slicer':          ['Aberrant'],
+  'Briars of Guilt':            ['Aberrant'],
+  'Briars of Penance':          ['Aberrant'],
+  'Briars of Punishment':       ['Aberrant'],
+  'Briars of Resentment':       ['Aberrant'],
+  'Briars of Sin':              ['Aberrant'],
+  'Burgeoning Root':            ['Death'],
+  'Cannon of Haima':            ['Glintstone'],
+  'Carian Greatsword':          ['Carian'],
+  'Carian Phalanx':             ['Carian'],
+  'Carian Piercer':             ['Carian'],
+  'Carian Retaliation':         ['Carian'],
+  'Carian Slicer':              ['Carian'],
+  'Carian Verge':               ['Carian'],
+  'Cerulean Sea':               ['Primeval'],
+  'Cherishing Fingers':         ['Finger'],
+  'Collapsing Stars':           ['Gravity'],
+  'Comet':                      ['Glintstone'],
+  'Comet Azur':                 ['Primeval'],
+  'Creeping Rancor':            ['Death'],
+  'Crystal Barrage':            ['Glintstone'],
+  'Crystal Burst':              ['Glintstone'],
+  'Crystal Release':            ['Crystalian'],
+  'Crystal Torrent':            ['Crystalian'],
+  'Crystal Volley':             ['Crystalian'],
+  'Distant Stars':              ['Cold'],
+  'Duskflare Barrage':          ['Death'],
+  'Eclipsed Blade':             ['Death'],
+  'Eclipsed Sun':               ['Death'],
+  'Electromagnetic Discharge':  ['Gravity'],
+  'Eternal Darkness':           ['Night'],
+  'Explosive Ghostflame':       ['Death'],
+  'False Constellation':        ['Night'],
+  'False Heavens':              ['Night'],
+  'Fia\'s Mist':                ['Death'],
+  'Fist of the Heavens':        ['Redmane'],
+  'Flashfrost Cutter':          ['Carian','Cold'],
+  'Fleeting Microcosm':         ['Finger'],
+  'Founding Rain of Stars':     ['Primeval'],
+  'Freezing Mist':              ['Cold'],
+  'Frozen Armament':            ['Cold'],
+  'Gavel of Haima':             ['Glintstone'],
+  'Gelmir\'s Fury':             ['Magma'],
+  'Glintblade Hail':            ['Carian'],
+  'Glintblade Phalanx':         ['Carian'],
+  'Glintblade Trio':            ['Carian'],
+  'Glintstone Arc':             ['Glintstone'],
+  'Glintstone Cometshard':      ['Glintstone'],
+  'Glintstone Icecrag':         ['Cold'],
+  'Glintstone Nail':            ['Finger'],
+  'Glintstone Nails':           ['Finger'],
+  'Glintstone Pebble':          ['Glintstone'],
+  'Glintstone Snowdrift':       ['Cold'],
+  'Glintstone Stars':           ['Glintstone'],
+  'Gravitational Missile':      ['Gravity'],
+  'Gravity Well':               ['Gravity'],
+  'Great Glintstone Shard':     ['Glintstone'],
+  'Great Oracular Bubble':      ['Claymen'],
+  'Greatblade Phalanx':         ['Carian'],
+  'Guiding Microcosm':          ['Finger'],
+  'Loretta\'s Greatbow':        ['Carian'],
+  'Loretta\'s Mastery':         ['Carian'],
+  'Lucidity':                   ['Carian'],
+  'Magic Downpour':             ['Carian'],
+  'Magic Glintblade':           ['Carian'],
+  'Magma Shot':                 ['Magma'],
+  'Mantle of Thorns':           ['Thorn'],
+  'Mass of Putrescence':        ['Death'],
+  'Meteorite':                  ['Gravity'],
+  'Meteorite of Astel':         ['Gravity'],
+  'Miriam\'s Vanishing':        ['Carian'],
+  'Molten Armament':            ['Magma'],
+  'Moonchill':                  ['Cold'],
+  'Night Comet':                ['Night'],
+  'Night Maiden\'s Mist':       ['Night'],
+  'Night Shard':                ['Night'],
+  'Oracle Bubbles':             ['Claymen'],
+  'Rancor':                     ['Death'],
+  'Rancorcall':                 ['Death'],
+  'Ranni\'s Dark Moon':         ['Full Moon','Cold'],
+  'Raving Rancor':              ['Death'],
+  'Rellana\'s Twin Moons':      ['Full Moon','Carian'],
+  'Rennala\'s Full Moon':       ['Full Moon','Carian'],
+  'Rime Cascade':               ['Cold'],
+  'Rings of Spectral Light':    ['Death'],
+  'Rock Blaster':               ['Glintstone'],
+  'Rock Sling':                 ['Gravity'],
+  'Roiling Magma':              ['Magma'],
+  'Rykard\'s Rancor':           ['Magma'],
+  'Scholar\'s Armament':        ['Glintstone'],
+  'Scholar\'s Shield':          ['Glintstone'],
+  'Scornful Gaze':              ['Untyped'],
+  'Serpentine Blaze':           ['Magma'],
+  'Shard Spiral':               ['Glintstone'],
+  'Shatter Earth':              ['Glintstone'],
+  'Shattering Crystal':         ['Crystalian'],
+  'Silver Attunement':          ['Night'],
+  'Singularity':                ['Gravity'],
+  'Star Shower':                ['Glintstone'],
+  'Starlight':                  ['Glintstone'],
+  'Stars of Ruin':              ['Primeval'],
+  'Stone Sling':                ['Gravity'],
+  'Swift Glintstone Shard':     ['Glintstone'],
+  'Terra Magica':               ['Glintstone'],
+  'Thops\'s Barrier':           ['Primeval'],
+  'Tibia\'s Summons':           ['Death'],
+  'Transmigration Call':        ['Untyped'],
+  'Unseen Blade':               ['Night'],
+  'Unseen Form':                ['Night'],
+  'Unstable Fissure':           ['Magma'],
+  'Vortex of Putrescence':      ['Death'],
+  'Volcanic Storm':             ['Magma'],
+  'Warding Microcosm':          ['Finger'],
+  'Zamor Ice Storm':            ['Cold'],
+  // ── Incantations ──
+  'Agheel\'s Flame':            ['Dragon Communion'],
+  'Ancient Dragons\' Lightning Spear': ['Dragon Cult'],
+  'Ancient Dragons\' Lightning Strike': ['Dragon Cult'],
+  'Aspect of the Crucible: Breath':  ['Crucible'],
+  'Aspect of the Crucible: Horns':   ['Crucible'],
+  'Aspects of the Crucible: Bloom':  ['Crucible'],
+  'Aspects of the Crucible: Tail':   ['Crucible'],
+  'Aspects of the Crucible: Thorns': ['Crucible'],
+  'Assassin\'s Approach':       ['Two Fingers'],
+  'Barrier of Gold':            ['Erdtree'],
+  'Bayle\'s Flame Lightning':   ['Dragon Communion'],
+  'Bayle\'s Tyranny':           ['Dragon Communion'],
+  'Beast Claw':                 ['Bestial'],
+  'Bestial Constitution':       ['Bestial'],
+  'Bestial Sling':              ['Bestial'],
+  'Bestial Vitality':           ['Bestial'],
+  'Binding Stake':              ['Golden Order'],
+  'Black Blade':                ['Erdtree'],
+  'Black Flame':                ['Godskin'],
+  'Black Flame Blade':          ['Godskin'],
+  'Black Flame Ritual':         ['Godskin'],
+  'Blessed Aeonia':             ['Servants of Rot'],
+  'Blessing\'s Boon':           ['Erdtree'],
+  'Blessing of the Erdtree':    ['Erdtree'],
+  'Blood Oath':                 ['Blood Oath'],
+  'Bloodboon':                  ['Blood Oath'],
+  'Bloodflame Blade':           ['Blood Oath'],
+  'Bloodflame Talons':          ['Blood Oath'],
+  'Bloodrose Mist':             ['Blood Oath'],
+  'Bolt of Gransax':            ['Dragon Cult'],
+  'Bolt of Gransax':            ['Dragon Cult'],
+  'Catch Flame':                ['Giants\' Flame'],
+  'Contorting Frenzy':          ['Frenzied Flame'],
+  'Cure Poison':                ['Two Fingers'],
+  'Darkness':                   ['Two Fingers'],
+  'Discus of Light':            ['Golden Order'],
+  'Divine Fortification':       ['Two Fingers'],
+  'Dragonbolt Blessing':        ['Dragon Cult'],
+  'Dragonfire':                 ['Dragon Communion'],
+  'Dragonice':                  ['Dragon Communion'],
+  'Dragonlord\'s Domain':       ['Dragon Communion'],
+  'Dragonmaw':                  ['Dragon Communion'],
+  'Dragonrend':                 ['Dragon Communion'],
+  'Drake Knight\'s Decree':     ['Dragon Cult'],
+  'Ekzykes\'s Decay':           ['Dragon Communion'],
+  'Elden Stars':                ['Erdtree'],
+  'Electrify Armament':         ['Dragon Cult'],
+  'Electrocharge':              ['Dragon Cult'],
+  'Erdtree Heal':               ['Erdtree'],
+  'Fire\'s Deadly Sin':         ['Giants\' Flame'],
+  'Fire Serpent':               ['Messmer\'s Flame'],
+  'Flame Sling':                ['Giants\' Flame'],
+  'Flame, Cleanse Me':          ['Giants\' Flame'],
+  'Flame, Grant Me Strength':   ['Giants\' Flame'],
+  'Flame, Protect Me':          ['Giants\' Flame'],
+  'Flame of Frenzy':            ['Frenzied Flame'],
+  'Flame of the Fell God':      ['Giants\' Flame'],
+  'Flame, Fall Upon Them':      ['Giants\' Flame'],
+  'Fortissax\'s Lightning Spear': ['Dragon Cult'],
+  'Frenzied Burst':             ['Frenzied Flame'],
+  'Frenzyflame Armament':       ['Frenzied Flame'],
+  'Frenzyspore Mist':           ['Frenzied Flame'],
+  'Frozen Dragonbolt':          ['Dragon Cult'],
+  'Frozen Lightning Spear':     ['Dragon Cult'],
+  'Frozen Lightning Wisp':      ['Dragon Cult'],
+  'Glyph of Suppression':       ['Frenzied Flame','Golden Order'],
+  'Golden Star':                ['Erdtree'],
+  'Golden Vow':                 ['Erdtree'],
+  'Grasp of Eochaid':           ['Untyped'],
+  'Heal':                       ['Two Fingers'],
+  'Heal from Afar':             ['Erdtree'],
+  'Honed Bolt':                 ['Dragon Cult'],
+  'Howl of Shabriri':           ['Frenzied Flame'],
+  'Immutable Shield':           ['Golden Order'],
+  'Inescapable Frenzy':         ['Frenzied Flame'],
+  'Javelin of Gold':            ['Golden Order'],
+  'Kindling Spirit':            ['Erdtree'],
+  'Knight\'s Lightning Spear':  ['Dragon Cult'],
+  'Law of Causality':           ['Golden Order'],
+  'Law of Regression':          ['Golden Order'],
+  'Lightning Spear':            ['Dragon Cult'],
+  'Lightning Strike':           ['Dragon Cult'],
+  'Lord\'s Aid':                ['Two Fingers'],
+  'Lord\'s Divine Fortification': ['Two Fingers'],
+  'Lord\'s Heal':               ['Two Fingers'],
+  'Magma Breath':               ['Dragon Communion'],
+  'Mark of the Beast':          ['Frenzied Flame','Golden Order'],
+  'Midra\'s Flame of Frenzy':   ['Frenzied Flame'],
+  'Minor Erdtree':              ['Erdtree'],
+  'Morion\'s Doom':             ['Dragon Communion'],
+  'O, Flame!':                  ['Giants\' Flame'],
+  'Order Healing':              ['Golden Order'],
+  'Order\'s Blade':             ['Golden Order'],
+  'Ordered Disarray':           ['Frenzied Flame','Golden Order'],
+  'Pest Threads':               ['Servants of Rot'],
+  'Pest-Thread Spears':         ['Servants of Rot'],
+  'Placidusax\'s Ruin':         ['Dragon Communion'],
+  'Pledged Blade':              ['Miquellan'],
+  'Poison Armament':            ['Servants of Rot'],
+  'Poison Bolt':                ['Servants of Rot'],
+  'Poison Mist':                ['Servants of Rot'],
+  'Poison Moth Flight':         ['Servants of Rot'],
+  'Projection of Gold':         ['Erdtree'],
+  'Protection of the Erdtree':  ['Erdtree'],
+  'Putrid Mist':                ['Servants of Rot'],
+  'Rain of Fire':               ['Messmer\'s Flame'],
+  'Rejection':                  ['Two Fingers'],
+  'Retch Gore':                 ['Blood Oath'],
+  'Rotten Breath':              ['Dragon Communion'],
+  'Rotten Armament':            ['Servants of Rot'],
+  'Scarlet Aeonia':             ['Servants of Rot'],
+  'Scarlet Papillon':           ['Servants of Rot'],
+  'Scouring Black Flame':       ['Godskin'],
+  'Shadow Bait':                ['Two Fingers'],
+  'Spiritflame Arrow':          ['Spiral'],
+  'Stakes of Gold':             ['Golden Order'],
+  'Stone of Gurranq':           ['Bestial'],
+  'Surge, O Flame!':            ['Giants\' Flame'],
+  'Theodorix\'s Magma':         ['Dragon Communion'],
+  'Triple Rings of Light':      ['Golden Order'],
+  'Two Fingers Healing':        ['Two Fingers'],
+  'Urgent Heal':                ['Two Fingers'],
+  'Vyke\'s Dragonbolt':         ['Dragon Cult'],
+  'Watchful Spirits':           ['Spiral'],
+};
+
+// ER school lists (canonical, per wiki)
+const ER_SORCERY_SCHOOL_LIST    = ['Carian','Cold','Crystalian','Death','Finger','Full Moon','Glintstone','Gravity','Magma','Night','Oracle','Primeval','Thorn'];
+const ER_INCANTATION_SCHOOL_LIST = ['Bestial','Black Flame','Blood Oath','Dragon Communion','Dragon Cult','Crucible','Erdtree','Frenzied Flame','Giants\' Flame','Golden Order','Messmer\'s Flame','Miquellan','Servants of Rot','Spiral Tower','Two Fingers'];
+
+// ERR adds a few extra schools on top of ER's
+const ERR_SORCERY_SCHOOL_LIST    = [...ER_SORCERY_SCHOOL_LIST,    'Aberrant','Redmane','Untyped'].sort();
+const ERR_INCANTATION_SCHOOL_LIST = [...ER_INCANTATION_SCHOOL_LIST, 'Untyped'].sort();
+
+function getSchoolList(type) {
+  const isErr = BUILD.game === 'err';
+  if (type === 'Sorcery')     return isErr ? ERR_SORCERY_SCHOOL_LIST    : ER_SORCERY_SCHOOL_LIST;
+  if (type === 'Incantation') return isErr ? ERR_INCANTATION_SCHOOL_LIST : ER_INCANTATION_SCHOOL_LIST;
+  return [];
+}
+
+// Keep legacy aliases for renderTypeFilters which uses these
+const SORCERY_SCHOOLS    = ER_SORCERY_SCHOOL_LIST.map(s => ({ label: s }));
+const INCANTATION_SCHOOLS = ER_INCANTATION_SCHOOL_LIST.map(s => ({ label: s }));
+
+function renderTypeFilters() {
+  const wrap = document.getElementById('picker-type-filters');
+  wrap.innerHTML = '';
+
+  if (activePickerTab === 'weapons') {
+    activeTypeFilter = '';
+    WEAPON_TYPES.forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'sl-tag-btn text-[10px] py-0.5 px-1.5';
+      btn.textContent = t;
+      btn.onclick = () => { activeTypeFilter = activeTypeFilter === t ? '' : t; renderPickerResults(); };
+      wrap.appendChild(btn);
+    });
+
+  } else if (activePickerTab === 'spells') {
+    // Row 1: Sorcery / Incantation type toggle
+    ['Sorcery','Incantation'].forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'sl-tag-btn text-[10px] py-0.5 px-1.5' + (activeSpellType === t ? ' active' : '');
+      btn.textContent = t + 's';
+      btn.onclick = () => {
+        activeSpellType  = activeSpellType === t ? '' : t;
+        activeSpellSchool = '';
+        resetPickerSearch();
+        renderTypeFilters();
+        renderPickerResults();
+      };
+      wrap.appendChild(btn);
+    });
+
+    // Row 2: school chips when a type is selected
+    if (activeSpellType) {
+      const schools = getSchoolList(activeSpellType);
+      const row = document.createElement('div');
+      row.className = 'flex flex-wrap gap-1 mt-1 w-full';
+      schools.forEach(school => {
+        const btn = document.createElement('button');
+        btn.className = 'sl-tag-btn text-[10px] py-0.5 px-1.5' + (activeSpellSchool === school ? ' active' : '');
+        btn.textContent = school;
+        btn.onclick = () => {
+          activeSpellSchool = activeSpellSchool === school ? '' : school;
+          resetPickerSearch();
+          renderTypeFilters();
+          renderPickerResults();
+        };
+        row.appendChild(btn);
+      });
+      wrap.appendChild(row);
+    }
+  }
+}
+
+function onPickerSearch() {
+  pickerSearch = document.getElementById('picker-search').value.toLowerCase();
+  if (activePicker?.category === 'spirit_ash') { renderSpiritAshPicker(); return; }
+  if (activePicker?.category === 'tear') { renderTearPicker(); return; }
+  renderPickerResults();
+}
+
+function meetsReq(item) {
+  const s = BUILD.stats;
+  if (!item.requirements) return true;
+  return s.strength   >= (item.requirements.str || 0) &&
+         s.dexterity  >= (item.requirements.dex || 0) &&
+         s.intelligence>= (item.requirements.int || 0) &&
+         s.faith      >= (item.requirements.fai || 0) &&
+         s.arcane     >= (item.requirements.arc || 0);
+}
+
+// Check if an AoW's compatible string includes the equipped weapon type.
+// Uses exact comma-split matching to avoid "Katana" matching "Great Katana".
+function aowCompatible(compatStr, weaponType) {
+  if (!compatStr || compatStr === '') return true;  // no data = show all
+  const lower = compatStr.toLowerCase();
+  if (lower.includes('all_melee') || lower.includes('all melee') || lower.includes('all armaments')) return true;
+  // Split on comma and check each entry as an exact (trimmed) match
+  const entries = compatStr.split(',').map(s => s.trim().toLowerCase());
+  const wt = weaponType.toLowerCase();
+  return entries.some(e => e === wt || e.startsWith(wt + ' ') || e.endsWith(' ' + wt));
+}
+
+function resetPickerSearch() {
+  const el = document.getElementById('picker-search');
+  if (el) { el.value = ''; pickerSearch = ''; }
+}
+
+function renderPickerResults() {
+  const el = document.getElementById('picker-results');
+  let items = [];
+  const q = pickerSearch;
+
+  if (activePickerTab === 'weapons') {
+    items = ALL_WEAPONS.filter(w =>
+      (!q || w.name.toLowerCase().includes(q)) &&
+      (!activeTypeFilter || w.type === activeTypeFilter)
+    ).slice(0, 100);
+
+    // ERR ranged weapon elemental arrow note
+    const rangedTypes = ['Light Bow','Bow','Greatbow','Crossbow','Ballista'];
+    const showRangedNote = BUILD.game === 'err' && activeTypeFilter && rangedTypes.includes(activeTypeFilter);
+    const rangedNote = showRangedNote ? `<div class="mx-2 mb-2 px-2 py-1.5 rounded bg-blue-950/30 border border-blue-800/30 text-[10px] text-blue-300 leading-relaxed">
+      <i class="fas fa-info-circle mr-1 text-blue-400"></i><strong>ERR Elemental Arrows:</strong>
+      Fire arrows scale with STR - Lightning with DEX - Magic/Dwelling with INT - Holy/Golden with FAI - Status buildup with ARC.
+      ${activeTypeFilter === 'Crossbow' ? 'Crossbows have no base damage scaling but elemental bolts scale with INT/FAI/DEX/STR.' : ''}
+    </div>` : '';
+
+    el.innerHTML = rangedNote + items.map(w => {
+      const met = meetsReq(w);
+      const req = w.requirements;
+      // Only flag "stats pending" when the weapon entry is truly empty:
+      // no scaling, no requirements, AND no physical damage (a zero-damage entry = not seeded)
+      const hasScaling = Object.values(w.scaling).some(v => v && v !== '-');
+      const hasReqs    = Object.values(req).some(v => v > 0);
+      const hasDamage  = Object.values(w.damage).some(v => (v || 0) > 0);
+      const hasData    = hasScaling || hasReqs || hasDamage;
+      const reqStr = [
+        req.str  ? `STR ${req.str}`  : '',
+        req.dex  ? `DEX ${req.dex}`  : '',
+        req.int  ? `INT ${req.int}`  : '',
+        req.fai  ? `FAI ${req.fai}`  : '',
+        req.arc  ? `ARC ${req.arc}`  : '',
+      ].filter(Boolean).join(' · ');
+      const scalingBadges = ['str','dex','int','fai','arc']
+        .filter(k => w.scaling[k] && w.scaling[k] !== '-')
+        .map(k => `<span class="sl-scaling-badge scale-${w.scaling[k]}" title="${k.toUpperCase()}">${k.toUpperCase()[0]}:${w.scaling[k]}</span>`)
+        .join('');
+      // Infusable badge - both ER and ERR have unique-skill weapons that can't be infused
+      // is_locked_skill = AoW cannot be swapped (unique skill)
+      // is_infusable = affinity (Heavy/Blood/etc) can be applied
+      const lockedBadge   = w.is_locked_skill ? `<span class="text-[9px] text-gray-500 border border-neutral-700/50 rounded px-1">Locked Skill</span>` : '';
+      const infusableBadge = !w.is_infusable ? `<span class="text-[9px] text-gray-600 border border-neutral-700/40 rounded px-1">No Infuse</span>` : '';
+      const skillLine = w.default_skill
+        ? `<div class="text-[10px] text-amber-700/80 truncate">Skill: ${escapeHtml(w.default_skill)}</div>`
+        : '';
+      return `<div class="sl-item-row ${!met ? 'opacity-60' : ''}" onclick="equipItem('weapon', ${JSON.stringify(w).replace(/"/g,'&quot;')})">
+        <div class="flex-1 min-w-0">
+          <div class="sl-item-name flex items-center gap-1 flex-wrap">
+            ${escapeHtml(w.name)}
+            ${lockedBadge}${infusableBadge}
+          </div>
+          <div class="sl-item-meta flex items-center gap-1 flex-wrap">${escapeHtml(w.type)}
+            ${scalingBadges ? `<span class="flex items-center gap-0.5">${scalingBadges}</span>` : ''}
+            ${!hasData ? `<span class="text-[10px] text-gray-600 italic">DLC - stats pending</span>` : ''}
+          </div>
+          ${skillLine}
+          ${reqStr ? `<div class="sl-item-req ${!met ? 'unmet' : ''}">${reqStr}</div>` : ''}
+        </div>
+        <div class="text-right flex-shrink-0">
+          <div class="sl-item-meta" title="Base physical damage">${w.damage.phy || 0} <span class="text-[9px] text-gray-600">phy</span></div>
+          <div class="text-[10px] text-gray-600">${w.weight > 0 ? w.weight + ' wt' : ''}</div>
+        </div>
+      </div>`;
+    }).join('') || '<div class="text-gray-600 text-xs text-center py-4">No weapons found</div>';
+
+  } else if (activePickerTab === 'spells') {
+    items = ALL_SPELLS.filter(sp => {
+      if (q && !sp.name.toLowerCase().includes(q)) return false;
+      if (activeSpellType && sp.type !== activeSpellType) return false;
+      if (activeSpellSchool) {
+        if (!getSpellSchools(sp.name).includes(activeSpellSchool)) return false;
+      }
+      return true;
+    }).slice(0, 150);
+
+    el.innerHTML = items.map(sp => {
+      const met = BUILD.stats.intelligence >= (sp.requirements.int||0) &&
+                  BUILD.stats.faith       >= (sp.requirements.fai||0) &&
+                  BUILD.stats.arcane      >= (sp.requirements.arc||0);
+      const reqParts = [];
+      if (sp.requirements.int) reqParts.push(`INT ${sp.requirements.int}`);
+      if (sp.requirements.fai) reqParts.push(`FAI ${sp.requirements.fai}`);
+      if (sp.requirements.arc) reqParts.push(`ARC ${sp.requirements.arc}`);
+      return `<div class="sl-item-row ${!met ? 'opacity-60' : ''}" onclick="equipSpell(${JSON.stringify(sp).replace(/"/g,'&quot;')})">
+        <div class="flex-1">
+          <div class="sl-item-name">${escapeHtml(sp.name)}</div>
+          <div class="sl-item-meta">${escapeHtml(sp.type)} · FP ${sp.fp_cost} · ${sp.slots} slot${sp.slots!==1?'s':''}${reqParts.length ? ' · ' + reqParts.join(' ') : ''}</div>
+        </div>
+      </div>`;
+    }).join('') || '<div class="text-gray-600 text-xs text-center py-4">No spells found</div>';
+
+  } else if (activePickerTab === 'armor') {
+    const slotType = activePicker?.slot || '';
+
+    // Weight class filter chips
+    const wrap = document.getElementById('picker-type-filters');
+    if (wrap && !wrap.querySelector('.armor-wt-filter')) {
+      [['', 'All'], ['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy']].forEach(([val, label]) => {
+        const btn = document.createElement('button');
+        btn.className = 'sl-tag-btn text-[10px] py-0.5 px-1.5 armor-wt-filter' + (activeArmorWeightFilter === val ? ' active' : '');
+        btn.textContent = label;
+        btn.onclick = () => { activeArmorWeightFilter = val; resetPickerSearch(); renderPickerResults(); };
+        wrap.appendChild(btn);
+      });
+    }
+
+    // Weight thresholds per slot type - based on actual ER armor weight distribution
+    const WT_LIGHT  = { helm: 3.5, chest: 7.0,  gauntlet: 2.5, leg: 4.0 };
+    const WT_HEAVY  = { helm: 7.0, chest: 14.0, gauntlet: 5.0, leg: 8.0 };
+    const slot4 = slotType || 'chest';
+
+    items = ALL_ARMOR.filter(a => {
+      if (q && !a.name.toLowerCase().includes(q)) return false;
+      if (slotType && a.type !== slotType) return false;
+      if (activeArmorWeightFilter) {
+        const wt = a.weight || 0;
+        const lightMax  = WT_LIGHT[a.type] || WT_LIGHT[slot4];
+        const heavyMin  = WT_HEAVY[a.type] || WT_HEAVY[slot4];
+        if (activeArmorWeightFilter === 'light'  && wt >= lightMax) return false;
+        if (activeArmorWeightFilter === 'medium' && (wt < lightMax || wt >= heavyMin)) return false;
+        if (activeArmorWeightFilter === 'heavy'  && wt < heavyMin) return false;
+      }
+      return true;
+    }).sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name)).slice(0, 150);
+
+    el.innerHTML = items.map(a => `
+      <div class="sl-item-row" onclick="equipItem('armor', ${JSON.stringify(a).replace(/"/g,'&quot;')})">
+        <div class="flex-1">
+          <div class="sl-item-name">${escapeHtml(a.name)}</div>
+          <div class="sl-item-meta flex gap-2">
+            ${a.poise > 0 ? `<span>Poise ${a.poise}</span>` : ''}
+            ${a.defense.phy > 0 ? `<span class="text-gray-600">Phy ${a.defense.phy}</span>` : ''}
+          </div>
+        </div>
+        <div class="text-right flex-shrink-0 text-[10px] text-gray-500 ml-2">${a.weight > 0 ? a.weight + ' wt' : ''}</div>
+      </div>`).join('') || '<div class="text-gray-600 text-xs text-center py-4">No armor found</div>';
+
+  } else if (activePickerTab === 'talismans') {
+    items = ALL_TALISMANS.filter(t => !q || t.name.toLowerCase().includes(q)).slice(0, 100);
+    el.innerHTML = items.map(t => `
+      <div class="sl-item-row" onclick="equipItem('talisman', ${JSON.stringify(t).replace(/"/g,'&quot;')})">
+        <div class="flex-1">
+          <div class="sl-item-name">${escapeHtml(t.name)}</div>
+          <div class="text-[10px] text-gray-400 mt-0.5 leading-relaxed">${escapeHtml(t.effect || '')}</div>
+        </div>
+        <div class="text-[10px] text-gray-600 flex-shrink-0">${t.weight > 0 ? t.weight + ' wt' : ''}</div>
+      </div>`).join('') || '<div class="text-gray-600 text-xs text-center py-4">No talismans found</div>';
+
+  } else if (activePickerTab === 'aow') {
+    const weaponSlot = activePicker?.slot;
+    const equippedWeapon = BUILD.slots[weaponSlot];
+    const weaponType = equippedWeapon?.type || '';
+
+    items = ALL_AOW.filter(a => {
+      if (q && !a.name.toLowerCase().includes(q)) return false;
+      if (weaponType && a.compatible && a.compatible !== '') {
+        if (!aowCompatible(a.compatible, weaponType)) return false;
+      }
+      return true;
+    }).slice(0, 150);
+
+    const compatNote = weaponType
+      ? `<div class="px-2 pb-1 text-[10px] text-gray-600">Showing AoW compatible with <span class="text-gray-400">${escapeHtml(weaponType)}</span></div>`
+      : '';
+
+    el.innerHTML = compatNote + (items.map(a => {
+      // ERR: show armaments line; ER: show affinity
+      const meta = BUILD.game === 'err'
+        ? `${escapeHtml(a.affinity || '-')} · FP ${a.fp_cost > 0 ? a.fp_cost : '-'}`
+        : `${escapeHtml(a.affinity || 'Standard')} · FP ${a.fp_cost > 0 ? a.fp_cost : '-'}`;
+      return `<div class="sl-item-row" onclick="equipAow(${JSON.stringify(a).replace(/"/g,'&quot;')})">
+        <div class="flex-1">
+          <div class="sl-item-name">${escapeHtml(a.name)}</div>
+          <div class="sl-item-meta">${meta}</div>
+        </div>
+      </div>`;
+    }).join('') || '<div class="text-gray-600 text-xs text-center py-4">No compatible AoW found</div>');
+
+  } else if (activePickerTab === 'curios') {
+    // Curios are managed in the Curios panel in the center column (not picker slots).
+    // This tab is a reference view with acquisition info.
+    items = ALL_CURIOS.filter(c => !q || c.name.toLowerCase().includes(q));
+    el.innerHTML = `<div class="text-[11px] text-amber-700/80 px-3 py-2 border-b border-white/5">
+        Manage active/sealed state in the Curios panel below. Use this tab to find acquisition locations.
+      </div>` + items.map(c => `
+      <div class="sl-item-row" style="cursor:default; display:block; padding:8px">
+        <div class="sl-item-name mb-0.5">${escapeHtml(c.name)}</div>
+        <div class="sl-item-meta">${escapeHtml(c.trigger)}</div>
+        ${c.acquisition ? `<div class="text-[10px] text-amber-800 mt-1.5">${escapeHtml(c.acquisition)}</div>` : ''}
+      </div>`).join('') || '<div class="text-gray-600 text-xs text-center py-4">No Curios found</div>';
+
+  } else if (activePickerTab === 'runeforging') {
+    // Runeforging: Binding Runes held in inventory, effect scales per copy held.
+    // Each rune forged = +1 copy (max 4 for Grafted, 10 for others, 100 for Ascended).
+    // Click "+ Add" to add a copy to your build inventory.
+    items = ALL_RUNEFORGING.filter(c => !q || c.category.toLowerCase().includes(q) ||
+      (c.binding_runes || []).some(r => r.name.toLowerCase().includes(q)));
+    el.innerHTML = items.map(c => {
+      const runes = (c.binding_runes || []).filter(r => !q || r.name.toLowerCase().includes(q));
+      if (!runes.length) return '';
+      return `<div style="display:block; padding:6px 8px 4px">
+        <div class="text-[10px] text-amber-700 font-bold uppercase tracking-wider mb-1">${escapeHtml(c.category)}
+          <span class="text-gray-600 font-normal normal-case">&nbsp;·&nbsp;${c.cost_pieces || '?'} pieces/forge, max ${c.max_forges || '?'}</span>
+        </div>
+        ${runes.map(r => {
+          const rJson = JSON.stringify({name: r.name, category: c.category, effect: r.effect, max_forge_level: c.max_forges}).replace(/"/g,'&quot;');
+          const current = BUILD.runeInventory.find(i => i.name === r.name);
+          const copies = current ? current.copies : 0;
+          return `<div class="flex items-start gap-2 py-1 border-t border-white/5">
+            <div class="flex-1 min-w-0">
+              <div class="text-xs text-gray-200">${escapeHtml(r.name)}</div>
+              <div class="text-[10px] text-gray-500">${escapeHtml(r.effect)}</div>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              ${copies > 0 ? `<span class="text-[10px] text-amber-500">${copies}/${c.max_forges || 10}</span>` : ''}
+              <button onclick='addRune(JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify({name: r.name, category: c.category, effect: r.effect, max_forge_level: c.max_forges}))}")))'
+                class="text-[10px] text-amber-600 hover:text-amber-400 border border-amber-800/40 rounded px-1.5 py-0.5 transition">+</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('') || '<div class="text-gray-600 text-xs text-center py-4">No runes found</div>';
+
+  } else if (activePickerTab === 'affinities') {
+    renderAffinityPicker();
+    return;
+  }
+}
+
+// ── ERR: Curios ───────────────────────────────────────────────────────────────
+// There are exactly 9 Shadowed Curios. Each is either sealed (inactive) or
+// unsealed (active) with one of 3 chosen effects. They are NOT equip slots -
+// you find them in the world and can seal/unseal any of them at any Site of Grace.
+// BUILD.curioSelections = { 'Academy': { active: true, effectIndex: 0 }, ... }
+BUILD.curioSelections = BUILD.curioSelections || {};
+
+function renderCurioPanel() {
+  const el = document.getElementById('curio-panel-list');
+  if (!el || !ALL_CURIOS.length) return;
+  el.innerHTML = ALL_CURIOS.map(c => {
+    const sel = BUILD.curioSelections[c.name] || { active: false, effectIndex: 0, collapsed: true };
+    const collapsed = sel.collapsed !== false;  // undefined or true = collapsed, false = expanded
+    const safeName = encodeURIComponent(c.name);
+    return `<div class="rounded-lg border ${sel.active ? 'border-amber-700/40 bg-amber-950/10' : 'border-neutral-700/30 bg-neutral-900/30'} mb-1 overflow-hidden">
+      <div class="flex items-center justify-between px-2 py-1.5 cursor-pointer select-none" onclick="collapseCurio('${escapeHtml(c.name)}')">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-chevron-${collapsed ? 'right' : 'down'} text-[9px] text-gray-600"></i>
+          <span class="text-xs font-bold ${sel.active ? 'text-amber-400' : 'text-gray-200'}">${escapeHtml(c.name)}</span>
+          ${sel.active ? '<span class="text-[9px] text-amber-500 uppercase tracking-wider">Unsealed</span>' : ''}
+        </div>
+        <button onclick="event.stopPropagation(); toggleCurio('${escapeHtml(c.name)}')"
+          class="text-[10px] px-2 py-0.5 rounded transition border ${sel.active
+            ? 'border-amber-700/60 text-amber-500 hover:bg-red-900/20 hover:text-red-400 hover:border-red-700/40'
+            : 'border-neutral-600 text-gray-500 hover:border-amber-700/40 hover:text-amber-400'}">
+          ${sel.active ? 'Seal' : 'Unseal'}
+        </button>
+      </div>
+      ${collapsed ? '' : `
+      <div class="px-2 pb-2 border-t border-white/5">
+        <div class="text-[10px] text-gray-500 mt-1.5 mb-1">${escapeHtml(c.trigger)}</div>
+        ${c.effects.map((e, idx) => `
+          <div class="flex items-start gap-1.5 py-1 border-t border-white/5 cursor-pointer ${sel.effectIndex === idx ? 'opacity-100' : 'opacity-40'}"
+               onclick="selectCurioEffect('${escapeHtml(c.name)}', ${idx})">
+            <div class="mt-0.5 w-3 h-3 rounded-full border flex-shrink-0 flex items-center justify-center ${sel.effectIndex === idx ? 'border-amber-500 bg-amber-500/20' : 'border-neutral-600'}">
+              ${sel.effectIndex === idx ? '<div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div>' : ''}
+            </div>
+            <div class="text-[10px] text-gray-400 leading-relaxed">${escapeHtml(e.replace(/^[^:]+:\s*/, ''))}</div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
+  }).join('');
+}
+
+function collapseCurio(curioName) {
+  if (!BUILD.curioSelections[curioName]) {
+    BUILD.curioSelections[curioName] = { active: false, effectIndex: 0, collapsed: true };
+  }
+  const sel = BUILD.curioSelections[curioName];
+  // collapsed defaults to true (undefined = collapsed), toggle it
+  sel.collapsed = sel.collapsed === false ? true : false;
+  renderCurioPanel();
+}
+
+function toggleCurio(curioName) {
+  if (!BUILD.curioSelections[curioName]) {
+    BUILD.curioSelections[curioName] = { active: false, effectIndex: 0 };
+  }
+  const isActive = BUILD.curioSelections[curioName].active;
+  if (!isActive) {
+    // Unsealing this one - seal all others first (only ONE can be unsealed at a time)
+    Object.keys(BUILD.curioSelections).forEach(k => {
+      BUILD.curioSelections[k].active = false;
+    });
+  }
+  BUILD.curioSelections[curioName].active = !isActive;
+  renderCurioPanel();
+}
+
+function selectCurioEffect(curioName, effectIndex) {
+  if (!BUILD.curioSelections[curioName]) {
+    BUILD.curioSelections[curioName] = { active: false, effectIndex: 0 };
+  }
+  BUILD.curioSelections[curioName].effectIndex = effectIndex;
+  // Choosing an effect unseals this Curio and seals all others
+  Object.keys(BUILD.curioSelections).forEach(k => {
+    BUILD.curioSelections[k].active = false;
+  });
+  BUILD.curioSelections[curioName].active = true;
+  renderCurioPanel();
+}
+
+// ── ERR: Runeforging ──────────────────────────────────────────────────────────
+// Binding Runes are HELD IN INVENTORY (not equipped to a slot). Each rune can be
+// forged up to a max number of copies. The effect SCALES per copy held.
+// e.g. "Grafted Vigor: +1 per copy, max 4 copies = +4 Vigor total"
+// BUILD.runeInventory = [{ name, category, effect, copies, max_copies }, ...]
+BUILD.runeInventory = BUILD.runeInventory || [];
+
+function openRunePicker() {
+  if (BUILD.game !== 'err') return;
+  activePicker = { category: 'rune', slot: 'inventory' };
+  document.getElementById('picker-title').textContent = 'Add a Binding Rune';
+  document.getElementById('picker-close').classList.remove('hidden');
+  switchPickerTab('runeforging');
+}
+
+function addRune(rune) {
+  const existing = BUILD.runeInventory.findIndex(r => r.name === rune.name);
+  if (existing >= 0) {
+    // Already have this rune - just increment copies if below max
+    const max = rune.max_forge_level || 10;
+    if (BUILD.runeInventory[existing].copies < max) {
+      BUILD.runeInventory[existing].copies++;
+    }
+  } else {
+    BUILD.runeInventory.push({
+      name: rune.name, category: rune.category || '',
+      effect: rune.effect || '', copies: 1,
+      max_copies: rune.max_forge_level || 10,
+    });
+  }
+  renderRuneInventory();
+}
+
+function removeRune(index) {
+  BUILD.runeInventory.splice(index, 1);
+  renderRuneInventory();
+}
+
+function adjustRune(index, delta) {
+  const r = BUILD.runeInventory[index];
+  if (!r) return;
+  const newVal = r.copies + delta;
+  if (newVal < 1) { removeRune(index); return; }
+  if (newVal > r.max_copies) return;
+  r.copies = newVal;
+  renderRuneInventory();
+}
+
+// Stat name map: rune effect text keyword -> BUILD.stats key
+const RUNE_STAT_MAP = {
+  'vigor': 'vigor', 'mind': 'mind', 'endurance': 'endurance',
+  'strength': 'strength', 'dexterity': 'dexterity', 'intelligence': 'intelligence',
+  'faith': 'faith', 'arcane': 'arcane',
+};
+
+// Parse "+N Vigor" pattern from rune effect text (handles "+1 (+4) Vigor" format)
+function parseRuneStatBonus(effect) {
+  // Matches: "+1 (+4) Vigor" -> per-copy bonus = 1, stat = vigor
+  const m = effect.match(/\+(\d+)\s+(?:\([^)]+\)\s+)?(\w+)\s*$/i);
+  if (!m) return null;
+  const stat = RUNE_STAT_MAP[m[2].toLowerCase()];
+  if (!stat) return null;
+  return { stat, perCopy: parseInt(m[1]) };
+}
+
+function calcRuneStatBonuses() {
+  // Returns {vigor: N, mind: N, ...} total bonuses from all held runes
+  const bonuses = {};
+  for (const r of BUILD.runeInventory) {
+    const parsed = parseRuneStatBonus(r.effect || '');
+    if (parsed) {
+      bonuses[parsed.stat] = (bonuses[parsed.stat] || 0) + parsed.perCopy * r.copies;
+    }
+  }
+  return bonuses;
+}
+
+function renderRuneInventory() {
+  const el = document.getElementById('runeforging-slots');
+  if (!el) return;
+  if (!BUILD.runeInventory.length) {
+    el.innerHTML = '<div class="text-xs text-gray-600 text-center py-2">No Binding Runes in inventory</div>';
+  } else {
+    el.innerHTML = BUILD.runeInventory.map((r, i) => `
+      <div class="flex items-center gap-2 px-2 py-1 rounded bg-neutral-800/50 text-xs">
+        <div class="flex-1 min-w-0">
+          <div class="text-gray-200 truncate">${escapeHtml(r.name)}</div>
+          <div class="text-[10px] text-gray-500">${escapeHtml(r.effect)}</div>
+        </div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <button onclick="adjustRune(${i},-1)" class="w-5 h-5 rounded bg-neutral-700 hover:bg-neutral-600 text-center leading-5">-</button>
+          <span class="text-amber-500 font-bold w-8 text-center">${r.copies}/${r.max_copies}</span>
+          <button onclick="adjustRune(${i},1)" class="w-5 h-5 rounded bg-neutral-700 hover:bg-neutral-600 text-center leading-5">+</button>
+          <button onclick="removeRune(${i})" class="text-gray-600 hover:text-red-400 text-[10px] ml-1"><i class="fas fa-times"></i></button>
+        </div>
+      </div>`).join('');
+  }
+  // Update stat bars to reflect rune bonuses on top of class/manual stats
+  updateAllStatBars();
+  updateDerivedStats();
+}
+
+// ── ERR: Weapon Affinities ────────────────────────────────────────────────────
+let activeAffinitySlot = null;
+
+function openAffinityPicker(weaponSlot) {
+  const weapon = BUILD.slots[weaponSlot];
+  if (!weapon) return;
+  if (weapon.is_infusable === false) return;  // unique skill weapon - affinity row is hidden
+  activeAffinitySlot = weaponSlot;
+  activePicker = { category: 'affinity', slot: weaponSlot };
+  document.getElementById('picker-title').textContent = 'Select Affinity for ' + (weapon.name || 'weapon');
+  document.getElementById('picker-close').classList.remove('hidden');
+  switchPickerTab('affinities');
+  renderAffinityPicker();
+  if (window.innerWidth < 1024) switchMobileCol('summary');
+}
+
+function equipAffinity(affinity) {
+  const slot = activeAffinitySlot;
+  if (!slot || !BUILD.slots[slot]) return;
+  BUILD.slots[slot].equippedAffinity = affinity.name;
+  const nameEl = document.getElementById('affinity-' + slot + '-name');
+  if (nameEl) nameEl.textContent = affinity.name;
+  updateWeaponAR(slot);
+  updateARSummary();
+  renderAffinityPicker();  // refresh active highlight
+}
+
+function resetAffinity() {
+  const slot = activeAffinitySlot;
+  if (!slot || !BUILD.slots[slot]) return;
+  BUILD.slots[slot].equippedAffinity = 'Standard';
+  const nameEl = document.getElementById('affinity-' + slot + '-name');
+  if (nameEl) nameEl.textContent = 'Standard';
+  updateWeaponAR(slot);
+  updateARSummary();
+  renderAffinityPicker();
+}
+
+function renderAffinityPicker() {
+  const el = document.getElementById('picker-results');
+  if (!el || activePickerTab !== 'affinities') return;
+  const q = (document.getElementById('picker-search')?.value || '').toLowerCase().trim();
+  const hasSlot = activeAffinitySlot && BUILD.slots[activeAffinitySlot];
+  const current = hasSlot ? (BUILD.slots[activeAffinitySlot].equippedAffinity || 'Standard') : '';
+
+  if (!hasSlot) {
+    el.innerHTML = '<div class="text-gray-600 text-xs text-center py-4">Select a weapon slot first</div>';
+    return;
+  }
+
+  el.innerHTML = '<div class="text-gray-500 text-xs text-center py-4">Loading affinities...</div>';
+
+  // Fetch which affinities this specific weapon supports from AR data (regulation.bin source of truth)
+  fetchWeaponArVariants(BUILD.slots[activeAffinitySlot].name).then(variants => {
+    const availableNames = new Set(variants.map(v => v.affinity).filter(a => a !== 'Standard' || variants.length === 1));
+    // Always include Standard
+    availableNames.add('Standard');
+
+    // Build affinity lookup from ALL_AFFINITIES for descriptions
+    const affinityInfo = {};
+    ALL_AFFINITIES.forEach(a => { affinityInfo[a.name] = a; });
+
+    // Filter to only affinities this weapon supports, then apply search
+    const items = [...availableNames]
+      .filter(name => !q || name.toLowerCase().includes(q))
+      .sort((a, b) => a === 'Standard' ? -1 : b === 'Standard' ? 1 : a.localeCompare(b));
+
+    const resetBtn = current !== 'Standard'
+      ? `<div class="px-2 pb-1">
+          <button onclick="resetAffinity()" class="w-full text-xs text-purple-400 hover:text-purple-300 border border-dashed border-purple-800/40 hover:border-purple-600/60 rounded py-1.5 transition">
+            <i class="fas fa-undo mr-1"></i>Reset to Standard
+          </button>
+         </div>`
+      : '';
+
+    const weaponAffCount = availableNames.size;
+    const countNote = `<div class="px-2 pb-1 text-[10px] text-gray-600">${weaponAffCount - 1} affinity option${weaponAffCount !== 2 ? 's' : ''} available for this weapon</div>`;
+
+    el.innerHTML = resetBtn + countNote + (items.map(name => {
+      const a = affinityInfo[name] || { name, whetblade: '-', scaling_stat: '-', effect: '', is_new: false };
+      const isActive = name === current;
+      return `<div class="sl-item-row ${isActive ? 'border border-purple-700/50 bg-purple-950/20' : ''}"
+        onclick="equipAffinity(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(a))}')))">
+        <div class="flex-1">
+          <div class="sl-item-name flex items-center gap-1">
+            ${escapeHtml(name)}
+            ${a.is_new ? '<span class="text-[9px] text-amber-500 uppercase">New</span>' : ''}
+            ${isActive ? '<span class="text-[9px] text-purple-400">Active</span>' : ''}
+          </div>
+          <div class="sl-item-meta">${escapeHtml(a.whetblade || '-')} whetblade${a.scaling_stat ? ' - ' + escapeHtml(a.scaling_stat) : ''}</div>
+          ${a.effect ? `<div class="text-[10px] text-gray-500 mt-0.5 leading-relaxed">${escapeHtml(a.effect)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('') || '<div class="text-gray-600 text-xs text-center py-4">No affinities available</div>');
+  });
+}
+
+// ── ERR: Show/hide ERR-only panels ────────────────────────────────────────────
+function switchErrTab(tab) {
+  switchEquipTab(tab);  // alias - ERR tabs are now equip tabs
+}
+
+function toggleErrPanels(isErr) {
+  // Show/hide ERR-only tabs in the center equipment panel
+  ['curios','runes'].forEach(t => {
+    document.getElementById('equip-tab-' + t)?.classList.toggle('hidden', !isErr);
+  });
+  // If switching away from ERR and current tab is curios/runes, go back to armament
+  if (!isErr) {
+    const active = document.querySelector('#equip-tab-curios.active, #equip-tab-runes.active');
+    if (active) switchEquipTab('armament');
+  }
+  // Show affinity rows on all weapon slots if ERR and weapon is equipped
+  ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
+    const row = document.getElementById('affinity-row-' + slot);
+    if (!row) return;
+    row.classList.toggle('hidden', !isErr || !BUILD.slots[slot]);
+  });
+}
+
+// ── Equipping ────────────────────────────────────────────────────────────────
+// Slot → expected category mapping - enforces type safety
+const SLOT_CATEGORY = {
+  rh1: 'weapon', rh2: 'weapon', rh3: 'weapon',
+  lh1: 'weapon', lh2: 'weapon', lh3: 'weapon',
+  helm: 'armor', chest: 'armor', gauntlet: 'armor', leg: 'armor',
+  talisman1: 'talisman', talisman2: 'talisman', talisman3: 'talisman', talisman4: 'talisman',
+};
+
+function equipItem(category, item) {
+  const slot = activePicker?.slot;
+  if (!slot) return;
+
+  // Enforce slot/category match - silently ignore wrong type
+  const expectedCategory = SLOT_CATEGORY[slot];
+  if (expectedCategory && expectedCategory !== category) return;
+
+  BUILD.slots[slot] = item;
+  const nameEl   = document.getElementById('slot-' + slot + '-name');
+  const slotEl   = document.getElementById('slot-' + slot);
+  const clearBtn = document.getElementById('clear-' + slot);
+  if (nameEl)   { nameEl.textContent = item.name; nameEl.className = 'sl-slot-item truncate'; }
+  if (slotEl)   slotEl.classList.add('filled');
+  if (clearBtn) clearBtn.style.display = '';
+
+  // Show AoW sub-row when a weapon is equipped (not on somber weapons by default)
+  if (category === 'weapon') {
+    const aowRow    = document.getElementById('aow-row-' + slot);
+    const aowName   = document.getElementById('aow-' + slot + '-name');
+    const clearAow  = document.getElementById('clear-aow-' + slot);
+    const affinityRow = document.getElementById('affinity-row-' + slot);
+    const affinityName = document.getElementById('affinity-' + slot + '-name');
+
+    const isLockedSkill = item.is_locked_skill === true;  // AoW cannot be swapped
+    const isInfusable   = item.is_infusable !== false;    // affinity can be changed
+    const defaultSkillLabel = item.default_skill || 'No Skill';
+
+    // AoW row: always show when weapon equipped
+    if (aowRow) {
+      aowRow.classList.remove('hidden');
+      item.equippedAow = null;  // reset to default on weapon equip
+
+      if (isLockedSkill) {
+        // Unique/locked skill - show greyed, not clickable, no clear
+        aowRow.onclick = null;
+        aowRow.style.cursor = 'default';
+        aowRow.style.opacity = '0.65';
+        if (aowName) { aowName.textContent = defaultSkillLabel; aowName.style.color = '#9ca3af'; }
+        if (clearAow) clearAow.style.display = 'none';
+      } else {
+        // Swappable - show default skill in amber, clickable
+        aowRow.onclick = () => openAowPicker(slot);
+        aowRow.style.cursor = '';
+        aowRow.style.opacity = '';
+        if (aowName) { aowName.textContent = defaultSkillLabel; aowName.style.color = '#d97706'; }
+        if (clearAow) clearAow.style.display = 'none';  // hidden until custom AoW equipped
+      }
+    }
+
+    // Affinity row: show for ANY infusable weapon in both ER and ERR
+    if (affinityRow) {
+      if (isInfusable) {
+        affinityRow.classList.remove('hidden');
+        item.equippedAffinity = 'Standard';
+        if (affinityName) { affinityName.textContent = 'Standard'; affinityName.style.color = ''; }
+      } else {
+        // Unique skill weapon - hide affinity row
+        affinityRow.classList.add('hidden');
+      }
+    }
+
+    updateWeaponAR(slot);
+    updateARSummary();
+  }
+
+  updateEquipLoad();
+  updatePoise();
+}
+
+// ── AoW equipping ─────────────────────────────────────────────────────────────
+function openAowPicker(weaponSlot) {
+  if (!BUILD.slots[weaponSlot]) return;
+  activePicker = { category: 'aow', slot: weaponSlot };
+  document.getElementById('picker-close')?.classList.remove('hidden');
+  document.getElementById('tab-aow')?.classList.remove('hidden');
+  switchPickerTab('aow');
+  document.getElementById('picker-search').value = '';
+  pickerSearch = '';
+  renderPickerResults();
+  if (window.innerWidth < 1024) switchMobileCol('summary');
+}
+
+function equipAow(aow) {
+  const slot = activePicker?.slot;
+  if (!slot || activePicker?.category !== 'aow') return;
+  BUILD.aow[slot] = aow;
+  if (BUILD.slots[slot]) BUILD.slots[slot].equippedAow = aow.name;
+  const nameEl   = document.getElementById('aow-' + slot + '-name');
+  const clearBtn = document.getElementById('clear-aow-' + slot);
+  if (nameEl) { nameEl.textContent = aow.name; nameEl.style.color = '#fbbf24'; }  // amber-400 = custom AoW
+  if (clearBtn) clearBtn.style.display = '';  // show clear so they can revert to default
+  document.getElementById('tab-aow')?.classList.add('hidden');
+  closePicker();
+}
+
+function clearAow(weaponSlot) {
+  BUILD.aow[weaponSlot] = null;
+  const weapon = BUILD.slots[weaponSlot];
+  if (weapon) weapon.equippedAow = null;
+  const nameEl   = document.getElementById('aow-' + weaponSlot + '-name');
+  const clearBtn = document.getElementById('clear-aow-' + weaponSlot);
+  // Revert to weapon's default skill
+  const defaultSkill = weapon?.default_skill || 'No Skill';
+  if (nameEl) { nameEl.textContent = defaultSkill; nameEl.style.color = '#d97706'; }  // amber-600 = default
+  if (clearBtn) clearBtn.style.display = 'none';
+}
+
+function updatePoise() {
+  let poise = 0;
+  ['helm','chest','gauntlet','leg'].forEach(slot => {
+    if (BUILD.slots[slot]) poise += BUILD.slots[slot].poise || 0;
+  });
+  const el = document.getElementById('total-poise');
+  if (el) el.textContent = poise.toFixed(1);
+}
+
+function equipSpell(spell) {
+  if (BUILD.spells.find(s => s.id === spell.id)) return; // already equipped
+  BUILD.spells.push(spell);
+  renderEquippedSpells();
+}
+
+function removeSpell(id) {
+  BUILD.spells = BUILD.spells.filter(s => s.id !== id);
+  renderEquippedSpells();
+}
+
+function renderEquippedSpells() {
+  const el = document.getElementById('equipped-spells');
+  const usedSlots = BUILD.spells.reduce((a, s) => a + (s.slots || 1), 0);
+  const totalSlots = 10; // TODO: derive from memory stones
+  document.getElementById('spell-slots-used').textContent = usedSlots;
+  document.getElementById('spell-slots-total').textContent = totalSlots;
+
+  if (!BUILD.spells.length) {
+    el.innerHTML = '<div class="text-gray-600 text-xs text-center py-3">No spells equipped</div>';
+    return;
+  }
+  el.innerHTML = BUILD.spells.map(s => `
+    <div class="flex items-center gap-2 px-1 py-1 rounded hover:bg-white/5 group">
+      <div class="flex-1">
+        <div class="text-xs text-gray-200">${escapeHtml(s.name)}</div>
+        <div class="text-[10px] text-gray-500">${s.fp_cost} FP · ${s.slots} slot${s.slots!==1?'s':''}</div>
+      </div>
+      <button onclick="removeSpell(${s.id})" class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition text-xs">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>`).join('');
+}
+
+// ── Playstyle tags ────────────────────────────────────────────────────────────
+function setTag(tag) {
+  BUILD.playstyle_tag = tag;
+  document.querySelectorAll('#playstyle-tags .sl-tag-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tag === tag);
+  });
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+{% if web_user %}
+function saveBuild() {
+  const name = document.getElementById('build-name').value.trim() || 'Untitled Build';
+  const payload = {
+    name,
+    description: document.getElementById('build-description').value.trim(),
+    class_id: BUILD.class_id,
+    ...BUILD.stats,
+    total_level: parseInt(document.getElementById('total-level').textContent) || 1,
+    rh1_weapon_id: BUILD.slots.rh1?.id || null, rh1_aow_name: BUILD.aow.rh1?.name || null,
+    rh2_weapon_id: BUILD.slots.rh2?.id || null, rh2_aow_name: BUILD.aow.rh2?.name || null,
+    rh3_weapon_id: BUILD.slots.rh3?.id || null, rh3_aow_name: BUILD.aow.rh3?.name || null,
+    lh1_weapon_id: BUILD.slots.lh1?.id || null, lh1_aow_name: BUILD.aow.lh1?.name || null,
+    lh2_weapon_id: BUILD.slots.lh2?.id || null, lh2_aow_name: BUILD.aow.lh2?.name || null,
+    lh3_weapon_id: BUILD.slots.lh3?.id || null, lh3_aow_name: BUILD.aow.lh3?.name || null,
+    shield_id:           BUILD.slots.shield?.id    || null,
+    helm_id:             BUILD.slots.helm?.id      || null,
+    chest_id:            BUILD.slots.chest?.id     || null,
+    gauntlet_id:         BUILD.slots.gauntlet?.id  || null,
+    leg_id:              BUILD.slots.leg?.id       || null,
+    talisman_1_id:       BUILD.slots.talisman1?.id || null,
+    talisman_2_id:       BUILD.slots.talisman2?.id || null,
+    talisman_3_id:       BUILD.slots.talisman3?.id || null,
+    talisman_4_id:       BUILD.slots.talisman4?.id || null,
+    spells: BUILD.spells.map(s => s.id),
+    playstyle_tag: BUILD.playstyle_tag,
+    is_public: document.getElementById('build-public').checked,
+  };
+  csrfFetch('/api/soulslike/builds/?game=' + BUILD.game, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      const banner = document.getElementById('save-banner');
+      const bannerText = banner.querySelector('i');
+      banner.classList.remove('hidden');
+      if (d.updated) {
+        // Show "updated" instead of "saved" for overwrites
+        banner.childNodes[1] && (banner.innerHTML = '<i class="fas fa-check mr-2"></i>Build updated! <a href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>');
+      }
+      setTimeout(() => { banner.classList.add('hidden'); banner.innerHTML = '<i class="fas fa-check mr-2"></i>Build saved! <a id="save-link" href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>'; }, 5000);
+      loadMyBuilds();  // refresh the My Builds list
+    } else {
+      alert(d.error || 'Failed to save build');
+    }
+  }).catch(e => { console.error('Save error', e); alert('Save failed - please try again'); });
+}
+{% else %}
+function saveBuild() {
+  window.location.href = '/register/?next=/soulslike/builder/';
+}
+{% endif %}
+
+// ── Start Run ─────────────────────────────────────────────────────────────────
+let _runSpoilerMode = 'blind';
+let _runGameMode = 'vanilla';
+
+function setGameMode(mode) {
+  _runGameMode = mode;
+  document.querySelectorAll('.run-gmode-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+}
+
+const SPOILER_DESCS = {
+  blind:  'Item names shown, locations hidden. Chat knows what you\'re after without spoiling where.',
+  region: 'Region shown (e.g. "Liurnia") but exact location hidden.',
+  full:   'Full location details shown. Good for guide runs.',
+};
+
+function startCollectionRun() {
+  // Pre-fill run name
+  const buildName = document.getElementById('build-name')?.value?.trim() ||
+                    (BUILD.class_name ? BUILD.class_name + ' Build' : 'My Build');
+  document.getElementById('run-name').value = buildName;
+  // Preview items from build
+  const items = buildCollectionItems();
+  const preview = document.getElementById('run-items-preview');
+  if (items.length) {
+    preview.innerHTML = items.map(i => `
+      <div class="flex items-center gap-2 text-xs py-0.5">
+        <span class="text-[10px] text-gray-600 w-14 uppercase flex-shrink-0">${escapeHtml(i.item_type)}</span>
+        <span class="text-gray-300 truncate">${escapeHtml(i.item_name)}</span>
+      </div>`).join('');
+  } else {
+    preview.innerHTML = '<p class="text-gray-600 text-xs text-center py-2">No build items - boss tracker still active.</p>';
+  }
+  setSpoilerMode('blind');
+  setGameMode('vanilla');
+  document.getElementById('run-modal').classList.remove('hidden');
+}
+
+function buildCollectionItems() {
+  const items = [];
+  // Weapons
+  ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
+    const w = BUILD.slots[slot];
+    if (w) items.push({ item_type: 'weapon', item_id: w.id, item_name: w.name });
+  });
+  // Armor
+  ['helm','chest','gauntlet','leg'].forEach(slot => {
+    const a = BUILD.slots[slot];
+    if (a) items.push({ item_type: 'armor', item_id: a.id, item_name: a.name });
+  });
+  // Talismans
+  ['talisman1','talisman2','talisman3','talisman4'].forEach(slot => {
+    const t = BUILD.slots[slot];
+    if (t) items.push({ item_type: 'talisman', item_id: t.id, item_name: t.name });
+  });
+  // Spells
+  BUILD.spells.forEach(s => items.push({ item_type: 'spell', item_id: s.id, item_name: s.name }));
+  // Spirit Ash
+  if (BUILD.spirit_ash) {
+    items.push({ item_type: 'spirit_ash', item_id: null, item_name: BUILD.spirit_ash.name });
+  }
+  // Crystal Tears / Wondrous Physick
+  BUILD.tears.forEach((tear, i) => {
+    if (tear) items.push({ item_type: 'crystal_tear', item_id: null, item_name: tear.name, location_hint: `Tear ${i + 1}` });
+  });
+  return items;
+}
+
+function setSpoilerMode(mode) {
+  _runSpoilerMode = mode;
+  document.querySelectorAll('.run-spoiler-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  document.getElementById('spoiler-desc').textContent = SPOILER_DESCS[mode] || '';
+}
+
+function closeRunModal() {
+  document.getElementById('run-modal').classList.add('hidden');
+}
+
+function closeRunStarted() {
+  document.getElementById('run-started-panel').classList.add('hidden');
+}
+
+function copyUrl(elId) {
+  const url = document.getElementById(elId).textContent;
+  navigator.clipboard.writeText(url).catch(() => {});
+}
+
+{% if web_user %}
+function confirmStartRun() {
+  const name  = document.getElementById('run-name').value.trim() || 'My Build';
+  const items = buildCollectionItems();
+  const payload = {
+    build_name:   name,
+    game:         BUILD.game,
+    session_type: 'run',
+    game_mode:    _runGameMode,
+    spoiler_mode: _runSpoilerMode,
+    build_id:     null,
+    items,
+  };
+  csrfFetch('/api/soulslike/session/create/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }).then(r => r.json()).then(d => {
+    if (!d.ok) { alert(d.error || 'Failed to start run'); return; }
+    closeRunModal();
+
+    function safeSiteUrl(url) {
+      try {
+        const u = new URL(url, window.location.origin);
+        if (u.origin !== window.location.origin) return null;
+        return u.pathname + u.search;
+      } catch { return null; }
+    }
+
+    const manageUrl = safeSiteUrl(d.manage_url);
+    if (manageUrl) document.getElementById('go-to-run').href = manageUrl;
+
+    const combUrl = safeSiteUrl(d.overlay_combined);
+    const hollUrl = safeSiteUrl(d.overlay_hollow);
+    const dthUrl  = safeSiteUrl(d.overlay_deaths);
+
+    const linksEl = document.getElementById('run-overlay-links');
+    linksEl.innerHTML = `
+      <div class="p-2 bg-amber-900/10 border border-amber-700/30 rounded-lg">
+        <div class="text-[10px] text-amber-500 font-bold mb-1"><i class="fas fa-star mr-1"></i>Combined Overlay (deaths + bosses + items + rage)</div>
+        <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+          <code class="text-amber-300 text-xs flex-1 truncate">${combUrl||''}</code>
+          <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)" class="text-gray-500 hover:text-white transition text-xs"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div class="text-[10px] text-gray-600 font-bold uppercase tracking-widest pt-1">Individual Overlays</div>
+      <div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1"><i class="fas fa-chart-bar text-amber-400 mr-1"></i>Mortality Monitor</div>
+        <div class="flex items-center gap-2 bg-neutral-800 rounded px-3 py-2">
+          <code class="text-amber-300 text-xs flex-1 truncate">${safeSiteUrl(d.overlay_mortality)||''}</code>
+          <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)" class="text-gray-500 hover:text-white transition text-xs"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1"><i class="fas fa-list text-green-400 mr-1"></i>Collection / Item Checklist</div>
+        <div class="flex items-center gap-2 bg-neutral-800 rounded px-3 py-2">
+          <code class="text-green-300 text-xs flex-1 truncate">${safeSiteUrl(d.overlay_collection)||''}</code>
+          <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)" class="text-gray-500 hover:text-white transition text-xs"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1"><i class="fas fa-skull text-red-400 mr-1"></i>Gone Hollow Alert</div>
+        <div class="flex items-center gap-2 bg-neutral-800 rounded px-3 py-2">
+          <code class="text-red-300 text-xs flex-1 truncate">${hollUrl||''}</code>
+          <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)" class="text-gray-500 hover:text-white transition text-xs"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1"><i class="fas fa-crosshairs text-red-400 mr-1"></i>Death Counter only</div>
+        <div class="flex items-center gap-2 bg-neutral-800 rounded px-3 py-2">
+          <code class="text-red-300 text-xs flex-1 truncate">${dthUrl||''}</code>
+          <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)" class="text-gray-500 hover:text-white transition text-xs"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>
+      <div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1"><i class="fas fa-mobile text-gray-400 mr-1"></i>Web Tracker (phone / tablet)</div>
+        <div class="flex items-center gap-2 bg-neutral-800 rounded px-3 py-2">
+          <code class="text-gray-300 text-xs flex-1 truncate">${manageUrl||''}</code>
+          <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent)" class="text-gray-500 hover:text-white transition text-xs"><i class="fas fa-copy"></i></button>
+        </div>
+      </div>`;
+
+    document.getElementById('run-started-title').textContent = 'Run Started!';
+    document.getElementById('run-started-desc').textContent  = 'Add overlay URLs as Browser Sources in Meld/OBS. Use the Web Tracker on phone or tablet.';
+    document.getElementById('run-started-panel').classList.remove('hidden');
+  }).catch(() => alert('Request failed'));
+}
+{% else %}
+function confirmStartRun() {
+  window.location.href = '/register/?next=/soulslike/builder/';
+}
+{% endif %}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

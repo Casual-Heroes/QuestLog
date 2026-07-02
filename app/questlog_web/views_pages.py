@@ -726,170 +726,249 @@ def discover(request):
     top_owned_games = []
     community_picks = []
     _POOL_CACHE_KEY = 'discover_steam_pool_v2'
+    _POOL_FILL_KEY  = 'discover_steam_pool_filling'
     try:
         import random as _rng
         from collections import Counter
-        import requests as _req
         from django.core.cache import cache as _cache
-        from .models import WebUser as _WebUser
-        from .helpers import STEAM_API_KEY as _STEAM_KEY
         from .helpers import get_steam_cover_url as _steam_cover_url
 
-        _SEXUAL_DESCRIPTOR_IDS = {1, 3, 4}
-        _NAME_EXCLUDE = ('test server', 'beta server', 'dedicated server', ' pts', 'public test', 'demo')
-
-        def _ensure_steam_tags(aid, db, _req):
-            existing = db.execute(
-                text('SELECT COUNT(*) FROM web_steam_app_tags WHERE app_id = :a'),
-                {'a': aid}
-            ).scalar()
-            if existing:
-                return
-            tags = set()
-            try:
-                r = _req.get(
-                    f'https://store.steampowered.com/api/appdetails?appids={aid}&filters=content_descriptors,categories,genres',
-                    timeout=4,
-                )
-                data = (r.json() or {}).get(str(aid), {}).get('data', {})
-                descriptor_ids = set(data.get('content_descriptors', {}).get('ids') or [])
-                if descriptor_ids & _SEXUAL_DESCRIPTOR_IDS:
-                    tags.add('sexual content')
-                for c in data.get('categories', []):
-                    tags.add(c.get('description', '').lower())
-                for g in data.get('genres', []):
-                    tags.add(g.get('description', '').lower())
-            except Exception:
-                pass
-            try:
-                r = _req.get(
-                    f'https://steamspy.com/api.php?request=appdetails&appid={aid}',
-                    timeout=5,
-                )
-                for tag in ((r.json() or {}).get('tags') or {}).keys():
-                    tags.add(tag.lower())
-            except Exception:
-                pass
-            if not tags:
-                tags.add('untagged')
-            db.execute(
-                text('INSERT IGNORE INTO web_steam_app_tags (app_id, tag_name) VALUES ' +
-                     ', '.join(f"({aid}, :t{i})" for i, _ in enumerate(tags))),
-                {f't{i}': t for i, t in enumerate(tags)}
-            )
-            db.commit()
-
-        # Try to load the cached pool (raw counters + names + adult_ids)
         _pool = _cache.get(_POOL_CACHE_KEY)
 
         if _pool is None:
-            # Cache miss - fetch from Steam APIs and store the raw pool
-            with get_db_session() as db:
-                steam_users = db.query(_WebUser.steam_id).filter(
-                    _WebUser.share_steam_library == True,
-                    _WebUser.steam_id.isnot(None),
-                    _WebUser.steam_id != '',
-                    _WebUser.is_banned == False,
-                    _WebUser.is_disabled == False,
-                    _WebUser.is_hidden == False,
-                ).limit(50).all()
-                adult_rows = db.execute(
-                    text("""SELECT DISTINCT app_id FROM web_steam_app_tags
-                            WHERE tag_name IN ('sexual content','adult only sexual content',
-                            'frequent nudity or sexual content','hentai','eroge',
-                            'explicit sexual content')""")
-                ).fetchall()
-                adult_ids = {r[0] for r in adult_rows}
-                mp_rows = db.execute(
-                    text("SELECT DISTINCT app_id FROM web_steam_app_tags WHERE tag_name IN ('multiplayer','co-op','online co-op','multi-player')")
-                ).fetchall()
-                mp_ids = {r[0] for r in mp_rows}
+            # Cache cold - kick off a background fill so the NEXT request is fast.
+            # This request returns empty widgets immediately rather than blocking 4-8s.
+            if not _cache.get(_POOL_FILL_KEY):
+                _cache.set(_POOL_FILL_KEY, 1, 120)  # prevent stampede for 2 min
+                import threading as _threading
+                def _fill_pool():
+                    import requests as _req
+                    from collections import Counter as _Counter
+                    from django.core.cache import cache as _c
+                    from sqlalchemy import text as _text
+                    from app.db import get_db_session as _get_db
+                    from app.questlog_web.helpers import STEAM_API_KEY as _KEY
+                    _NAME_EXCLUDE = ('test server', 'beta server', 'dedicated server', ' pts', 'public test', 'demo')
+                    try:
+                        with _get_db() as db:
+                            steam_users = db.query(WebUser.steam_id).filter(
+                                WebUser.share_steam_library == True,
+                                WebUser.steam_id.isnot(None),
+                                WebUser.steam_id != '',
+                                WebUser.is_banned == False,
+                                WebUser.is_disabled == False,
+                                WebUser.is_hidden == False,
+                            ).limit(50).all()
+                            adult_rows = db.execute(_text(
+                                """SELECT DISTINCT app_id FROM web_steam_app_tags
+                                   WHERE tag_name IN ('sexual content','adult only sexual content',
+                                   'frequent nudity or sexual content','hentai','eroge',
+                                   'explicit sexual content')"""
+                            )).fetchall()
+                            adult_ids = {r[0] for r in adult_rows}
+                            mp_rows = db.execute(_text(
+                                "SELECT DISTINCT app_id FROM web_steam_app_tags WHERE tag_name IN ('multiplayer','co-op','online co-op','multi-player')"
+                            )).fetchall()
+                            mp_ids = {r[0] for r in mp_rows}
 
-            owned_counts = Counter()
-            hours_totals = Counter()
-            game_names = {}
-            for (steam_id,) in steam_users:
-                try:
-                    resp = _req.get(
-                        'https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/',
-                        params={'key': _STEAM_KEY, 'steamid': steam_id, 'count': 0},
-                        timeout=4,
-                    )
-                    for g in resp.json().get('response', {}).get('games', []):
-                        aid = g.get('appid')
-                        gname = g.get('name', '')
-                        if not aid or aid in adult_ids:
-                            continue
-                        if any(x in gname.lower() for x in _NAME_EXCLUDE):
-                            continue
-                        owned_counts[aid] += 1
-                        hours_totals[aid] += g.get('playtime_2weeks', 0)
-                        if aid not in game_names:
-                            game_names[aid] = gname
-                except Exception:
-                    continue
+                        owned_counts = _Counter()
+                        hours_totals = _Counter()
+                        game_names = {}
+                        for (steam_id,) in steam_users:
+                            try:
+                                resp = _req.get(
+                                    'https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/',
+                                    params={'key': _KEY, 'steamid': steam_id, 'count': 0},
+                                    timeout=4,
+                                )
+                                for g in resp.json().get('response', {}).get('games', []):
+                                    aid = g.get('appid')
+                                    gname = g.get('name', '')
+                                    if not aid or aid in adult_ids:
+                                        continue
+                                    if any(x in gname.lower() for x in _NAME_EXCLUDE):
+                                        continue
+                                    owned_counts[aid] += 1
+                                    hours_totals[aid] += g.get('playtime_2weeks', 0)
+                                    if aid not in game_names:
+                                        game_names[aid] = gname
+                            except Exception:
+                                continue
 
-            picks_owned = Counter()
-            picks_names = {}
-            for (steam_id,) in steam_users:
-                try:
-                    resp2 = _req.get(
-                        'https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/',
-                        params={'key': _STEAM_KEY, 'steamid': steam_id,
-                                'include_appinfo': 1, 'include_played_free_games': 1},
-                        timeout=4,
-                    )
-                    for g in resp2.json().get('response', {}).get('games', []):
-                        aid = g.get('appid')
-                        gname = g.get('name', '')
-                        if not aid or aid in adult_ids or not gname:
-                            continue
-                        if any(x in gname.lower() for x in _NAME_EXCLUDE):
-                            continue
-                        picks_owned[aid] += 1
-                        if aid not in picks_names:
-                            picks_names[aid] = gname
-                except Exception:
-                    continue
+                        picks_owned = _Counter()
+                        picks_names = {}
+                        for (steam_id,) in steam_users:
+                            try:
+                                resp2 = _req.get(
+                                    'https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/',
+                                    params={'key': _KEY, 'steamid': steam_id,
+                                            'include_appinfo': 1, 'include_played_free_games': 1},
+                                    timeout=4,
+                                )
+                                for g in resp2.json().get('response', {}).get('games', []):
+                                    aid = g.get('appid')
+                                    gname = g.get('name', '')
+                                    if not aid or aid in adult_ids:
+                                        continue
+                                    if any(x in gname.lower() for x in _NAME_EXCLUDE):
+                                        continue
+                                    picks_owned[aid] += 1
+                                    if aid not in picks_names:
+                                        picks_names[aid] = gname
+                            except Exception:
+                                continue
 
-            # Seed tags for untagged picks candidates (max 20 per request)
-            all_pick_aids = list(picks_owned.keys())
-            with get_db_session() as db:
-                if all_pick_aids:
-                    tagged_rows = db.execute(
-                        text('SELECT DISTINCT app_id FROM web_steam_app_tags WHERE app_id IN :aids'),
-                        {'aids': tuple(all_pick_aids)}
-                    ).fetchall()
-                    already_tagged = {r[0] for r in tagged_rows}
-                    for aid in [a for a in all_pick_aids if a not in already_tagged][:20]:
-                        _ensure_steam_tags(aid, db, _req)
-                adult_rows2 = db.execute(
-                    text("""SELECT DISTINCT app_id FROM web_steam_app_tags
-                            WHERE tag_name IN ('sexual content','adult only sexual content',
-                            'frequent nudity or sexual content','hentai','eroge',
-                            'explicit sexual content')""")
-                ).fetchall()
-                adult_ids.update(r[0] for r in adult_rows2)
+                        pool_data = {
+                            'owned_counts': dict(owned_counts),
+                            'hours_totals': dict(hours_totals),
+                            'game_names': game_names,
+                            'picks_owned': dict(picks_owned),
+                            'picks_names': picks_names,
+                            'adult_ids': list(adult_ids),
+                            'mp_ids': list(mp_ids),
+                        }
+                        _c.set(_POOL_CACHE_KEY, pool_data, 900)
+                    except Exception as _ex:
+                        import logging as _log
+                        _log.getLogger(__name__).error('steam pool fill failed: %s', _ex)
+                    finally:
+                        _c.delete(_POOL_FILL_KEY)
 
-            _pool = {
-                'owned_counts': dict(owned_counts),
-                'hours_totals': dict(hours_totals),
-                'game_names': game_names,
-                'picks_owned': dict(picks_owned),
-                'picks_names': picks_names,
-                'adult_ids': list(adult_ids),
-                'mp_ids': list(mp_ids),
-            }
-            _cache.set(_POOL_CACHE_KEY, _pool, 900)
+                _threading.Thread(target=_fill_pool, daemon=True).start()
+            # Return empty widgets this request - next request will have cache
+        else:
+            owned_counts = _Counter(_pool['owned_counts'])
+            hours_totals = _Counter(_pool['hours_totals'])
+            game_names = _pool['game_names']
+            picks_owned = _Counter(_pool['picks_owned'])
+            picks_names = _pool['picks_names']
+            adult_ids = set(_pool['adult_ids'])
+            mp_ids = set(_pool['mp_ids'])
 
-        # Build widgets from pool (always fresh shuffle for Community Picks)
-        owned_counts = Counter(_pool['owned_counts'])
-        hours_totals = Counter(_pool['hours_totals'])
+            if owned_counts:
+                top_aids = [aid for aid, _ in hours_totals.most_common(5) if game_names.get(aid)]
+                top_owned_games = [
+                    {
+                        'app_id': aid,
+                        'name': game_names[aid],
+                        'count': owned_counts[aid],
+                        'hours': round(hours_totals[aid] / 60, 1),
+                        'cover_url': _steam_cover_url(aid),
+                        'steam_url': f'https://store.steampowered.com/app/{aid}/',
+                        'is_mp': aid in mp_ids,
+                    }
+                    for aid in top_aids
+                ]
+
+                exclude = set(top_aids)
+                pool = [aid for aid in picks_owned
+                        if aid not in exclude and aid not in adult_ids and picks_names.get(aid)]
+                _rng.shuffle(pool)
+                community_picks = [
+                    {
+                        'app_id': aid,
+                        'name': picks_names[aid],
+                        'owners': picks_owned[aid],
+                        'cover_url': _steam_cover_url(aid),
+                        'steam_url': f'https://store.steampowered.com/app/{aid}/',
+                        'is_mp': aid in mp_ids,
+                    }
+                    for aid in pool[:5]
+                    if picks_names.get(aid)
+                ]
+    except Exception as e:
+        logger.error('discover steam widgets error: %s', e)
+
+    # Server-side spotlight indie card for LCP - renders in HTML so browser sees
+    # the cover image at parse time, no async JS fetch chain needed.
+    server_indie_spotlight = None
+    server_indie_spotlight_label = ''
+    try:
+        import random as _rand
+        from .models import WebSpotlightSlot as _Slot, WebIndieGame as _IndieGame, WebUser as _WU
+        _now = int(time.time())
+        with get_db_session() as db:
+            def _active_slot(slot_type):
+                return db.query(_Slot).filter(
+                    _Slot.category == 'indie',
+                    _Slot.slot_type == slot_type,
+                    _Slot.starts_at <= _now,
+                ).filter(
+                    (_Slot.expires_at == None) | (_Slot.expires_at > _now)
+                ).order_by(_Slot.created_at.desc()).first()
+
+            _slot = _active_slot('month')
+            _label = 'Indie of the Month'
+            if not _slot:
+                _slot = _active_slot('week')
+                _label = 'Indie of the Week'
+            if not _slot:
+                _pool = db.query(_Slot).filter(
+                    _Slot.category == 'indie',
+                    _Slot.slot_type == 'pool',
+                    _Slot.starts_at <= _now,
+                ).filter(
+                    (_Slot.expires_at == None) | (_Slot.expires_at > _now)
+                ).all()
+                if _pool:
+                    _slot = _rand.choice(_pool)
+                    _label = 'Indie Spotlight'
+            if _slot:
+                _game = db.query(_IndieGame).filter_by(id=_slot.ref_id, is_published=True).first()
+                if _game and _game.cover_url:
+                    server_indie_spotlight = {
+                        'slug': _game.slug,
+                        'name': _game.name,
+                        'cover_url': _game.cover_url,
+                        'spotlight_quote': _game.spotlight_quote or '',
+                    }
+                    server_indie_spotlight_label = _label
+    except Exception as _e:
+        logger.warning('discover server spotlight query failed: %s', _e)
+
+    context = {
+        'web_user': request.web_user,
+        'active_page': 'discover',
+        'live_streamers': live_streamers,
+        'recently_streamed': recently_streamed,
+        'lfg_groups': lfg_groups,
+        'active_games': active_games,
+        'featured_communities': featured_communities,
+        'community_counts': community_counts,
+        'groups_last_hour': groups_last_hour,
+        'game_servers': game_servers,
+        'top_owned_games': top_owned_games,
+        'community_picks': community_picks,
+        'server_indie_spotlight': server_indie_spotlight,
+        'server_indie_spotlight_label': server_indie_spotlight_label,
+    }
+    return render(request, 'questlog_web/discover.html', context)
+
+
+@require_http_methods(['GET'])
+def api_discover_steam_widgets(request):
+    """Returns Steam Most Played + Community Picks from cache. Never blocks on Steam API calls."""
+    from collections import Counter as _Counter
+    from django.core.cache import cache as _cache
+    from .helpers import get_steam_cover_url as _steam_cover_url
+    import random as _rng
+
+    _POOL_CACHE_KEY = 'discover_steam_pool_v2'
+    _pool = _cache.get(_POOL_CACHE_KEY)
+    if not _pool:
+        return JsonResponse({'top_owned_games': [], 'community_picks': []})
+
+    try:
+        owned_counts = _Counter(_pool['owned_counts'])
+        hours_totals = _Counter(_pool['hours_totals'])
         game_names = _pool['game_names']
-        picks_owned = Counter(_pool['picks_owned'])
+        picks_owned = _Counter(_pool['picks_owned'])
         picks_names = _pool['picks_names']
         adult_ids = set(_pool['adult_ids'])
         mp_ids = set(_pool['mp_ids'])
+
+        top_owned_games = []
+        community_picks = []
 
         if owned_counts:
             top_aids = [aid for aid, _ in hours_totals.most_common(5) if game_names.get(aid)]
@@ -905,8 +984,6 @@ def discover(request):
                 }
                 for aid in top_aids
             ]
-
-            # Community Picks: fresh random shuffle every request from the full owned pool
             exclude = set(top_aids)
             pool = [aid for aid in picks_owned
                     if aid not in exclude and aid not in adult_ids and picks_names.get(aid)]
@@ -923,24 +1000,11 @@ def discover(request):
                 for aid in pool[:5]
                 if picks_names.get(aid)
             ]
-    except Exception as e:
-        logger.error('discover steam widgets error: %s', e)
 
-    context = {
-        'web_user': request.web_user,
-        'active_page': 'discover',
-        'live_streamers': live_streamers,
-        'recently_streamed': recently_streamed,
-        'lfg_groups': lfg_groups,
-        'active_games': active_games,
-        'featured_communities': featured_communities,
-        'community_counts': community_counts,
-        'groups_last_hour': groups_last_hour,
-        'game_servers': game_servers,
-        'top_owned_games': top_owned_games,
-        'community_picks': community_picks,
-    }
-    return render(request, 'questlog_web/discover.html', context)
+        return JsonResponse({'top_owned_games': top_owned_games, 'community_picks': community_picks})
+    except Exception as e:
+        logger.error('api_discover_steam_widgets error: %s', e)
+        return JsonResponse({'top_owned_games': [], 'community_picks': []})
 
 
 # =============================================================================
@@ -5569,8 +5633,27 @@ def soulslike_hub(request):
         'active_page': 'soulslike',
         'games_list': [
             'Elden Ring', 'Dark Souls III', 'Dark Souls II', 'Dark Souls',
-            'Bloodborne', 'Sekiro', 'Lies of P', "Demon's Souls",
-            'Lords of the Fallen', 'The First Berserker: Khazan',
+            'Sekiro', 'Lies of P', 'Lords of the Fallen',
+            'The First Berserker: Khazan',
+        ],
+    })
+
+
+@add_web_user_context
+def soulslike_listener_download(request):
+    """QuestLog Listener download page."""
+    return render(request, 'questlog_web/soulslike_listener.html', {
+        'web_user': request.web_user,
+        'active_page': 'soulslike',
+        'features': [
+            {'icon': 'eye', 'title': 'Auto OCR Detection', 'desc': 'Watches your screen for "YOU DIED" and logs deaths automatically.'},
+            {'icon': 'keyboard', 'title': 'Hotkeys', 'desc': 'F9 death, F10 undo, F8 hold reset — works while gaming.'},
+            {'icon': 'skull', 'title': 'Rage / Hollow Tracking', 'desc': 'Rage builds with deaths, decays with boss kills. Go HOLLOW, chat reacts.'},
+            {'icon': 'stopwatch', 'title': 'True Death/HR', 'desc': 'Survival time between deaths gives accurate deaths per hour.'},
+            {'icon': 'dragon', 'title': 'Boss Progress', 'desc': 'Mark bosses defeated via the Web Tracker — rage decays automatically.'},
+            {'icon': 'trophy', 'title': 'Leaderboards', 'desc': 'Personal records and community competition — who survives longest?'},
+            {'icon': 'tv', 'title': 'Stream Overlays', 'desc': 'Mortality Monitor + Gone Hollow alert widgets for Meld/OBS.'},
+            {'icon': 'gamepad', 'title': 'Multi-Game', 'desc': 'Elden Ring, ERR, Dark Souls III. Custom game templates supported.'},
         ],
     })
 
@@ -5617,10 +5700,9 @@ def soulslike_tracker(request):
     })
 
 
-@add_web_user_context
-@require_http_methods(['POST'])
+@require_http_methods(['GET', 'POST'])
 def api_tracker_download(request):
-    """Record a download and serve the file URL."""
+    """Record a download - no auth required, anyone can download."""
     import time as _time
     from app.db import get_db_session as _gds
     from sqlalchemy import text as _t
@@ -5641,4 +5723,1052 @@ def api_tracker_download(request):
     return JsonResponse({
         'ok': True,
         'url': '/static/downloads/QuestLogMortalityTracker.zip',
+    })
+
+
+# =============================================================================
+# SOULSLIKE BUILD PLANNER
+# =============================================================================
+
+@add_web_user_context
+def soulslike_builder(request):
+    """Build planner for Elden Ring. All item data loaded client-side via API."""
+    return render(request, 'questlog_web/soulslike_builder.html', {
+        'web_user': request.web_user,
+        'active_page': 'soulslike_builder',
+        'stats_list': [
+            ('vigor',        'Vigor',        'red'),
+            ('mind',         'Mind',         'blue'),
+            ('endurance',    'Endurance',    'green'),
+            ('strength',     'Strength',     'orange'),
+            ('dexterity',    'Dexterity',    'yellow'),
+            ('intelligence', 'Intelligence', 'purple'),
+            ('faith',        'Faith',        'amber'),
+            ('arcane',       'Arcane',       'teal'),
+        ],
+        'derived_stats': [
+            ('hp',     'HP'),
+            ('fp',     'FP'),
+            ('stam',   'Stamina'),
+            ('eqload', 'Equip Load'),
+        ],
+        'weapon_slots': [
+            ('rh1', 'Right Hand 1', 'fas fa-sword',      'right'),
+            ('rh2', 'Right Hand 2', 'fas fa-sword',      'right'),
+            ('rh3', 'Right Hand 3', 'fas fa-sword',      'right'),
+            ('lh1', 'Left Hand 1',  'fas fa-shield-alt', 'left'),
+            ('lh2', 'Left Hand 2',  'fas fa-shield-alt', 'left'),
+            ('lh3', 'Left Hand 3',  'fas fa-shield-alt', 'left'),
+        ],
+        'armor_slots': [
+            ('helm',     'Helm',     'fas fa-hard-hat'),
+            ('chest',    'Chest',    'fas fa-tshirt'),
+            ('gauntlet', 'Gauntlets','fas fa-mitten'),
+            ('leg',      'Legs',     'fas fa-walking'),
+        ],
+        'talisman_slots': [1, 2, 3, 4],
+        'playstyle_tags': [
+            ('pve',       'PvE'),
+            ('pvp',       'PvP'),
+            ('boss_rush', 'Boss Rush'),
+            ('challenge', 'Challenge'),
+            ('beginner',  'Beginner'),
+        ],
+    })
+
+
+@add_web_user_context
+def soulslike_builds_browse(request):
+    """Public build browsing page - no login required to view."""
+    return render(request, 'questlog_web/soulslike_builds_browse.html', {
+        'web_user': request.web_user,
+        'active_page': 'soulslike_builds_browse',
+        'playstyle_tags': [
+            ('',          'All'),
+            ('pve',       'PvE'),
+            ('pvp',       'PvP'),
+            ('boss_rush', 'Boss Rush'),
+            ('challenge', 'Challenge'),
+            ('beginner',  'Beginner'),
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_classes(request):
+    game = request.GET.get('game', 'elden_ring')[:32]
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT id, name, starting_level, vigor, mind, endurance, strength, "
+            "dexterity, intelligence, faith, arcane FROM sl_classes "
+            "WHERE game = :g ORDER BY starting_level"
+        ), {'g': game}).fetchall()
+    return JsonResponse({'classes': [
+        {'id': r[0], 'name': r[1], 'level': r[2],
+         'vigor': r[3], 'mind': r[4], 'endurance': r[5], 'strength': r[6],
+         'dexterity': r[7], 'intelligence': r[8], 'faith': r[9], 'arcane': r[10]}
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_stat_caps(request):
+    game = request.GET.get('game', 'elden_ring')[:32]
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT stat, soft_cap_1, soft_cap_2, soft_cap_3, hard_cap, notes "
+            "FROM sl_stat_caps WHERE game = :g"
+        ), {'g': game}).fetchall()
+    return JsonResponse({'caps': [
+        {'stat': r[0], 'soft_cap_1': r[1], 'soft_cap_2': r[2],
+         'soft_cap_3': r[3], 'hard_cap': r[4], 'notes': r[5] or ''}
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_derived_curves(request):
+    """
+    GET /api/soulslike/derived-curves/?game=err
+    Exact lookup-table curves for derived stats (HP/FP/Stamina/rune cost) where the
+    game provides authoritative per-point data instead of a closed-form formula.
+    Empty for games that use the hardcoded formula (e.g. vanilla elden_ring).
+    """
+    game = request.GET.get('game', 'elden_ring')[:32]
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT stat, curve_json FROM sl_derived_stat_curves WHERE game = :g"
+        ), {'g': game}).fetchall()
+    return JsonResponse({'curves': {r[0]: json.loads(r[1]) for r in rows}})
+
+
+@require_http_methods(['GET'])
+def api_sl_weapons(request):
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    wtype = request.GET.get('type', '')[:64]
+    q     = request.GET.get('q', '')[:100]
+    limit = safe_int(request.GET.get('limit', 1000), 1000, 1, 1000)
+
+    with get_db_session() as db:
+        base_select = (
+            "SELECT w.id, w.name, w.weapon_type, w.physical_damage, w.magic_damage, w.fire_damage, "
+            "w.lightning_damage, w.holy_damage, w.critical, w.weight, "
+            "w.str_scaling, w.dex_scaling, w.int_scaling, w.fai_scaling, w.arc_scaling, "
+            "w.str_requirement, w.dex_requirement, w.int_requirement, w.fai_requirement, w.arc_requirement, "
+            "w.is_somber, w.special_ability, w.image_url, "
+            # infusable = has more than just Standard affinity in AR data
+            "(SELECT COUNT(DISTINCT affinity) FROM sl_weapon_ar_data ar "
+            " WHERE ar.weapon_name = w.name AND ar.game = :g) AS aff_count, "
+            "w.is_locked_skill "
+            "FROM sl_weapons w WHERE w.game = :g"
+        )
+        params: dict = {'g': game, 'lim': limit}
+
+        if wtype and q:
+            sql = text(base_select + " AND w.weapon_type = :wt AND w.name LIKE :q ORDER BY w.name LIMIT :lim")
+            params.update({'wt': wtype, 'q': f'%{q}%'})
+        elif wtype:
+            sql = text(base_select + " AND w.weapon_type = :wt ORDER BY w.name LIMIT :lim")
+            params['wt'] = wtype
+        elif q:
+            sql = text(base_select + " AND w.name LIKE :q ORDER BY w.name LIMIT :lim")
+            params['q'] = f'%{q}%'
+        else:
+            sql = text(base_select + " ORDER BY w.name LIMIT :lim")
+
+        rows = db.execute(sql, params).fetchall()
+
+        types = db.execute(text(
+            "SELECT DISTINCT weapon_type FROM sl_weapons WHERE game = :g ORDER BY weapon_type"
+        ), {'g': game}).fetchall()
+
+    return JsonResponse({
+        'weapons': [
+            {'id': r[0], 'name': r[1], 'type': r[2],
+             'damage': {'phy': r[3], 'mag': r[4], 'fir': r[5], 'lit': r[6], 'hol': r[7]},
+             'critical': r[8], 'weight': float(r[9] or 0),
+             'scaling': {'str': r[10], 'dex': r[11], 'int': r[12], 'fai': r[13], 'arc': r[14]},
+             'requirements': {'str': r[15], 'dex': r[16], 'int': r[17], 'fai': r[18], 'arc': r[19]},
+             'is_somber': bool(r[20]), 'special': r[21] or '', 'image_url': r[22] or '',
+             # is_infusable: can apply affinities (Heavy/Blood/etc)
+             'is_infusable': r[23] != 1,
+             # is_locked_skill: AoW/skill CANNOT be swapped - true for unique weapons
+             'is_locked_skill': bool(r[24]),
+             'default_skill': r[21] or ''}
+            for r in rows
+        ],
+        'weapon_types': [r[0] for r in types],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_spells(request):
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    stype = request.GET.get('type', '')[:32]
+    q     = request.GET.get('q', '')[:100]
+    limit = safe_int(request.GET.get('limit', 1000), 1000, 1, 1000)
+
+    with get_db_session() as db:
+        if game == 'err':
+            # ERR: UNION of vanilla spells (with ERR rebalancing) + 72 new ERR-exclusive spells.
+            # Vanilla spells table uses different column names than sl_err_spells, so we normalise
+            # both sides of the UNION to the same shape before filtering/ordering.
+            q_filter = "AND name LIKE :q" if q else ""
+            type_filter = "AND spell_type = :st" if stype else ""
+            # ERR new spells get IDs offset by 10000 to avoid collision with ER spell IDs (max ~213)
+            # This ensures ID 99 in sl_err_spells (Volcanic Storm) ≠ ID 99 in sl_spells (Gurrang's Beast Claw)
+            sql = text(f"""
+                SELECT id, name, spell_type, fp_cost, slots_required AS slots,
+                       int_requirement, fai_requirement, arc_requirement, image_url
+                FROM sl_spells WHERE game = 'elden_ring' {q_filter} {type_filter}
+                UNION ALL
+                SELECT id + 10000, name, spell_type, COALESCE(fp_cost,0), COALESCE(slots_used,0),
+                       COALESCE(int_req,0), COALESCE(fai_req,0), COALESCE(arc_req,0), NULL
+                FROM sl_err_spells WHERE is_new_to_err = 1 {q_filter} {type_filter}
+                ORDER BY spell_type, name LIMIT :lim
+            """)
+            params = {'lim': limit}
+            if q:     params['q']  = f'%{q}%'
+            if stype: params['st'] = stype
+            rows = db.execute(sql, params).fetchall()
+        else:
+            conditions = ["game = :g"]
+            params = {'g': game, 'lim': limit}
+            if stype: conditions.append("spell_type = :st"); params['st'] = stype
+            if q:     conditions.append("name LIKE :q");     params['q']  = f'%{q}%'
+            where = " AND ".join(conditions)
+            rows = db.execute(text(
+                f"SELECT id, name, spell_type, fp_cost, slots_required, "
+                f"int_requirement, fai_requirement, arc_requirement, image_url "
+                f"FROM sl_spells WHERE {where} ORDER BY spell_type, name LIMIT :lim"
+            ), params).fetchall()
+
+    return JsonResponse({'spells': [
+        {'id': r[0], 'name': r[1], 'type': r[2] or 'Sorcery', 'fp_cost': r[3] or 0,
+         'slots': r[4] or 0,
+         'requirements': {'int': r[5] or 0, 'fai': r[6] or 0, 'arc': r[7] or 0},
+         'image_url': r[8] or ''}
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_talismans(request):
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    q     = request.GET.get('q', '')[:100]
+    limit = safe_int(request.GET.get('limit', 1000), 1000, 1, 1000)
+
+    with get_db_session() as db:
+        if q:
+            rows = db.execute(text(
+                "SELECT id, name, effect, weight, image_url "
+                "FROM sl_talismans WHERE game = :g AND name LIKE :q "
+                "ORDER BY name LIMIT :lim"
+            ), {'g': game, 'q': f'%{q}%', 'lim': limit}).fetchall()
+        else:
+            rows = db.execute(text(
+                "SELECT id, name, effect, weight, image_url "
+                "FROM sl_talismans WHERE game = :g ORDER BY name LIMIT :lim"
+            ), {'g': game, 'lim': limit}).fetchall()
+
+    def _clean_effect(raw, name):
+        if not raw:
+            return ''
+        # Strip wiki boilerplate: "X is a Talisman in Elden Ring. X ..." -> keep after second sentence
+        import re
+        # Remove "Name is a Talisman in Elden Ring." pattern
+        cleaned = re.sub(r'^.*?is a Talisman in Elden Ring\.?\s*', '', raw, flags=re.IGNORECASE)
+        # Also remove repeated name at start
+        if cleaned.startswith(name):
+            cleaned = cleaned[len(name):].lstrip()
+        # Remove trailing "Players can use Talismans in Elden Ring to boost..." boilerplate
+        cleaned = re.sub(r'\s*Players can use Talismans.*$', '', cleaned, flags=re.IGNORECASE)
+        return cleaned.strip()
+
+    return JsonResponse({'talismans': [
+        {'id': r[0], 'name': r[1], 'effect': _clean_effect(r[2], r[1]),
+         'weight': float(r[3] or 0), 'image_url': r[4] or ''}
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_aow(request):
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    q     = request.GET.get('q', '')[:100]
+    limit = safe_int(request.GET.get('limit', 1000), 1000, 1, 1000)
+
+    with get_db_session() as db:
+        if q:
+            rows = db.execute(text(
+                "SELECT id, name, affinity, fp_cost, compatible_weapon_types, image_url "
+                "FROM sl_ashes_of_war WHERE game = :g AND name LIKE :q "
+                "ORDER BY name LIMIT :lim"
+            ), {'g': game, 'q': f'%{q}%', 'lim': limit}).fetchall()
+        else:
+            rows = db.execute(text(
+                "SELECT id, name, affinity, fp_cost, compatible_weapon_types, image_url "
+                "FROM sl_ashes_of_war WHERE game = :g ORDER BY name LIMIT :lim"
+            ), {'g': game, 'lim': limit}).fetchall()
+
+    return JsonResponse({'aow': [
+        {'id': r[0], 'name': r[1], 'affinity': r[2] or 'standard',
+         'fp_cost': r[3] or 0, 'compatible': r[4] or '', 'image_url': r[5] or ''}
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_err_aow_skills(request):
+    """GET /api/soulslike/err/aow-skills/ - ERR's full Ashes of War / Skills rebalance table."""
+    q     = request.GET.get('q', '')[:100]
+    limit = safe_int(request.GET.get('limit', 1000), 1000, 1, 1000)
+
+    with get_db_session() as db:
+        sql = (
+            "SELECT name, armaments, affinity, effect, scaling_note, acquisition_detail, "
+            "is_new_to_err, is_unique_skill, unique_weapon_name "
+            "FROM sl_err_aow_skills WHERE name != '__GENERAL_CHANGES__' "
+            "AND is_unique_skill = 0"  # unique skills are weapon-locked, never appear in AoW picker
+        )
+        params = {'lim': limit}
+        if q:
+            sql += " AND name LIKE :q"
+            params['q'] = f'%{q}%'
+        sql += " ORDER BY name LIMIT :lim"
+        rows = db.execute(text(sql), params).fetchall()
+
+        general = db.execute(text(
+            "SELECT effect FROM sl_err_aow_skills WHERE name = '__GENERAL_CHANGES__'"
+        )).fetchone()
+
+    return JsonResponse({
+        'general_changes': general[0] if general else '',
+        'skills': [
+            {
+                'name': r[0], 'armaments': r[1] or '', 'affinity': r[2] or '',
+                'effect': r[3] or '', 'scaling_note': r[4] or '',
+                'acquisition': r[5] or '', 'is_new': bool(r[6]),
+                'is_unique_skill': bool(r[7]), 'unique_weapon_name': r[8] or '',
+            }
+            for r in rows
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_err_curios(request):
+    """GET /api/soulslike/err/curios/ - ERR Shadowed Curios system + all 9 curios."""
+    with get_db_session() as db:
+        system = db.execute(text(
+            "SELECT content FROM sl_err_curios WHERE section='system'"
+        )).fetchone()
+        rows = db.execute(text(
+            "SELECT name, trigger_condition, effect_rank1, effect_rank2, effect_rank3, acquisition_detail "
+            "FROM sl_err_curios WHERE section='curio' ORDER BY name"
+        )).fetchall()
+
+    return JsonResponse({
+        'system_overview': system[0] if system else '',
+        'curios': [
+            {
+                'name': r[0], 'trigger': r[1] or '',
+                'effects': [e for e in (r[2], r[3], r[4]) if e],
+                'acquisition': r[5] or '',
+            }
+            for r in rows
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_err_runeforging(request):
+    """GET /api/soulslike/err/runeforging/ - ERR Runeforging system + categories + Binding Runes."""
+    with get_db_session() as db:
+        system = db.execute(text(
+            "SELECT content FROM sl_err_runeforging WHERE section='system'"
+        )).fetchone()
+        categories = db.execute(text(
+            "SELECT great_rune_name, rune_category_name, cost_pieces, max_forges, content "
+            "FROM sl_err_runeforging WHERE section='category' ORDER BY id"
+        )).fetchall()
+        runes = db.execute(text(
+            "SELECT name, rune_type, effect, max_forge_level, ng_plus_only "
+            "FROM sl_err_binding_runes ORDER BY rune_type, name"
+        )).fetchall()
+
+    runes_by_category = {}
+    for name, rune_type, effect, max_forge, ng_plus in runes:
+        runes_by_category.setdefault(rune_type, []).append({
+            'name': name, 'effect': effect or '',
+            'max_forge_level': max_forge, 'ng_plus_only': bool(ng_plus),
+        })
+
+    return JsonResponse({
+        'system_overview': system[0] if system else '',
+        'categories': [
+            {
+                'great_rune': c[0] or '', 'category': c[1], 'cost_pieces': c[2],
+                'max_forges': c[3], 'note': c[4] or '',
+                'binding_runes': runes_by_category.get(c[1], []),
+            }
+            for c in categories
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_err_affinities(request):
+    """GET /api/soulslike/err/affinities/ - ERR's reworked + new Affinities."""
+    with get_db_session() as db:
+        general = db.execute(text(
+            "SELECT effect FROM sl_err_affinities WHERE name='__GENERAL__'"
+        )).fetchone()
+        rows = db.execute(text(
+            "SELECT name, whetblade, scaling_increase_stat, damage_type_change, effect, is_new_to_err "
+            "FROM sl_err_affinities WHERE name != '__GENERAL__' ORDER BY name"
+        )).fetchall()
+
+    return JsonResponse({
+        'general_note': general[0] if general else '',
+        'affinities': [
+            {
+                'name': r[0], 'whetblade': r[1] or '', 'scaling_stat': r[2] or '',
+                'damage_type_change': r[3] or '', 'effect': r[4] or '', 'is_new': bool(r[5]),
+            }
+            for r in rows
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_err_crystal_tears(request):
+    """GET /api/soulslike/err/crystal-tears/ - ERR Wondrous Physick Crystal Tears."""
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT name, effect, location, duration_sec, is_new_to_err "
+            "FROM sl_err_crystal_tears ORDER BY name"
+        )).fetchall()
+
+    return JsonResponse({'tears': [
+        {
+            'name': r[0], 'effect': r[1] or '', 'location': r[2] or '',
+            'duration': r[3] or '', 'is_new': bool(r[4]),
+        }
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_err_consumables(request):
+    """GET /api/soulslike/err/consumables/?category=Grease - ERR Tools/Consumables."""
+    category = request.GET.get('category', '')[:32]
+    with get_db_session() as db:
+        if category:
+            rows = db.execute(text(
+                "SELECT category, name, effect, duration_sec, is_new_to_err, acquisition "
+                "FROM sl_err_consumables WHERE category = :cat ORDER BY name"
+            ), {'cat': category}).fetchall()
+        else:
+            rows = db.execute(text(
+                "SELECT category, name, effect, duration_sec, is_new_to_err, acquisition "
+                "FROM sl_err_consumables ORDER BY category, name"
+            )).fetchall()
+
+    return JsonResponse({'consumables': [
+        {
+            'category': r[0], 'name': r[1], 'effect': r[2] or '',
+            'duration': r[3] or '', 'is_new': bool(r[4]), 'acquisition': r[5] or '',
+        }
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_err_armor_passives(request):
+    """GET /api/soulslike/err/armor-passives/ - ERR Armor piece + set passive effects."""
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT armor_name, passive_effect, is_set FROM sl_err_armor_passives ORDER BY is_set, armor_name"
+        )).fetchall()
+        changes = db.execute(text(
+            "SELECT armor_name, change_text FROM sl_err_armor_changes ORDER BY armor_name"
+        )).fetchall()
+
+    return JsonResponse({
+        'passives': [
+            {'name': r[0], 'effect': r[1] or '', 'is_set': bool(r[2])}
+            for r in rows
+        ],
+        'new_or_relocated': [
+            {'name': r[0], 'note': r[1] or ''} for r in changes
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_ar_data(request):
+    """
+    GET /api/soulslike/ar-data/?game=elden_ring
+    Returns everything needed for client-side AR calculation:
+    - Correction curves (scaling fraction at each stat 0-149), exact game data
+    - Attack Element Correct entries (which stats scale which damage type, per AEC id)
+    Damage type indices: 0=phy, 1=mag, 2=fire, 3=lit, 4=holy (matches game data order).
+    Weapon-specific AR rows are fetched per-weapon via api_sl_weapon_ar_variants.
+    """
+    game = request.GET.get('game', 'elden_ring')[:32]
+    with get_db_session() as db:
+        curve_rows = db.execute(text(
+            "SELECT id, curve_json FROM sl_correction_graphs WHERE game = :g"
+        ), {'g': game}).fetchall()
+        aec_rows = db.execute(text(
+            "SELECT id, correct_json FROM sl_attack_element_correct WHERE game = :g"
+        ), {'g': game}).fetchall()
+        reinforce_rows = db.execute(text(
+            "SELECT id, max_attack_mult, max_scaling_mult, max_level FROM sl_reinforce_types WHERE game = :g"
+        ), {'g': game}).fetchall()
+
+    return JsonResponse({
+        'curves': {str(r[0]): json.loads(r[1]) for r in curve_rows},
+        'aec': {str(r[0]): json.loads(r[1]) for r in aec_rows},
+        # reinforce[typeId] = { attack: {0: mult, ...}, scaling: {str: mult, ...}, max_level: 25 }
+        'reinforce': {str(r[0]): {
+            'attack': json.loads(r[1]),
+            'scaling': json.loads(r[2]),
+            'max_level': r[3],
+        } for r in reinforce_rows},
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_weapon_ar_variants(request, weapon_name):
+    """GET /api/soulslike/weapons/<name>/ar-variants/ - all affinity AR data for one weapon."""
+    game = request.GET.get('game', 'elden_ring')[:32]
+    with get_db_session() as db:
+        rows = db.execute(text("""
+            SELECT affinity, is_dlc, requirements_json, attack_json,
+                   attribute_scaling_json, attack_element_correct_id, calc_correct_graph_json,
+                   reinforce_type_id
+            FROM sl_weapon_ar_data WHERE weapon_name = :name AND game = :g
+        """), {'name': weapon_name, 'g': game}).fetchall()
+
+    return JsonResponse({'variants': [
+        {
+            'affinity': r[0],
+            'is_dlc': bool(r[1]),
+            'requirements': json.loads(r[2]) if r[2] else {},
+            'attack': json.loads(r[3]) if r[3] else {},
+            'scaling': json.loads(r[4]) if r[4] else {},
+            'aec_id': r[5],
+            'calc_correct_graph_ids': json.loads(r[6]) if r[6] else {},
+            'reinforce_type_id': r[7],
+        }
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_boss_registry(request):
+    """GET /api/soulslike/bosses/?game=elden_ring&mode=vanilla - Boss list for mortality tracker."""
+    game = request.GET.get('game', 'elden_ring')[:32] or 'elden_ring'
+    mode = (request.GET.get('mode', '') or 'vanilla')[:32]
+    if mode not in ('vanilla', 'err'):
+        mode = 'vanilla'
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT boss_key, boss_name, location, region, tier, sort_order "
+            "FROM sl_boss_registry WHERE game=:g AND game_mode=:m ORDER BY sort_order"
+        ), {'g': game, 'm': mode}).fetchall()
+    return JsonResponse({
+        'game': game, 'mode': mode, 'total': len(rows),
+        'bosses': [
+            {'key': r[0], 'name': r[1], 'location': r[2],
+             'region': r[3], 'tier': r[4]}
+            for r in rows
+        ]
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_spirit_ashes(request):
+    """GET /api/soulslike/spirit-ashes/?game=elden_ring - Spirit Ashes for the builder."""
+    game = request.GET.get('game', 'elden_ring')[:32]
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT name, fp_cost, hp_cost, enrage_fp_cost, summon_type, "
+            "passive_behavior, enraged_behavior, acquisition_detail, is_new_to_err "
+            "FROM sl_spirit_ashes WHERE game = :g AND name != '__SYSTEM__' ORDER BY name"
+        ), {'g': game}).fetchall()
+    return JsonResponse({'ashes': [
+        {'name': r[0], 'fp_cost': r[1] or 0, 'hp_cost': r[2] or 0,
+         'enrage_fp_cost': r[3] or 0, 'summon_type': r[4] or 'grave',
+         'passive_behavior': r[5] or '', 'enraged_behavior': r[6] or '',
+         'acquisition': r[7] or '', 'is_new_to_err': bool(r[8])}
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_crystal_tears(request):
+    """GET /api/soulslike/crystal-tears/?game=elden_ring - Crystal Tears for Wondrous Physick."""
+    game = request.GET.get('game', 'elden_ring')[:32]
+    with get_db_session() as db:
+        if game == 'err':
+            rows = db.execute(text(
+                "SELECT name, effect, location, duration_sec, is_new_to_err "
+                "FROM sl_err_crystal_tears ORDER BY name"
+            )).fetchall()
+            return JsonResponse({'tears': [
+                {'name': r[0], 'effect': r[1] or '', 'location': r[2] or '',
+                 'duration': r[3] or '', 'is_new': bool(r[4])}
+                for r in rows
+            ]})
+        else:
+            # ER vanilla crystal tears - hardcoded since no separate table exists yet
+            # These are the canonical ER tears from the wiki
+            er_tears = [
+                {'name': 'Crimson Crystal Tear', 'effect': 'Partially restores HP'},
+                {'name': 'Cerulean Crystal Tear', 'effect': 'Partially restores FP'},
+                {'name': 'Greenspill Crystal Tear', 'effect': 'Temporarily boosts max Stamina'},
+                {'name': 'Opaline Bubbletear', 'effect': 'Negates one lethal attack'},
+                {'name': 'Crimsonburst Crystal Tear', 'effect': 'Gradually restores HP for a time'},
+                {'name': 'Greenburst Crystal Tear', 'effect': 'Temporarily boosts Stamina recovery speed'},
+                {'name': 'Speckled Hardtear', 'effect': 'Temporarily raises all resistances'},
+                {'name': 'Stonebarb Cracked Tear', 'effect': 'Temporarily makes it easier to break enemy stances'},
+                {'name': 'Thorny Cracked Tear', 'effect': 'Temporarily boosts successive attack power'},
+                {'name': 'Winged Crystal Tear', 'effect': 'Temporarily reduces Equip Load to nearly nothing'},
+                {'name': 'Strength-knot Crystal Tear', 'effect': 'Temporarily boosts Strength'},
+                {'name': 'Dexterity-knot Crystal Tear', 'effect': 'Temporarily boosts Dexterity'},
+                {'name': 'Intelligence-knot Crystal Tear', 'effect': 'Temporarily boosts Intelligence'},
+                {'name': 'Faith-knot Crystal Tear', 'effect': 'Temporarily boosts Faith'},
+                {'name': 'Flame-Shrouding Cracked Tear', 'effect': 'Temporarily boosts Fire attack power'},
+                {'name': 'Magic-Shrouding Cracked Tear', 'effect': 'Temporarily boosts Magic attack power'},
+                {'name': 'Lightning-Shrouding Cracked Tear', 'effect': 'Temporarily boosts Lightning attack power'},
+                {'name': 'Holy-Shrouding Cracked Tear', 'effect': 'Temporarily boosts Holy attack power'},
+                {'name': 'Ruptured Crystal Tear', 'effect': 'Causes a massive explosion after a delay'},
+                {'name': 'Crimson Bubbletear', 'effect': 'Restores HP when HP falls below a certain level'},
+                {'name': 'Opaline Hardtear', 'effect': 'Temporarily boosts all damage negation'},
+                {'name': 'Bloodsucking Cracked Tear', 'effect': 'Temporarily boosts attack power but continuously drains HP'},
+                {'name': 'Spiked Cracked Tear', 'effect': 'Temporarily boosts charged attack power'},
+                {'name': 'Twiggy Cracked Tear', 'effect': 'Prevents rune loss upon death for a time'},
+                {'name': 'Purifying Crystal Tear', 'effect': 'Negates Mohg\'s Shackle curse'},
+                {'name': 'Leaden Hardtear', 'effect': 'Temporarily increases poise'},
+                {'name': 'Cerulean Hidden Tear', 'effect': 'Eliminates all FP consumption for a brief time'},
+                {'name': 'Perfume Bottle (Crystal Tear form)', 'effect': 'Temporarily boosts Perfumer\'s power'},
+                {'name': 'Deflecting Hardtear', 'effect': 'Temporarily allows attacking without breaking guard'},
+                {'name': 'Crimsonspill Crystal Tear', 'effect': 'Temporarily boosts max HP'},
+            ]
+            return JsonResponse({'tears': er_tears})
+
+
+@require_http_methods(['GET'])
+def api_sl_armor(request):
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    q     = request.GET.get('q', '')[:100]
+    limit = safe_int(request.GET.get('limit', 1000), 1000, 1, 1000)
+
+    with get_db_session() as db:
+        if q:
+            rows = db.execute(text(
+                "SELECT id, name, armor_type, physical_defense, magic_defense, "
+                "fire_defense, lightning_defense, holy_defense, poise, weight, image_url "
+                "FROM sl_armor WHERE game = :g AND name LIKE :q ORDER BY name LIMIT :lim"
+            ), {'g': game, 'q': f'%{q}%', 'lim': limit}).fetchall()
+        else:
+            rows = db.execute(text(
+                "SELECT id, name, armor_type, physical_defense, magic_defense, "
+                "fire_defense, lightning_defense, holy_defense, poise, weight, image_url "
+                "FROM sl_armor WHERE game = :g ORDER BY name LIMIT :lim"
+            ), {'g': game, 'lim': limit}).fetchall()
+
+    return JsonResponse({'armor': [
+        {'id': r[0], 'name': r[1], 'type': r[2] or 'set',
+         'defense': {'phy': float(r[3] or 0), 'mag': float(r[4] or 0),
+                     'fir': float(r[5] or 0), 'lit': float(r[6] or 0), 'hol': float(r[7] or 0)},
+         'poise': float(r[8] or 0), 'weight': float(r[9] or 0), 'image_url': r[10] or ''}
+        for r in rows
+    ]})
+
+
+@web_login_required
+@ratelimit(key='user', rate='20/h', block=True)
+@require_http_methods(['GET', 'POST'])
+def api_sl_builds(request):
+    """GET user builds, POST to save a new build."""
+    import json as _json
+    import secrets as _sec
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    # Explicit allowlist - never interpolate user input into table names
+    _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
+    table = _GAME_TABLES.get(game, 'sl_er_builds')
+    uid   = request.web_user.id
+
+    if request.method == 'GET':
+        with get_db_session() as db:
+            rows = db.execute(text(
+                "SELECT id, name, total_level, playstyle_tag, is_public, "
+                "upvotes, share_token, created_at, updated_at "
+                f"FROM {table} WHERE user_id = :uid ORDER BY updated_at DESC LIMIT 50"
+            ), {'uid': uid}).fetchall()
+        return JsonResponse({'builds': [
+            {'id': r[0], 'name': r[1], 'level': r[2], 'tag': r[3],
+             'is_public': bool(r[4]), 'upvotes': r[5],
+             'share_token': r[6], 'created_at': r[7], 'updated_at': r[8]}
+            for r in rows
+        ]})
+
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    name = sanitize_text(str(data.get('name', 'Untitled Build'))[:200])
+    if not name:
+        return JsonResponse({'error': 'Build name required'}, status=400)
+
+    now   = int(time.time())
+    token = _sec.token_urlsafe(10)
+
+    def _si(key, default=None, mn=None, mx=None):
+        return safe_int(data.get(key, default), default, mn, mx)
+
+    stats = {s: _si(s, 10, 1, 99)
+             for s in ('vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane')}
+
+    # Validate spells: must be list of ints, max 20 entries
+    _VALID_TAGS = {'pve', 'pvp', 'boss_rush', 'challenge', 'beginner'}
+    raw_spells = data.get('spells', [])
+    if not isinstance(raw_spells, list):
+        raw_spells = []
+    spell_ids = [int(s) for s in raw_spells if isinstance(s, int) and s > 0][:20]
+
+    tag_raw = str(data.get('playstyle_tag', 'pve'))
+    validated_tag = tag_raw if tag_raw in _VALID_TAGS else 'pve'
+
+    with get_db_session() as db:
+        # Check if build with same name already exists for this user - upsert
+        existing = db.execute(text(
+            f"SELECT id, share_token FROM {table} WHERE user_id = :uid AND name = :name"
+        ), {'uid': uid, 'name': name}).fetchone()
+
+        if existing:
+            # Update existing build in place - same share_token preserved
+            build_id = existing[0]
+            existing_token = existing[1]
+            db.execute(text(
+                f"UPDATE {table} SET "
+                "description=:desc, class_id=:cls, "
+                "vigor=:vigor, mind=:mind, endurance=:endurance, strength=:strength, "
+                "dexterity=:dex, intelligence=:int, faith=:faith, arcane=:arc, "
+                "total_level=:level, "
+                "rh1_weapon_id=:rh1, rh1_aow_name=:rh1aow, "
+                "rh2_weapon_id=:rh2, rh2_aow_name=:rh2aow, "
+                "rh3_weapon_id=:rh3, rh3_aow_name=:rh3aow, "
+                "lh1_weapon_id=:lh1, lh1_aow_name=:lh1aow, "
+                "lh2_weapon_id=:lh2, lh2_aow_name=:lh2aow, "
+                "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, "
+                "helm_id=:helm, chest_id=:chest, gauntlet_id=:gaunt, leg_id=:leg, "
+                "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
+                "spells=:spells, playstyle_tag=:tag, is_public=:pub, updated_at=:now "
+                f"WHERE id=:bid AND user_id=:uid"
+            ), {
+                'desc': sanitize_text(str(data.get('description', ''))[:1000]),
+                'cls': _si('class_id'),
+                'vigor': stats['vigor'], 'mind': stats['mind'], 'endurance': stats['endurance'],
+                'strength': stats['strength'], 'dex': stats['dexterity'],
+                'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
+                'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
+                'rh1': _si('rh1_weapon_id'), 'rh1aow': sanitize_text(str(data.get('rh1_aow_name') or '')[:200]) or None,
+                'rh2': _si('rh2_weapon_id'), 'rh2aow': sanitize_text(str(data.get('rh2_aow_name') or '')[:200]) or None,
+                'rh3': _si('rh3_weapon_id'), 'rh3aow': sanitize_text(str(data.get('rh3_aow_name') or '')[:200]) or None,
+                'lh1': _si('lh1_weapon_id'), 'lh1aow': sanitize_text(str(data.get('lh1_aow_name') or '')[:200]) or None,
+                'lh2': _si('lh2_weapon_id'), 'lh2aow': sanitize_text(str(data.get('lh2_aow_name') or '')[:200]) or None,
+                'lh3': _si('lh3_weapon_id'), 'lh3aow': sanitize_text(str(data.get('lh3_aow_name') or '')[:200]) or None,
+                'helm': _si('helm_id'), 'chest': _si('chest_id'), 'gaunt': _si('gauntlet_id'),
+                'leg': _si('leg_id'),
+                't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
+                't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
+                'spells': _json.dumps(spell_ids), 'tag': validated_tag,
+                'pub': 1 if data.get('is_public', False) else 0,
+                'now': now, 'bid': build_id, 'uid': uid,
+            })
+            db.commit()
+            token = existing_token
+            logger.info("sl_build_update uid=%s game=%s build_id=%s", uid, game, build_id)
+            return JsonResponse({'ok': True, 'build_id': build_id, 'share_token': token, 'updated': True})
+
+        # New build - cap at 50
+        build_count = db.execute(text(
+            f"SELECT COUNT(*) FROM {table} WHERE user_id = :uid"
+        ), {'uid': uid}).scalar() or 0
+        if build_count >= 50:
+            return JsonResponse({'error': 'Build limit reached (50 max)'}, status=429)
+
+        def _aow(key):
+            return sanitize_text(str(data.get(key) or '')[:200]) or None
+
+        db.execute(text(
+            f"INSERT INTO {table} "
+            "(user_id, name, description, class_id, "
+            " vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane, "
+            " total_level, "
+            " rh1_weapon_id, rh1_aow_name, rh2_weapon_id, rh2_aow_name, rh3_weapon_id, rh3_aow_name, "
+            " lh1_weapon_id, lh1_aow_name, lh2_weapon_id, lh2_aow_name, lh3_weapon_id, lh3_aow_name, "
+            " helm_id, chest_id, gauntlet_id, leg_id, "
+            " talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
+            " spells, playstyle_tag, is_public, share_token, created_at, updated_at) "
+            "VALUES "
+            "(:uid, :name, :desc, :cls, "
+            " :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc, "
+            " :level, "
+            " :rh1, :rh1aow, :rh2, :rh2aow, :rh3, :rh3aow, "
+            " :lh1, :lh1aow, :lh2, :lh2aow, :lh3, :lh3aow, "
+            " :helm, :chest, :gaunt, :leg, "
+            " :t1, :t2, :t3, :t4, "
+            " :spells, :tag, :pub, :token, :now, :now)"
+        ), {
+            'uid': uid, 'name': name,
+            'desc': sanitize_text(str(data.get('description', ''))[:1000]),
+            'cls': _si('class_id'),
+            'vigor':     stats['vigor'],
+            'mind':      stats['mind'],
+            'endurance': stats['endurance'],
+            'strength':  stats['strength'],
+            'dex':       stats['dexterity'],
+            'int':       stats['intelligence'],
+            'faith':     stats['faith'],
+            'arc':       stats['arcane'],
+            'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
+            'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'),
+            'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'),
+            'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'),
+            'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'),
+            'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'),
+            'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'),
+            'helm': _si('helm_id'),
+            'chest':_si('chest_id'),
+            'gaunt':_si('gauntlet_id'),
+            'leg':  _si('leg_id'),
+            't1':   _si('talisman_1_id'),
+            't2':   _si('talisman_2_id'),
+            't3':   _si('talisman_3_id'),
+            't4':   _si('talisman_4_id'),
+            'spells': _json.dumps(spell_ids),
+            'tag':  validated_tag,
+            'pub':  1 if data.get('is_public', False) else 0,
+            'token': token, 'now': now,
+        })
+        build_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+        db.commit()
+
+    logger.info("sl_build_save uid=%s game=%s build_id=%s public=%s", uid, game, build_id, data.get('is_public', False))
+    return JsonResponse({'ok': True, 'build_id': build_id, 'share_token': token})
+
+
+@web_login_required
+@require_http_methods(['DELETE'])
+def api_sl_build_delete(request, build_id):
+    """DELETE /api/soulslike/builds/<id>/delete/ - delete own build."""
+    game = request.GET.get('game', 'elden_ring')[:32]
+    _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
+    table = _GAME_TABLES.get(game, 'sl_er_builds')
+    uid = request.web_user.id
+    bid = int(build_id) if str(build_id).isdigit() else 0
+    if not bid:
+        return JsonResponse({'error': 'Invalid build id'}, status=400)
+    with get_db_session() as db:
+        result = db.execute(text(
+            f"DELETE FROM {table} WHERE id = :bid AND user_id = :uid"
+        ), {'bid': bid, 'uid': uid})
+        db.commit()
+    if result.rowcount:
+        logger.info("sl_build_delete uid=%s build_id=%s game=%s", uid, bid, game)
+        return JsonResponse({'ok': True})
+    return JsonResponse({'error': 'Build not found'}, status=404)
+
+
+@require_http_methods(['GET'])
+def api_sl_builds_browse(request):
+    """
+    GET /api/soulslike/builds/browse/?game=elden_ring&tag=pve&sort=popular&q=spellsword
+    Public build browsing - no login required.
+    """
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    tag   = request.GET.get('tag', '')[:32]
+    sort  = request.GET.get('sort', 'recent')[:16]
+    q     = request.GET.get('q', '')[:100]
+    limit = safe_int(request.GET.get('limit', 30), 30, 1, 100)
+    _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
+    table = _GAME_TABLES.get(game, 'sl_er_builds')
+
+    order_clause = {
+        'popular': 'upvotes DESC, created_at DESC',
+        'recent':  'created_at DESC',
+        'level':   'total_level DESC',
+    }.get(sort, 'created_at DESC')
+
+    with get_db_session() as db:
+        if q and tag:
+            rows = db.execute(text(
+                f"SELECT b.id, b.name, b.description, b.total_level, b.playstyle_tag, "
+                f"b.upvotes, b.share_token, b.created_at, b.class_id, "
+                f"u.username, u.avatar_url "
+                f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
+                f"WHERE b.is_public = 1 AND b.playstyle_tag = :tag AND b.name LIKE :q "
+                f"ORDER BY {order_clause} LIMIT :lim"
+            ), {'tag': tag, 'q': f'%{q}%', 'lim': limit}).fetchall()
+        elif tag:
+            rows = db.execute(text(
+                f"SELECT b.id, b.name, b.description, b.total_level, b.playstyle_tag, "
+                f"b.upvotes, b.share_token, b.created_at, b.class_id, "
+                f"u.username, u.avatar_url "
+                f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
+                f"WHERE b.is_public = 1 AND b.playstyle_tag = :tag "
+                f"ORDER BY {order_clause} LIMIT :lim"
+            ), {'tag': tag, 'lim': limit}).fetchall()
+        elif q:
+            rows = db.execute(text(
+                f"SELECT b.id, b.name, b.description, b.total_level, b.playstyle_tag, "
+                f"b.upvotes, b.share_token, b.created_at, b.class_id, "
+                f"u.username, u.avatar_url "
+                f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
+                f"WHERE b.is_public = 1 AND b.name LIKE :q "
+                f"ORDER BY {order_clause} LIMIT :lim"
+            ), {'q': f'%{q}%', 'lim': limit}).fetchall()
+        else:
+            rows = db.execute(text(
+                f"SELECT b.id, b.name, b.description, b.total_level, b.playstyle_tag, "
+                f"b.upvotes, b.share_token, b.created_at, b.class_id, "
+                f"u.username, u.avatar_url "
+                f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
+                f"WHERE b.is_public = 1 "
+                f"ORDER BY {order_clause} LIMIT :lim"
+            ), {'lim': limit}).fetchall()
+
+        class_rows = db.execute(text(
+            "SELECT id, name FROM sl_classes WHERE game = :g"
+        ), {'g': game}).fetchall()
+        class_names = {r[0]: r[1] for r in class_rows}
+
+    return JsonResponse({'builds': [
+        {
+            'id': r[0], 'name': r[1], 'description': r[2] or '',
+            'level': r[3], 'tag': r[4], 'upvotes': r[5],
+            'share_token': r[6], 'created_at': r[7],
+            'class_name': class_names.get(r[8], ''),
+            'author': r[9], 'author_avatar': r[10] or '',
+        }
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_build_detail(request, share_token):
+    """GET /api/soulslike/builds/<share_token>/ - full build detail for viewing/forking."""
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
+    table = _GAME_TABLES.get(game, 'sl_er_builds')
+
+    with get_db_session() as db:
+        row = db.execute(text(
+            f"SELECT b.id, b.name, b.description, b.class_id, "
+            f"b.vigor, b.mind, b.endurance, b.strength, b.dexterity, b.intelligence, b.faith, b.arcane, "
+            f"b.total_level, "
+            f"b.rh1_weapon_id, b.rh1_aow_name, b.rh2_weapon_id, b.rh2_aow_name, b.rh3_weapon_id, b.rh3_aow_name, "
+            f"b.lh1_weapon_id, b.lh1_aow_name, b.lh2_weapon_id, b.lh2_aow_name, b.lh3_weapon_id, b.lh3_aow_name, "
+            f"b.helm_id, b.chest_id, b.gauntlet_id, b.leg_id, "
+            f"b.talisman_1_id, b.talisman_2_id, b.talisman_3_id, b.talisman_4_id, "
+            f"b.spells, b.playstyle_tag, b.is_public, b.upvotes, b.share_token, b.created_at, "
+            f"u.username, u.avatar_url "
+            f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
+            f"WHERE b.share_token = :tok AND (b.is_public = 1 OR b.user_id = :uid)"
+        ), {'tok': share_token, 'uid': request.session.get('web_user_id', -1)}).mappings().fetchone()
+
+        if not row:
+            return JsonResponse({'error': 'Build not found or private'}, status=404)
+
+        # Resolve item names for display
+        def _weapon_name(wid):
+            if not wid: return None
+            r = db.execute(text("SELECT name FROM sl_weapons WHERE id=:id"), {'id': wid}).fetchone()
+            return r[0] if r else None
+
+        def _armor_name(aid):
+            if not aid: return None
+            r = db.execute(text("SELECT name FROM sl_armor WHERE id=:id"), {'id': aid}).fetchone()
+            return r[0] if r else None
+
+        def _talisman_name(tid):
+            if not tid: return None
+            r = db.execute(text("SELECT name FROM sl_talismans WHERE id=:id"), {'id': tid}).fetchone()
+            return r[0] if r else None
+
+        spell_ids = json.loads(row.get('spells') or '[]')
+        spell_names = []
+        for sid in spell_ids:
+            if sid >= 10000:
+                r = db.execute(text("SELECT name FROM sl_err_spells WHERE id=:id"), {'id': sid - 10000}).fetchone()
+            else:
+                r = db.execute(text("SELECT name FROM sl_spells WHERE id=:id"), {'id': sid}).fetchone()
+            if r:
+                spell_names.append(r[0])
+
+    def _weapon_id_name(wid):
+        if not wid: return None
+        r = db.execute(text("SELECT id, name, weapon_type FROM sl_weapons WHERE id=:id"), {'id': wid}).fetchone()
+        return {'id': r[0], 'name': r[1], 'type': r[2]} if r else None
+
+    def _armor_id_name(aid):
+        if not aid: return None
+        r = db.execute(text("SELECT id, name, armor_type, weight, poise FROM sl_armor WHERE id=:id"), {'id': aid}).fetchone()
+        return {'id': r[0], 'name': r[1], 'type': r[2], 'weight': float(r[3] or 0), 'poise': float(r[4] or 0)} if r else None
+
+    def _talisman_id_name(tid):
+        if not tid: return None
+        r = db.execute(text("SELECT id, name, effect, weight FROM sl_talismans WHERE id=:id"), {'id': tid}).fetchone()
+        return {'id': r[0], 'name': r[1], 'effect': r[2] or '', 'weight': float(r[3] or 0)} if r else None
+
+    spell_details = []
+    for sid in spell_ids:
+        if sid >= 10000:
+            # ERR-exclusive spell (offset by 10000 to avoid ID collision)
+            real_id = sid - 10000
+            r = db.execute(text("SELECT id, name, spell_type, fp_cost, slots_used FROM sl_err_spells WHERE id=:id"), {'id': real_id}).fetchone()
+            if r:
+                spell_details.append({'id': sid, 'name': r[1], 'type': r[2], 'fp_cost': r[3] or 0, 'slots': r[4] or 1})
+        else:
+            r = db.execute(text("SELECT id, name, spell_type, fp_cost, slots_required FROM sl_spells WHERE id=:id"), {'id': sid}).fetchone()
+            if r:
+                spell_details.append({'id': r[0], 'name': r[1], 'type': r[2], 'fp_cost': r[3] or 0, 'slots': r[4] or 1})
+
+    return JsonResponse({
+        'id': row['id'], 'name': row['name'], 'description': row['description'] or '',
+        'author': row['username'], 'author_avatar': row['avatar_url'] or '',
+        'level': row['total_level'], 'tag': row['playstyle_tag'],
+        'is_public': bool(row['is_public']), 'upvotes': row['upvotes'],
+        'share_token': row['share_token'],
+        'stats': {s: row[s] for s in ('vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane')},
+        'class_id': row.get('class_id'),
+        'weapons': {
+            'rh1': _weapon_id_name(row.get('rh1_weapon_id')), 'rh1_aow': row.get('rh1_aow_name'),
+            'rh2': _weapon_id_name(row.get('rh2_weapon_id')), 'rh2_aow': row.get('rh2_aow_name'),
+            'rh3': _weapon_id_name(row.get('rh3_weapon_id')), 'rh3_aow': row.get('rh3_aow_name'),
+            'lh1': _weapon_id_name(row.get('lh1_weapon_id')), 'lh1_aow': row.get('lh1_aow_name'),
+            'lh2': _weapon_id_name(row.get('lh2_weapon_id')), 'lh2_aow': row.get('lh2_aow_name'),
+            'lh3': _weapon_id_name(row.get('lh3_weapon_id')), 'lh3_aow': row.get('lh3_aow_name'),
+        },
+        'armor': {
+            'helm':     _armor_id_name(row.get('helm_id')),
+            'chest':    _armor_id_name(row.get('chest_id')),
+            'gauntlet': _armor_id_name(row.get('gauntlet_id')),
+            'leg':      _armor_id_name(row.get('leg_id')),
+        },
+        'talismans': [
+            _talisman_id_name(row.get('talisman_1_id')),
+            _talisman_id_name(row.get('talisman_2_id')),
+            _talisman_id_name(row.get('talisman_3_id')),
+            _talisman_id_name(row.get('talisman_4_id')),
+        ],
+        'spells': spell_details,
+        'created_at': row['created_at'],
     })

@@ -163,7 +163,26 @@ def blog_list(request):
         author_ids = {a.author_id for a in articles_raw}
         authors = {u.id: u for u in db.query(WebUser).filter(WebUser.id.in_(author_ids)).all()}
 
-        articles = [_article_to_dict(a, authors.get(a.author_id)) for a in articles_raw]
+        # Fetch per-reaction counts for all articles on this page in one query
+        article_ids = [a.id for a in articles_raw]
+        reaction_counts = {}  # {article_id: {'like': n, 'love': n, 'fire': n, 'skull': n}}
+        if article_ids:
+            from sqlalchemy import text as _t
+            ids_tuple = tuple(article_ids) if len(article_ids) > 1 else (article_ids[0], article_ids[0])
+            rows = db.execute(_t(
+                "SELECT article_id, reaction, COUNT(*) as cnt FROM web_article_reactions "
+                "WHERE article_id IN :ids GROUP BY article_id, reaction"
+            ), {'ids': ids_tuple}).fetchall()
+            for r in rows:
+                if r[0] not in reaction_counts:
+                    reaction_counts[r[0]] = {'like': 0, 'love': 0, 'fire': 0, 'skull': 0}
+                reaction_counts[r[0]][r[1]] = r[2]
+
+        articles = []
+        for a in articles_raw:
+            d = _article_to_dict(a, authors.get(a.author_id))
+            d['reactions'] = reaction_counts.get(a.id, {'like': 0, 'love': 0, 'fire': 0, 'skull': 0})
+            articles.append(d)
 
         # Category counts as list of (name, count) tuples for easy template iteration
         category_tabs = []
@@ -275,12 +294,18 @@ def blog_detail(request, slug):
             comments.append(cd)
 
     return render(request, 'questlog_web/blog_detail.html', {
-        'article':       article_data,
-        'body_html':     body_html,
-        'comments':      comments,
-        'user_can_edit': user_can_edit,
-        'web_user':      web_user,
-        'active_page':   'blog',
+        'article':          article_data,
+        'body_html':        body_html,
+        'comments':         comments,
+        'user_can_edit':    user_can_edit,
+        'web_user':         web_user,
+        'active_page':      'blog',
+        'reaction_buttons': [
+            ('👍', 'like',  'Like'),
+            ('❤️', 'love',  'Love'),
+            ('🔥', 'fire',  'Fire'),
+            ('💀', 'skull', 'RIP'),
+        ],
     })
 
 
@@ -764,3 +789,74 @@ def api_blog_preview(request):
     md_source = str(data.get('body_md', ''))[:100_000]
     html = sanitize_article_html(md_source)
     return JsonResponse({'html': html})
+
+
+@add_web_user_context
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def api_article_react(request, article_id):
+    """GET current reaction state, POST to add, DELETE to remove."""
+    import time as _time
+    from sqlalchemy import text as _t
+
+    with get_db_session() as db:
+        article = db.query(WebArticle).filter_by(id=article_id, is_published=True, is_hidden=False).first()
+        if not article:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        user_id = request.web_user.id if request.web_user else None
+
+        # Count reactions
+        counts = {}
+        for reaction in ('like', 'love', 'fire', 'skull'):
+            cnt = db.execute(_t(
+                "SELECT COUNT(*) FROM web_article_reactions WHERE article_id=:aid AND reaction=:r"
+            ), {'aid': article_id, 'r': reaction}).scalar() or 0
+            counts[reaction] = cnt
+
+        # User's current reaction
+        user_reaction = None
+        if user_id:
+            row = db.execute(_t(
+                "SELECT reaction FROM web_article_reactions WHERE article_id=:aid AND user_id=:uid LIMIT 1"
+            ), {'aid': article_id, 'uid': user_id}).fetchone()
+            user_reaction = row[0] if row else None
+
+        if request.method == 'GET':
+            return JsonResponse({'counts': counts, 'user_reaction': user_reaction})
+
+        if not user_id:
+            return JsonResponse({'error': 'Login required'}, status=401)
+
+        if request.method == 'DELETE':
+            db.execute(_t(
+                "DELETE FROM web_article_reactions WHERE article_id=:aid AND user_id=:uid"
+            ), {'aid': article_id, 'uid': user_id})
+            db.commit()
+            user_reaction = None
+
+        elif request.method == 'POST':
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                data = {}
+            reaction = data.get('reaction', 'like')
+            if reaction not in ('like', 'love', 'fire', 'skull'):
+                return JsonResponse({'error': 'Invalid reaction'}, status=400)
+
+            # Upsert - replace existing reaction
+            db.execute(_t(
+                "INSERT INTO web_article_reactions (article_id, user_id, reaction, created_at) "
+                "VALUES (:aid, :uid, :r, :ts) "
+                "ON DUPLICATE KEY UPDATE reaction=:r"
+            ), {'aid': article_id, 'uid': user_id, 'r': reaction, 'ts': int(_time.time())})
+            db.commit()
+            user_reaction = reaction
+
+        # Return fresh counts
+        for reaction in ('like', 'love', 'fire', 'skull'):
+            cnt = db.execute(_t(
+                "SELECT COUNT(*) FROM web_article_reactions WHERE article_id=:aid AND reaction=:r"
+            ), {'aid': article_id, 'r': reaction}).scalar() or 0
+            counts[reaction] = cnt
+
+    return JsonResponse({'counts': counts, 'user_reaction': user_reaction})

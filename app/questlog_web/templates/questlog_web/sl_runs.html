@@ -1,0 +1,62 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}My Runs | QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-2xl mx-auto px-3 py-4">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-black text-white flex items-center gap-2">
+      <i class="fas fa-skull text-red-400 text-base"></i> My Collection Runs
+    </h1>
+    <a href="/soulslike/builder/" class="px-4 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition">
+      <i class="fas fa-plus mr-1"></i>New Run
+    </a>
+  </div>
+
+  {% if runs %}
+  <div class="space-y-3">
+    {% for run in runs %}
+    <a href="/soulslike/runs/{{ run.token }}/" class="block bg-neutral-900 border border-neutral-800 hover:border-neutral-600 rounded-xl p-4 transition group">
+      <div class="flex items-start justify-between">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            {% if run.is_active %}
+            <span class="flex items-center gap-1 text-[10px] text-green-400 font-bold">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>ACTIVE
+            </span>
+            {% else %}
+            <span class="text-[10px] text-gray-600 font-semibold">COMPLETED</span>
+            {% endif %}
+            <span class="text-[10px] text-gray-600">{{ run.game|title }}</span>
+          </div>
+          <div class="text-white font-bold group-hover:text-amber-300 transition truncate">{{ run.build_name }}</div>
+          {% if run.total %}
+          <div class="mt-2 h-1.5 bg-neutral-800 rounded-full overflow-hidden w-48">
+            <div class="h-full bg-green-600 rounded-full" style="width:{% widthratio run.collected run.total 100 %}%"></div>
+          </div>
+          <div class="text-[11px] text-gray-500 mt-1">{{ run.collected }}/{{ run.total }} collected</div>
+          {% endif %}
+        </div>
+        <div class="text-right flex-shrink-0 ml-4">
+          <div class="text-lg font-black text-red-400">{{ run.deaths }}</div>
+          <div class="text-[10px] text-gray-600">deaths</div>
+          {% if run.last_death %}
+          <div class="text-[10px] text-gray-600 mt-0.5">Last: {{ run.last_death }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-16 text-gray-600">
+    <i class="fas fa-scroll text-4xl mb-4 block"></i>
+    <p class="text-lg font-semibold mb-2">No runs yet</p>
+    <p class="text-sm mb-6">Plan a build then click "Start Run" to begin tracking</p>
+    <a href="/soulslike/builder/" class="px-6 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm font-bold rounded-lg transition">
+      Open Build Planner
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Death Counter Overlay</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: transparent;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #fff;
+  padding: 12px;
+}
+.overlay-wrap {
+  background: rgba(8, 4, 4, 0.88);
+  border: 1px solid rgba(185, 28, 28, 0.4);
+  border-radius: 8px;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-width: 160px;
+}
+.skull-side {
+  background: rgba(185,28,28,0.15);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid rgba(185,28,28,0.25);
+}
+.skull-icon { font-size: 28px; filter: drop-shadow(0 0 8px rgba(239,68,68,0.6)); }
+.count-side { padding: 10px 16px; flex: 1; }
+.death-count {
+  font-size: 36px;
+  font-weight: 900;
+  color: #fca5a5;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(239,68,68,0.4);
+}
+.death-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #7f1d1d;
+  margin-top: 2px;
+}
+.last-death {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 5px;
+}
+.last-death strong { color: #9ca3af; }
+</style>
+</head>
+<body>
+<div class="overlay-wrap">
+  <div class="skull-side">
+    <span class="skull-icon">💀</span>
+  </div>
+  <div class="count-side">
+    <div class="death-count" id="death-count">0</div>
+    <div class="death-label">Deaths</div>
+    <div class="last-death" id="last-death" style="display:none">
+      Last: <strong id="last-death-boss"></strong>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN = '{{ token }}';
+const POLL_URL = '{{ poll_url }}';
+
+function load() {
+  fetch(POLL_URL)
+    .then(r => r.json()).then(d => {
+      if (d.error) return;
+      document.getElementById('death-count').textContent = d.deaths || 0;
+      if (d.last_death) {
+        document.getElementById('last-death').style.display = '';
+        document.getElementById('last-death-boss').textContent = d.last_death;
+      }
+    }).catch(() => {});
+}
+
+load();
+setInterval(load, 3000);
+</script>
+</body>
+</html>
