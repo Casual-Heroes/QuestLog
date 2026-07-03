@@ -260,53 +260,55 @@
     </div>
 
     <!-- SoulsLike Section -->
-    <div>
-      <div class="flex items-center justify-between px-3 mb-1">
-        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">SoulsLike</h3>
-      </div>
-      <div class="space-y-1">
+    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'soulslike_listener' %}true{% else %}false{% endif %} }">
+      <button @click="open = !open"
+              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'soulslike_listener' %}active{% endif %}">
+        <i class="fas fa-skull text-gray-400 group-hover:text-amber-400 w-4 flex-shrink-0"></i>
+        <span class="flex-1 text-left">SoulsLike</span>
+        <i class="fas fa-chevron-down text-gray-600 text-[10px] transition-transform" :class="open ? 'rotate-180' : ''"></i>
+      </button>
+      <div x-show="open" x-collapse class="ml-4 mt-0.5 space-y-0.5 border-l border-neutral-800 pl-3">
+
         <a href="/soulslike/"
-           class="nav-item {% if active_page == 'soulslike' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-skull text-gray-400 group-hover:text-red-400"></i>
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_hub' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-home w-3.5 text-center"></i>
           <span>SoulsLike Hub</span>
         </a>
-        <a href="/soulslike/tracker/"
-           class="nav-item {% if active_page == 'soulslike_tracker' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-desktop text-gray-400 group-hover:text-amber-400"></i>
-          <div class="min-w-0">
-            <div>Mortality Tracker</div>
-            <div class="text-[9px] text-gray-600 font-normal normal-case tracking-normal">Standalone desktop app</div>
-          </div>
-        </a>
+
         <a href="/soulslike/builder/"
-           class="nav-item {% if active_page == 'soulslike_builder' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-sword text-gray-400 group-hover:text-amber-400"></i>
-          <span>Char Builder</span>
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_builder' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-sword w-3.5 text-center"></i>
+          <span>Character Builder</span>
         </a>
+
         <a href="/soulslike/builds/"
-           class="nav-item {% if active_page == 'soulslike_builds_browse' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-users text-gray-400 group-hover:text-amber-400"></i>
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_builds_browse' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-users w-3.5 text-center"></i>
           <span>Community Builds</span>
         </a>
+
         <a href="/soulslike/leaderboards/"
-           class="nav-item {% if active_page == 'soulslike_leaderboards' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-trophy text-gray-400 group-hover:text-amber-400"></i>
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_leaderboards' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-trophy w-3.5 text-center"></i>
           <span>Leaderboards</span>
         </a>
-        <a href="/soulslike/listener/"
-           class="nav-item {% if active_page == 'soulslike_listener' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-plug text-gray-400 group-hover:text-amber-400"></i>
-          <div class="min-w-0">
-            <div>QuestLog Listener</div>
-            <div class="text-[9px] text-gray-600 font-normal normal-case tracking-normal">Web-connected overlay</div>
+
+        <div class="opacity-50 flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-500 cursor-not-allowed">
+          <i class="fas fa-book-open w-3.5 text-center"></i>
+          <span class="flex-1">Guides</span>
+          <span class="text-[9px] font-bold uppercase tracking-wide">Soon</span>
+        </div>
+
+        <!-- EldenTracker desktop app - direct link, no sub-dropdown needed -->
+        <a href="/soulslike/tracker/"
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_tracker' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-desktop w-3.5 text-center"></i>
+          <div>
+            <div>EldenTracker</div>
+            <div class="text-[9px] text-gray-600 normal-case tracking-normal font-normal">Desktop app</div>
           </div>
         </a>
-        <a href="/soulslike/guides/"
-           class="nav-item flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group opacity-50 cursor-not-allowed" title="Coming Soon">
-          <i class="fas fa-book-open text-gray-500"></i>
-          <span class="flex-1">Guides</span>
-          <span class="text-[9px] text-gray-600 font-bold uppercase tracking-wide">Soon</span>
-        </a>
+
       </div>
     </div>
 

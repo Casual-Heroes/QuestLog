@@ -45,7 +45,7 @@ class WebUser(Base):
     avatar_url = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
 
-    # Steam (optional linked account — unlocks game features)
+    # Steam (optional linked account - unlocks game features)
     steam_id = Column(String(50), unique=True, nullable=True, index=True)
     steam_username = Column(String(100), nullable=True)
     steam_avatar = Column(String(500), nullable=True)
@@ -105,7 +105,7 @@ class WebUser(Base):
     live_url = Column(String(500), nullable=True)
     live_checked_at = Column(BigInteger, nullable=True)
 
-    # Steam tracking opt-ins (both default off — fully user-controlled)
+    # Steam tracking opt-ins (both default off - fully user-controlled)
     track_achievements = Column(Boolean, default=False)
     track_hours_played = Column(Boolean, default=False)
     steam_achievements_total = Column(Integer, default=0)  # last known total for delta
@@ -201,6 +201,9 @@ class WebUser(Base):
     is_disabled = Column(Boolean, default=False)  # Account locked (soft ban - no login)
     is_hidden = Column(Boolean, default=False)    # Hidden from all public pages (admin/mod only visible)
     posting_timeout_until = Column(BigInteger, nullable=True)  # Unix ts: cannot post/comment until this time
+    listener_api_key      = Column(String(64), unique=True, nullable=True)
+    listener_auth_code    = Column(String(64), unique=True, nullable=True)  # short-lived OAuth-style code
+    listener_auth_code_exp = Column(BigInteger, nullable=True)              # unix ts expiry
 
     # Timestamps
     created_at = Column(BigInteger, nullable=False)
@@ -814,7 +817,7 @@ class WebSteamSearchConfig(Base):
     max_results = Column(Integer, default=50)
     show_on_site = Column(Boolean, default=True)
 
-    # Schedule — admin controls how often this runs (minutes)
+    # Schedule - admin controls how often this runs (minutes)
     fetch_interval = Column(Integer, default=1440)  # 1440 = once per day
 
     # Console enrichment via IGDB

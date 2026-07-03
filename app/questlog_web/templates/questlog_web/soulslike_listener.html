@@ -35,7 +35,7 @@
     </div>
     <div>
       <h1 class="text-2xl font-black text-white">QuestLog Listener</h1>
-      <p class="text-gray-400 mt-1">Lightweight background app — auto-detects deaths via OCR and syncs your Mortality Run session live on QuestLog.</p>
+      <p class="text-gray-400 mt-1">Lightweight background app - auto-detects deaths via OCR and syncs your Mortality Run session live on QuestLog.</p>
       <div class="flex items-center gap-3 mt-2">
         <span class="text-[10px] text-gray-600 bg-neutral-800 px-2 py-0.5 rounded">Windows 10/11</span>
         <span class="text-[10px] text-gray-600 bg-neutral-800 px-2 py-0.5 rounded">v1.0.0</span>
@@ -48,12 +48,14 @@
   <div class="bg-neutral-900 border border-amber-700/30 rounded-2xl p-6 mb-6">
     <div class="flex items-center justify-between flex-wrap gap-4">
       <div>
-        <div class="text-sm font-bold text-white mb-1">QuestLogListener.exe</div>
-        <div class="text-xs text-gray-500">Windows executable — no Python install required.</div>
-        <div class="text-[10px] text-gray-600 mt-1">⚠️ Build coming soon — currently available as Python script below.</div>
+        <div class="text-sm font-bold text-white mb-1">QuestLogListener.exe <span class="text-[10px] text-green-400 bg-green-900/30 border border-green-800/40 rounded px-1.5 py-0.5 ml-1">v1.0</span></div>
+        <div class="text-xs text-gray-500">Windows 10/11 - no Python install required.</div>
+        <div class="text-[10px] text-gray-500 mt-1"><i class="fas fa-hdd mr-1"></i>~236 MB &nbsp;·&nbsp; <i class="fas fa-calendar mr-1"></i>July 2026</div>
       </div>
-      <a href="#python-install" class="px-6 py-2.5 bg-amber-700 hover:bg-amber-600 text-white font-bold rounded-xl transition flex items-center gap-2 text-sm">
-        <i class="fas fa-download"></i> Get Started
+      <a href="/static/downloads/QuestLogListener.zip"
+         onclick="fetch('/api/tracker/download/',{method:'POST',headers:{'X-CSRFToken':document.cookie.match(/csrftoken=([^;]+)/)?.[1]||''},body:new URLSearchParams({platform:'windows'})})"
+         class="px-6 py-2.5 bg-amber-700 hover:bg-amber-600 text-white font-bold rounded-xl transition flex items-center gap-2 text-sm">
+        <i class="fas fa-download"></i> Download for Windows
       </a>
     </div>
   </div>
@@ -98,6 +100,10 @@
     <h2 class="text-sm font-black text-white uppercase tracking-wider mb-3">Hotkeys</h2>
     <div class="space-y-2">
       <div class="flex items-center justify-between py-1.5 border-b border-white/5">
+        <span class="text-xs text-gray-400">Toggle OCR on/off</span>
+        <kbd class="text-xs font-bold bg-neutral-800 border border-neutral-700 rounded px-2 py-0.5 text-amber-400">F7</kbd>
+      </div>
+      <div class="flex items-center justify-between py-1.5 border-b border-white/5">
         <span class="text-xs text-gray-400">Log death manually</span>
         <kbd class="text-xs font-bold bg-neutral-800 border border-neutral-700 rounded px-2 py-0.5 text-amber-400">F9</kbd>
       </div>
@@ -112,30 +118,55 @@
     </div>
   </div>
 
+  <!-- Death Detection -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 mb-6">
+    <h2 class="text-sm font-black text-white uppercase tracking-wider mb-4">Death Detection</h2>
+    <div class="space-y-3">
+
+      <!-- Template Matching - default -->
+      <div class="flex items-start gap-3 p-3 bg-green-900/10 border border-green-800/30 rounded-xl">
+        <i class="fas fa-check-circle text-green-400 mt-0.5 flex-shrink-0"></i>
+        <div>
+          <div class="text-sm font-bold text-green-400 mb-0.5">Template Matching <span class="text-[10px] bg-green-900/40 border border-green-800/40 text-green-400 px-1.5 py-0.5 rounded ml-1">DEFAULT</span></div>
+          <div class="text-xs text-gray-400">Lightweight pixel-pattern detection. Watches for the "YOU DIED" screen using image templates - no AI model, no large download, minimal CPU usage. Works out of the box.</div>
+        </div>
+      </div>
+
+      <!-- EasyOCR - opt in -->
+      <div class="flex items-start gap-3 p-3 bg-neutral-800/50 border border-neutral-700 rounded-xl">
+        <i class="fas fa-brain text-purple-400 mt-0.5 flex-shrink-0"></i>
+        <div>
+          <div class="text-sm font-bold text-gray-300 mb-0.5">EasyOCR (PyTorch) <span class="text-[10px] bg-neutral-700 text-gray-400 px-1.5 py-0.5 rounded ml-1">OPT-IN</span></div>
+          <div class="text-xs text-gray-500">AI-powered text recognition. More accurate across different resolutions and UI mods but requires a ~500MB PyTorch model download on first run and uses significantly more CPU. Enable in the setup window if template matching misses deaths.</div>
+        </div>
+      </div>
+
+    </div>
+    <p class="text-[11px] text-gray-600 mt-3"><i class="fas fa-keyboard mr-1"></i>Either way, <kbd class="text-amber-500 bg-neutral-800 border border-neutral-700 rounded px-1">F9</kbd> always logs a death manually if auto-detection misses one.</p>
+  </div>
+
   <!-- Supported games -->
   <div class="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 mb-6">
     <h2 class="text-sm font-black text-white uppercase tracking-wider mb-3">Supported Games</h2>
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
       <div class="flex items-center gap-2 text-xs text-gray-300"><span class="text-amber-500">✦</span> Elden Ring</div>
       <div class="flex items-center gap-2 text-xs text-gray-300"><span class="text-purple-400">✦</span> Elden Ring Reforged</div>
-      <div class="flex items-center gap-2 text-xs text-gray-300"><span class="text-blue-400">⚔</span> Dark Souls III</div>
-      <div class="flex items-center gap-2 text-xs text-gray-500"><span>⚙</span> Custom (configurable)</div>
       <div class="flex items-center gap-2 text-xs text-gray-500"><span>🔜</span> More coming soon</div>
     </div>
   </div>
 
-  <!-- Python install section -->
-  <div id="python-install" class="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 mb-6">
-    <h2 class="text-sm font-black text-white uppercase tracking-wider mb-3">Run from Source (Python)</h2>
-    <p class="text-xs text-gray-500 mb-3">While the .exe build is being packaged, run the listener directly with Python:</p>
+  <!-- Source / GitHub -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-5 mb-6">
+    <h2 class="text-sm font-black text-white uppercase tracking-wider mb-2">Open Source</h2>
+    <p class="text-xs text-gray-500 mb-3">QuestLog Listener is open source. Build from source or contribute on GitHub.</p>
     <div class="bg-neutral-950 rounded-lg p-3 font-mono text-xs text-green-400 space-y-1">
-      <div># Clone / download the listener files</div>
-      <div>pip install requests keyboard psutil pystray Pillow easyocr mss numpy</div>
-      <div>python listener.py</div>
+      <div>git clone https://github.com/Casual-Heroes/questlog-listener</div>
+      <div>pip install -r requirements.txt</div>
+      <div>pyinstaller questlog_listener.spec</div>
     </div>
     <a href="https://github.com/Casual-Heroes/questlog-listener" target="_blank" rel="noopener"
        class="inline-flex items-center gap-2 mt-3 text-xs text-amber-500 hover:text-amber-300 transition">
-      <i class="fab fa-github"></i> View source on GitHub ↗
+      <i class="fab fa-github"></i> View on GitHub ↗
     </a>
   </div>
 
@@ -152,8 +183,8 @@
         <div class="text-xs text-gray-500">Start a Mortality Run from the QuestLog Souls Tracker page. Your session token is in the Web Tracker URL: questlog.casual-heroes.com/soulslike/runs/<strong class="text-amber-500">YOUR_TOKEN</strong>/</div>
       </div>
       <div>
-        <div class="text-sm font-semibold text-gray-200 mb-1">OCR says it needs to download something?</div>
-        <div class="text-xs text-gray-500">EasyOCR downloads its language model (~100MB) on first run. This is a one-time download. If you skip it, you can still use F9/F10 hotkeys manually.</div>
+        <div class="text-sm font-semibold text-gray-200 mb-1">What's the difference between Template Matching and EasyOCR?</div>
+        <div class="text-xs text-gray-500">Template matching (default) is fast and lightweight - it looks for a pixel pattern of the "YOU DIED" screen. EasyOCR is AI-powered text recognition using PyTorch - more accurate but downloads ~500MB on first run and uses more CPU. Enable EasyOCR in the setup window only if template matching is missing deaths.</div>
       </div>
       <div>
         <div class="text-sm font-semibold text-gray-200 mb-1">Can I use this on multiple monitors?</div>

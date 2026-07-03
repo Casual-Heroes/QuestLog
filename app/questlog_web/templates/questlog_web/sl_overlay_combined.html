@@ -32,17 +32,17 @@ html, body {
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 .build-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   color: #d97706;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
-  margin-right: 8px;
+  margin-right: 6px;
 }
 .live-badge {
   font-size: 9px;
@@ -218,6 +218,9 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+#boss-recent, #items-list {
+  transition: opacity 0.15s ease;
+}
 .boss-tier-badge {
   font-size: 8px;
   font-weight: 700;
@@ -364,6 +367,12 @@ html, body {
     <div class="hollow-alert" id="hollow-alert">⚠ Gone Hollow</div>
   </div>
 
+  <!-- Currently fighting - pulses while active, hidden on defeat -->
+  <div id="fighting-boss" style="display:none;padding:5px 12px 4px;font-size:11px;font-weight:800;
+       color:#ef4444;background:rgba(153,27,27,0.2);border-bottom:1px solid rgba(239,68,68,0.2);
+       letter-spacing:0.04em;text-transform:uppercase;animation:pulse 1s ease-in-out infinite;">
+  </div>
+
   <!-- Boss tracker -->
   <div class="section" id="boss-section" style="display:none">
     <div class="section-header">
@@ -385,7 +394,7 @@ html, body {
     <div id="items-list"></div>
   </div>
 
-  <!-- Survival time + longest life -->
+  <!-- Current streak + longest life -->
   <div class="bottom-stats">
     <div class="bottom-stat-row">
       <span class="bottom-stat-key">Survival Time</span>
@@ -437,14 +446,29 @@ function load() {
     .then(function(d) {
       if (!d || d.error) return;
 
-      document.getElementById('bname').textContent        = d.build_name || 'Run';
+      var fullName = d.build_name || 'Run';
+      var bnEl = document.getElementById('bname');
+      bnEl.textContent = fullName;
+      bnEl.title = fullName;  // tooltip shows full name on hover
       document.getElementById('deaths').textContent       = d.deaths || 0;
       document.getElementById('death-rate').textContent   = (d.true_death_rate||0).toFixed(1);
       document.getElementById('session-time').textContent = d.session_time_fmt || '00:00:00';
-      document.getElementById('surv-time').textContent    = d.survival_time_fmt || '00:00:00';
+      document.getElementById('surv-time').textContent    = d.survival_time_fmt  || '00:00:00';
       document.getElementById('longest-life').textContent = d.longest_life_fmt  || '00:00:00';
       document.getElementById('total-deaths-big').textContent = d.deaths || 0;
       document.getElementById('footer-time').textContent  = new Date().toLocaleTimeString();
+
+      // Fighting boss indicator (from status poll fallback)
+      var fightEl = document.getElementById('fighting-boss');
+      if (fightEl) {
+        var boss = d.last_attempted_boss || '';
+        if (boss) {
+          fightEl.textContent = '⚔ ' + boss;
+          fightEl.style.display = 'block';
+        } else {
+          fightEl.style.display = 'none';
+        }
+      }
 
       // Rage
       var rageName = d.rage_name || "Maiden's Grace";
@@ -517,8 +541,98 @@ function load() {
     .catch(function(){});
 }
 
+// ── SSE real-time push ────────────────────────────────────────────────────────
+var TOKEN = POLL_URL.match(/session\/([^\/]+)\/status/)?.[1] || '';
+
+function connectSSE() {
+  if (!TOKEN) return;
+  var sse = new EventSource('/api/soulslike/session/' + TOKEN + '/stream/');
+  sse.onmessage = function(e) {
+    try {
+      var d = JSON.parse(e.data);
+      if (!d.event) return;
+
+      if (d.event === 'focus') {
+        var el = document.getElementById('fighting-boss');
+        if (!el) return;
+        if (d.fighting && d.boss_name) {
+          el.textContent = '⚔ ' + d.boss_name;
+          el.style.display = 'block';
+        } else {
+          el.style.display = 'none';
+        }
+      }
+
+      if (d.event === 'death') {
+        document.getElementById('deaths').textContent = d.deaths || 0;
+        document.getElementById('total-deaths-big').textContent = d.deaths || 0;
+        var rageName = d.rage_name || "Maiden's Grace";
+        var ragePct  = d.rage_pct  || 0;
+        var bar = document.getElementById('rage-bar');
+        var nameEl = document.getElementById('rage-name');
+        if (bar) { bar.style.width = Math.min(100, ragePct) + '%'; bar.style.background = RAGE_COLORS[rageName] || RAGE_COLORS["Maiden's Grace"]; }
+        if (nameEl) { nameEl.textContent = rageName; nameEl.style.color = RAGE_TEXT_COLORS[rageName] || '#c9a84c'; }
+        var hollowEl = document.getElementById('hollow-alert');
+        if (hollowEl) { hollowEl.style.display = d.is_hollow ? 'block' : 'none'; }
+        // Full refresh for boss/item counts
+        load();
+      }
+
+      if (d.event === 'timers') {
+        var fmt = function(s) {
+          s = parseInt(s)||0; var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+          return (h>0?h+':':'')+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
+        };
+        var st = document.getElementById('session-time');
+        var sv = document.getElementById('surv-time');
+        var ll = document.getElementById('longest-life');
+        if (st) st.textContent = fmt(d.session_sec);
+        if (sv) sv.textContent = fmt(d.streak_sec);
+        if (ll) ll.textContent = fmt(d.longest_sec);
+      }
+
+      if (d.event === 'reset') {
+        ['deaths','total-deaths-big'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='0';});
+        ['session-time','surv-time','longest-life'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='00:00:00';});
+        document.getElementById('death-rate').textContent = '0.0';
+        var bar=document.getElementById('rage-bar'); if(bar){bar.style.width='0%';bar.style.background=RAGE_COLORS["Maiden's Grace"];}
+        var nm=document.getElementById('rage-name'); if(nm){nm.textContent="Maiden's Grace";nm.style.color='#c9a84c';}
+        load();
+      }
+
+      if (d.event === 'boss') {
+        // Update boss state in-place without full reload (prevents flash)
+        if (d.boss_key) {
+          // Track defeated state locally
+          if (!window._bossDefeated) window._bossDefeated = {};
+          window._bossDefeated[d.boss_key] = d.defeated;
+        }
+        // Update rage immediately from boss kill
+        if (d.rage_pct !== undefined) {
+          var rageName = d.rage_name || "Maiden's Grace";
+          var bar = document.getElementById('rage-bar');
+          if (bar) {
+            bar.style.width = Math.min(100, d.rage_pct) + '%';
+            bar.style.background = RAGE_COLORS[rageName] || RAGE_COLORS["Maiden's Grace"];
+          }
+          var rn = document.getElementById('rage-name');
+          if (rn) { rn.textContent = rageName; rn.style.color = RAGE_TEXT_COLORS[rageName] || '#c9a84c'; }
+        }
+        // Clear fighting indicator immediately when boss is defeated
+        if (d.defeated) {
+          var fb = document.getElementById('fighting-boss');
+          if (fb) fb.style.display = 'none';
+        }
+        // Schedule a single load() to update boss count - slight delay to avoid flash mid-animation
+        setTimeout(load, 500);
+      }
+    } catch(err) {}
+  };
+  sse.onerror = function() { setTimeout(connectSSE, 3000); };
+}
+
 load();
-setInterval(load, 3000);
+setInterval(load, 1000);  // fallback poll every 10s - SSE handles real-time
 </script>
 </body>
 </html>

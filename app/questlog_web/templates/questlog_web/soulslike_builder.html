@@ -3803,6 +3803,7 @@ function confirmStartRun() {
     game:         BUILD.game,
     session_type: 'run',
     game_mode:    _runGameMode,
+    timing_mode:  (window.innerWidth < 768) ? 'manual' : 'listener',
     spoiler_mode: _runSpoilerMode,
     build_id:     null,
     items,

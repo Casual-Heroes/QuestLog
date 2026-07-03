@@ -1,4 +1,4 @@
-# QuestLog Web — template renderers (GET only, return render())
+# QuestLog Web - template renderers (GET only, return render())
 
 import json
 import logging
@@ -1287,7 +1287,7 @@ def lfg_join(request, group_id):
             # Rejoin capacity check - must re-verify even though we checked above (TOCTOU)
             if group.current_size >= group.group_size:
                 return JsonResponse({'error': 'Group is full'}, status=400)
-            # Rejoining after leaving — update the existing row
+            # Rejoining after leaving - update the existing row
             existing.status = 'joined'
             existing.left_at = None
             raw_role = data.get('role') or None
@@ -1400,7 +1400,7 @@ def lfg_leave(request, group_id):
         if not member:
             return JsonResponse({'error': 'You are not in this group'}, status=400)
         if member.is_creator:
-            return JsonResponse({'error': 'Creators cannot leave their own group — delete it instead'}, status=400)
+            return JsonResponse({'error': 'Creators cannot leave their own group - delete it instead'}, status=400)
 
         member.status = 'left'
         member.left_at = now
@@ -1452,7 +1452,7 @@ def lfg_update_member(request, group_id):
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_edit(request, group_id):
-    """Edit a group — creator only."""
+    """Edit a group - creator only."""
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
@@ -1535,7 +1535,7 @@ def lfg_delete(request, group_id):
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_kick(request, group_id, user_id):
-    """Kick a member — creator or co-leader only."""
+    """Kick a member - creator or co-leader only."""
     now = int(time.time())
     with get_db_session() as db:
         group = db.query(WebLFGGroup).filter_by(id=group_id).first()
@@ -1571,7 +1571,7 @@ def lfg_kick(request, group_id, user_id):
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def lfg_set_co_leader(request, group_id):
-    """Set co-leaders for a group — creator only."""
+    """Set co-leaders for a group - creator only."""
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
@@ -2287,6 +2287,7 @@ def profile(request):
         'ffxiv_rewards': ffxiv_rewards,
         'steam_ach_events': steam_ach_events,
         'legacy_tier_names': {1: 'Wanderer', 2: 'Ranger', 3: 'Warden', 4: 'Champion', 5: 'Ascendant'},
+        'listener_api_key': wu.listener_api_key or '',
     }
     return render(request, 'questlog_web/profile.html', context)
 
@@ -2431,7 +2432,7 @@ def creator_register(request):
 
 @web_login_required
 def settings(request):
-    """Settings page — redirected to profile edit tab."""
+    """Settings page - redirected to profile edit tab."""
     return redirect('/profile/#edit')
 
 
@@ -2447,7 +2448,7 @@ def getting_started(request):
 @web_login_required
 @add_web_user_context
 def hero_shop(request):
-    """Hero Shop — browse and buy flairs with Hero Points."""
+    """Hero Shop - browse and buy flairs with Hero Points."""
     context = {
         'web_user': request.web_user,
         'active_page': 'shop',
@@ -2670,7 +2671,7 @@ def api_gameservers_discover_strip(request):
 
 
 # =============================================================================
-# SERVER ROTATION POLL — PUBLIC API
+# SERVER ROTATION POLL - PUBLIC API
 # =============================================================================
 
 @require_http_methods(["GET"])
@@ -2758,7 +2759,7 @@ def api_poll_vote(request, poll_id):
             ).with_for_update().first()
             if existing:
                 if existing.option_id == option_id:
-                    # Already voted for this option — return current state
+                    # Already voted for this option - return current state
                     total = sum(
                         o.vote_count for o in
                         db.query(WebServerPollOption).filter_by(poll_id=poll_id).all()
@@ -5627,13 +5628,27 @@ def page_feedback(request):
 @ensure_csrf_cookie
 @add_web_user_context
 def soulslike_hub(request):
-    """SoulsLike hub landing page."""
+    """SoulsLike hub landing page with live community stats."""
+    stats = {}
+    try:
+        with get_db_session() as db:
+            stats['total_runs']     = db.execute(text('SELECT COUNT(*) FROM sl_collection_sessions')).scalar() or 0
+            stats['active_runs']    = db.execute(text('SELECT COUNT(*) FROM sl_collection_sessions WHERE ended_at IS NULL')).scalar() or 0
+            stats['total_deaths']   = db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM sl_collection_sessions')).scalar() or 0
+            stats['bosses_killed']  = db.execute(text('SELECT COUNT(*) FROM sl_session_bosses WHERE is_defeated=1')).scalar() or 0
+            stats['total_builds']   = (db.execute(text('SELECT COUNT(*) FROM sl_er_builds')).scalar() or 0) + \
+                                      (db.execute(text('SELECT COUNT(*) FROM sl_err_builds')).scalar() or 0)
+            stats['leaderboard']    = db.execute(text('SELECT COUNT(*) FROM sl_leaderboard_entries')).scalar() or 0
+    except Exception:
+        stats = {'total_runs':0,'active_runs':0,'total_deaths':0,'bosses_killed':0,'total_builds':0,'leaderboard':0}
+
     return render(request, 'questlog_web/soulslike_hub.html', {
         'web_user': request.web_user,
-        'active_page': 'soulslike',
+        'active_page': 'soulslike_hub',
+        'stats': stats,
         'games_list': [
-            'Elden Ring', 'Dark Souls III', 'Dark Souls II', 'Dark Souls',
-            'Sekiro', 'Lies of P', 'Lords of the Fallen',
+            'Elden Ring', 'Elden Ring Reforged',
+            'Dark Souls III', 'Sekiro', 'Lies of P',
             'The First Berserker: Khazan',
         ],
     })
@@ -5644,14 +5659,14 @@ def soulslike_listener_download(request):
     """QuestLog Listener download page."""
     return render(request, 'questlog_web/soulslike_listener.html', {
         'web_user': request.web_user,
-        'active_page': 'soulslike',
+        'active_page': 'soulslike_listener',
         'features': [
             {'icon': 'eye', 'title': 'Auto OCR Detection', 'desc': 'Watches your screen for "YOU DIED" and logs deaths automatically.'},
-            {'icon': 'keyboard', 'title': 'Hotkeys', 'desc': 'F9 death, F10 undo, F8 hold reset — works while gaming.'},
+            {'icon': 'keyboard', 'title': 'Hotkeys', 'desc': 'F9 death, F10 undo, F8 hold reset - works while gaming.'},
             {'icon': 'skull', 'title': 'Rage / Hollow Tracking', 'desc': 'Rage builds with deaths, decays with boss kills. Go HOLLOW, chat reacts.'},
             {'icon': 'stopwatch', 'title': 'True Death/HR', 'desc': 'Survival time between deaths gives accurate deaths per hour.'},
-            {'icon': 'dragon', 'title': 'Boss Progress', 'desc': 'Mark bosses defeated via the Web Tracker — rage decays automatically.'},
-            {'icon': 'trophy', 'title': 'Leaderboards', 'desc': 'Personal records and community competition — who survives longest?'},
+            {'icon': 'dragon', 'title': 'Boss Progress', 'desc': 'Mark bosses defeated via the Web Tracker - rage decays automatically.'},
+            {'icon': 'trophy', 'title': 'Leaderboards', 'desc': 'Personal records and community competition - who survives longest?'},
             {'icon': 'tv', 'title': 'Stream Overlays', 'desc': 'Mortality Monitor + Gone Hollow alert widgets for Meld/OBS.'},
             {'icon': 'gamepad', 'title': 'Multi-Game', 'desc': 'Elden Ring, ERR, Dark Souls III. Custom game templates supported.'},
         ],
@@ -6455,6 +6470,15 @@ def api_sl_builds(request):
             # Update existing build in place - same share_token preserved
             build_id = existing[0]
             existing_token = existing[1]
+            # Validate ERR-only JSON fields
+            curio_sel = None
+            rune_inv  = None
+            if game == 'err':
+                raw_curio = data.get('curio_selections')
+                raw_runes = data.get('rune_inventory')
+                if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
+                if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -6469,7 +6493,11 @@ def api_sl_builds(request):
                 "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, "
                 "helm_id=:helm, chest_id=:chest, gauntlet_id=:gaunt, leg_id=:leg, "
                 "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
-                "spells=:spells, playstyle_tag=:tag, is_public=:pub, updated_at=:now "
+                "spells=:spells, playstyle_tag=:tag, is_public=:pub, "
+                "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
+                "tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
+                "curio_selections=:curio, rune_inventory=:runes, "
+                "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
                 'desc': sanitize_text(str(data.get('description', ''))[:1000]),
@@ -6490,6 +6518,13 @@ def api_sl_builds(request):
                 't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
                 'spells': _json.dumps(spell_ids), 'tag': validated_tag,
                 'pub': 1 if data.get('is_public', False) else 0,
+                'ash':     sanitize_text(str(data.get('spirit_ash_name') or '')[:200]) or None,
+                'ash_upg': safe_int(data.get('spirit_ash_upgrade'), 0, 0, 10),
+                'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
+                'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
+                'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
+                'curio':   curio_sel,
+                'runes':   rune_inv,
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -6507,6 +6542,15 @@ def api_sl_builds(request):
         def _aow(key):
             return sanitize_text(str(data.get(key) or '')[:200]) or None
 
+        # ERR-only JSON fields
+        curio_sel = None
+        rune_inv  = None
+        if game == 'err':
+            raw_curio = data.get('curio_selections')
+            raw_runes = data.get('rune_inventory')
+            if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
+            if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+
         db.execute(text(
             f"INSERT INTO {table} "
             "(user_id, name, description, class_id, "
@@ -6516,7 +6560,10 @@ def api_sl_builds(request):
             " lh1_weapon_id, lh1_aow_name, lh2_weapon_id, lh2_aow_name, lh3_weapon_id, lh3_aow_name, "
             " helm_id, chest_id, gauntlet_id, leg_id, "
             " talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
-            " spells, playstyle_tag, is_public, share_token, created_at, updated_at) "
+            " spells, playstyle_tag, is_public, share_token, "
+            " spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,"
+            " curio_selections, rune_inventory,"
+            " created_at, updated_at) "
             "VALUES "
             "(:uid, :name, :desc, :cls, "
             " :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc, "
@@ -6525,19 +6572,17 @@ def api_sl_builds(request):
             " :lh1, :lh1aow, :lh2, :lh2aow, :lh3, :lh3aow, "
             " :helm, :chest, :gaunt, :leg, "
             " :t1, :t2, :t3, :t4, "
-            " :spells, :tag, :pub, :token, :now, :now)"
+            " :spells, :tag, :pub, :token, "
+            " :ash, :ash_upg, :tear1, :tear2, :scadu,"
+            " :curio, :runes,"
+            " :now, :now)"
         ), {
             'uid': uid, 'name': name,
             'desc': sanitize_text(str(data.get('description', ''))[:1000]),
             'cls': _si('class_id'),
-            'vigor':     stats['vigor'],
-            'mind':      stats['mind'],
-            'endurance': stats['endurance'],
-            'strength':  stats['strength'],
-            'dex':       stats['dexterity'],
-            'int':       stats['intelligence'],
-            'faith':     stats['faith'],
-            'arc':       stats['arcane'],
+            'vigor': stats['vigor'], 'mind': stats['mind'], 'endurance': stats['endurance'],
+            'strength': stats['strength'], 'dex': stats['dexterity'],
+            'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
             'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
             'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'),
             'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'),
@@ -6545,18 +6590,20 @@ def api_sl_builds(request):
             'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'),
             'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'),
             'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'),
-            'helm': _si('helm_id'),
-            'chest':_si('chest_id'),
-            'gaunt':_si('gauntlet_id'),
-            'leg':  _si('leg_id'),
-            't1':   _si('talisman_1_id'),
-            't2':   _si('talisman_2_id'),
-            't3':   _si('talisman_3_id'),
-            't4':   _si('talisman_4_id'),
-            'spells': _json.dumps(spell_ids),
-            'tag':  validated_tag,
-            'pub':  1 if data.get('is_public', False) else 0,
-            'token': token, 'now': now,
+            'helm': _si('helm_id'), 'chest': _si('chest_id'),
+            'gaunt': _si('gauntlet_id'), 'leg': _si('leg_id'),
+            't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
+            't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
+            'spells': _json.dumps(spell_ids), 'tag': validated_tag,
+            'pub': 1 if data.get('is_public', False) else 0,
+            'token': token,
+            'ash':     sanitize_text(str(data.get('spirit_ash_name') or '')[:200]) or None,
+            'ash_upg': safe_int(data.get('spirit_ash_upgrade'), 0, 0, 10),
+            'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
+            'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
+            'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
+            'curio':   curio_sel, 'runes': rune_inv,
+            'now': now,
         })
         build_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
         db.commit()
@@ -6771,4 +6818,538 @@ def api_sl_build_detail(request, share_token):
         ],
         'spells': spell_details,
         'created_at': row['created_at'],
+        # Persisted extras
+        'spirit_ash_name':    row.get('spirit_ash_name'),
+        'spirit_ash_upgrade': row.get('spirit_ash_upgrade') or 0,
+        'tear_1_name':        row.get('tear_1_name'),
+        'tear_2_name':        row.get('tear_2_name'),
+        'scadutree_level':    row.get('scadutree_level') or 0,
+        'curio_selections':   json.loads(row['curio_selections']) if row.get('curio_selections') else {},
+        'rune_inventory':     json.loads(row['rune_inventory'])   if row.get('rune_inventory')   else [],
     })
+
+
+# =============================================================================
+# QUESTLOG LISTENER API
+# =============================================================================
+
+@web_login_required
+@require_http_methods(['POST'])
+def api_listener_generate_key(request):
+    """POST /api/listener/generate-key/ - generate or regenerate listener API key."""
+    import secrets as _sec
+    uid = request.web_user.id
+    key = 'ql_' + _sec.token_urlsafe(32)
+    with get_db_session() as db:
+        db.execute(text(
+            "UPDATE web_users SET listener_api_key=:key WHERE id=:uid"
+        ), {'key': key, 'uid': uid})
+        db.commit()
+    return JsonResponse({'ok': True, 'key': key})
+
+
+@ratelimit(key='ip', rate='30/m', block=True)
+@require_http_methods(['GET'])
+def api_listener_runs(request):
+    """
+    GET /api/listener/runs/
+    Header: X-Listener-Key: ql_xxxxx
+    Returns active runs for the authenticated user so the Listener
+    can show a picker instead of requiring a raw token.
+    """
+    key = request.headers.get('X-Listener-Key', '').strip()
+    if not key or not key.startswith('ql_'):
+        return JsonResponse({'error': 'Missing or invalid API key'}, status=401)
+
+    with get_db_session() as db:
+        user = db.execute(text(
+            "SELECT id, username FROM web_users WHERE listener_api_key=:key AND is_banned=0"
+        ), {'key': key}).fetchone()
+        if not user:
+            return JsonResponse({'error': 'Invalid API key'}, status=401)
+
+        uid, username = user
+        runs = db.execute(text("""
+            SELECT session_token, build_name, game, game_mode, started_at,
+                   death_count, last_attempted_boss
+            FROM sl_collection_sessions
+            WHERE user_id=:uid AND ended_at IS NULL
+            ORDER BY started_at DESC LIMIT 10
+        """), {'uid': uid}).fetchall()
+
+    return JsonResponse({
+        'ok': True,
+        'username': username,
+        'runs': [
+            {
+                'token':       r[0],
+                'build_name':  r[1],
+                'game':        r[2],
+                'game_mode':   r[3] or 'vanilla',
+                'started_at':  r[4],
+                'deaths':      r[5] or 0,
+                'last_boss':   r[6] or '',
+            }
+            for r in runs
+        ],
+    })
+
+
+# ── Listener OAuth-style SSO ──────────────────────────────────────────────────
+
+@require_http_methods(['GET'])
+def listener_auth_page(request):
+    """
+    GET /listener/auth/?state=<state>
+    If user is logged in: immediately generate a one-time code and redirect
+    to http://localhost:9457/callback?code=xxx
+    If not logged in: show login form, then redirect after login.
+    """
+    import secrets as _sec
+    state = request.GET.get('state', '')[:64]
+
+    if not request.session.get('web_user_id'):
+        # Not logged in - redirect to login with next= pointing back here
+        from urllib.parse import urlencode
+        params = urlencode({'next': f'/listener/auth/?state={state}'})
+        return redirect(f'/login/?{params}')
+
+    uid = request.session['web_user_id']
+    now = int(time.time())
+    code = _sec.token_urlsafe(32)
+
+    with get_db_session() as db:
+        # Ensure user has a listener_api_key, generate if missing
+        row = db.execute(text(
+            "SELECT listener_api_key FROM web_users WHERE id=:uid"
+        ), {'uid': uid}).fetchone()
+        if not row[0]:
+            api_key = 'ql_' + _sec.token_urlsafe(32)
+            db.execute(text(
+                "UPDATE web_users SET listener_api_key=:key WHERE id=:uid"
+            ), {'key': api_key, 'uid': uid})
+        # Store the short-lived auth code (60s expiry)
+        db.execute(text(
+            "UPDATE web_users SET listener_auth_code=:code, listener_auth_code_exp=:exp WHERE id=:uid"
+        ), {'code': code, 'exp': now + 60, 'uid': uid})
+        db.commit()
+
+    # Redirect to local Listener callback server
+    return redirect(f'http://localhost:9457/callback?code={code}')
+
+
+@require_http_methods(['GET'])
+def api_listener_auth_exchange(request):
+    """
+    GET /api/listener/auth/exchange/?code=xxx
+    Exchanges the one-time code for the user's listener_api_key.
+    Code expires after 60 seconds and is single-use.
+    """
+    import secrets as _sec
+    code = request.GET.get('code', '')[:64]
+    if not code:
+        return JsonResponse({'error': 'code required'}, status=400)
+
+    now = int(time.time())
+    with get_db_session() as db:
+        row = db.execute(text(
+            "SELECT id, username, listener_api_key, listener_auth_code_exp "
+            "FROM web_users WHERE listener_auth_code=:code"
+        ), {'code': code}).fetchone()
+
+        if not row:
+            return JsonResponse({'error': 'Invalid or already used code'}, status=401)
+
+        uid, username, api_key, exp = row
+
+        if exp and now > exp:
+            return JsonResponse({'error': 'Code expired - please try again'}, status=401)
+
+        # Invalidate the code immediately (single-use)
+        db.execute(text(
+            "UPDATE web_users SET listener_auth_code=NULL, listener_auth_code_exp=NULL WHERE id=:uid"
+        ), {'uid': uid})
+
+        # Generate api_key if somehow missing
+        if not api_key:
+            api_key = 'ql_' + _sec.token_urlsafe(32)
+            db.execute(text(
+                "UPDATE web_users SET listener_api_key=:key WHERE id=:uid"
+            ), {'key': api_key, 'uid': uid})
+
+        db.commit()
+
+    return JsonResponse({
+        'ok': True,
+        'username': username,
+        'api_key': api_key,
+    })
+
+
+# =============================================================================
+# DESKTOP APP PROFILE + API KEY AUTH FOR BUILDS
+# =============================================================================
+
+def _resolve_api_key_user(request):
+    """
+    Resolves a user from X-Listener-Key header.
+    Returns (uid, username) or None if invalid.
+    """
+    key = request.headers.get('X-Listener-Key', '').strip()
+    if not key or not key.startswith('ql_'):
+        return None
+    with get_db_session() as db:
+        row = db.execute(text(
+            "SELECT id, username FROM web_users WHERE listener_api_key=:key AND is_banned=0"
+        ), {'key': key}).fetchone()
+    return (row[0], row[1]) if row else None
+
+
+@require_http_methods(['GET'])
+def api_sl_desktop_profile(request):
+    """
+    GET /api/soulslike/desktop/profile/
+    Header: X-Listener-Key: ql_xxx
+
+    Single endpoint called after SSO login. Returns everything the
+    EldenTracker desktop app needs to bootstrap:
+    - User identity
+    - All saved builds (ER + ERR)
+    - All active runs with boss state + stats
+    - Leaderboard position
+
+    Designed for one call on startup - not polled.
+    """
+    user = _resolve_api_key_user(request)
+    if not user:
+        return JsonResponse({'error': 'Invalid or missing API key'}, status=401)
+    uid, username = user
+
+    with get_db_session() as db:
+        # ── Saved builds ─────────────────────────────────────────────────────
+        _BUILD_COLS = (
+            "id, name, total_level, playstyle_tag, is_public, share_token, "
+            "rh1_weapon_id, rh1_aow_name, rh2_weapon_id, rh2_aow_name, "
+            "rh3_weapon_id, rh3_aow_name, lh1_weapon_id, lh1_aow_name, "
+            "lh2_weapon_id, lh2_aow_name, lh3_weapon_id, lh3_aow_name, "
+            "helm_id, chest_id, gauntlet_id, leg_id, "
+            "talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
+            "spells, vigor, mind, endurance, strength, dexterity, "
+            "intelligence, faith, arcane, class_id, updated_at, "
+            "spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level"
+        )
+        er_builds = db.execute(text(
+            f"SELECT {_BUILD_COLS} FROM sl_er_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
+        ), {'uid': uid}).fetchall()
+
+        err_builds = db.execute(text(
+            f"SELECT {_BUILD_COLS}, curio_selections, rune_inventory "
+            "FROM sl_err_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
+        ), {'uid': uid}).fetchall()
+
+        def _build_row(r, game):
+            import json as _j
+            return {
+                'id': r[0], 'name': r[1], 'level': r[2], 'tag': r[3],
+                'is_public': bool(r[4]), 'share_token': r[5],
+                'game': game,
+                'weapons': {
+                    'rh1': r[6],  'rh1_aow': r[7],
+                    'rh2': r[8],  'rh2_aow': r[9],
+                    'rh3': r[10], 'rh3_aow': r[11],
+                    'lh1': r[12], 'lh1_aow': r[13],
+                    'lh2': r[14], 'lh2_aow': r[15],
+                    'lh3': r[16], 'lh3_aow': r[17],
+                },
+                'armor': {
+                    'helm': r[18], 'chest': r[19],
+                    'gauntlet': r[20], 'leg': r[21],
+                },
+                'talismans': [r[22], r[23], r[24], r[25]],
+                'spell_ids': _j.loads(r[26] or '[]'),
+                'stats': {
+                    'vigor': r[27], 'mind': r[28], 'endurance': r[29],
+                    'strength': r[30], 'dexterity': r[31],
+                    'intelligence': r[32], 'faith': r[33], 'arcane': r[34],
+                },
+                'spirit_ash_name':    r[37],
+                'spirit_ash_upgrade': r[38] or 0,
+                'tear_1_name':        r[39],
+                'tear_2_name':        r[40],
+                'scadutree_level':    r[41] or 0,
+                'curio_selections':   _j.loads(r[42]) if len(r) > 42 and r[42] else {},
+                'rune_inventory':     _j.loads(r[43]) if len(r) > 43 and r[43] else [],
+                'class_id': r[35],
+                'updated_at': r[36],
+            }
+
+        builds = (
+            [_build_row(r, 'elden_ring') for r in er_builds] +
+            [_build_row(r, 'err')        for r in err_builds]
+        )
+        builds.sort(key=lambda b: b['updated_at'] or 0, reverse=True)
+
+        # ── Active runs with full state ───────────────────────────────────────
+        runs = db.execute(text("""
+            SELECT session_token, build_name, game, game_mode, started_at,
+                   death_count, rage_pct, rage_name, hollow_streak,
+                   total_survival_sec, longest_life_sec, listener_session_sec,
+                   last_attempted_boss, timing_mode
+            FROM sl_collection_sessions
+            WHERE user_id=:uid AND ended_at IS NULL
+            ORDER BY started_at DESC LIMIT 10
+        """), {'uid': uid}).fetchall()
+
+        run_list = []
+        for r in runs:
+            tok = r[0]
+            boss_rows = db.execute(text(
+                "SELECT boss_key, is_defeated FROM sl_session_bosses "
+                "WHERE session_id=(SELECT id FROM sl_collection_sessions WHERE session_token=:tok)"
+            ), {'tok': tok}).fetchall()
+            _tok = r[0]
+            _BASE = 'https://questlog.casual-heroes.com'
+            run_list.append({
+                'token':           _tok,
+                'build_name':      r[1],
+                'game':            r[2],
+                'game_mode':       r[3] or 'vanilla',
+                'started_at':      r[4],
+                'deaths':          r[5] or 0,
+                'rage_pct':        r[6] or 0,
+                'rage_name':       r[7] or "Maiden's Grace",
+                'hollow_streak':   r[8] or 0,
+                'survival_sec':    r[9] or 0,
+                'longest_life':    r[10] or 0,
+                'session_sec':     r[11] or 0,
+                'last_boss':       r[12] or '',
+                'timing_mode':     r[13] or 'listener',
+                'defeated_bosses': [b[0] for b in boss_rows if b[1]],
+                # Overlay URLs - paste directly into OBS/Meld as Browser Sources
+                'web_tracker':        f'{_BASE}/soulslike/runs/{_tok}/',
+                'overlay_combined':   f'{_BASE}/soulslike/overlay/{_tok}/combined/',
+                'overlay_mortality':  f'{_BASE}/soulslike/overlay/{_tok}/mortality/',
+                'overlay_deaths':     f'{_BASE}/soulslike/overlay/{_tok}/deaths/',
+                'overlay_hollow':     f'{_BASE}/soulslike/overlay/{_tok}/hollow/',
+                'overlay_collection': f'{_BASE}/soulslike/overlay/{_tok}/collection/',
+            })
+
+        # ── Recent completed runs (for history/stats) ─────────────────────────
+        history = db.execute(text("""
+            SELECT session_token, build_name, game, game_mode,
+                   death_count, total_survival_sec, longest_life_sec,
+                   started_at, ended_at
+            FROM sl_collection_sessions
+            WHERE user_id=:uid AND ended_at IS NOT NULL
+            ORDER BY ended_at DESC LIMIT 20
+        """), {'uid': uid}).fetchall()
+
+        # ── Leaderboard position ──────────────────────────────────────────────
+        lb_er = db.execute(text("""
+            SELECT COUNT(*) + 1 FROM sl_leaderboard_entries
+            WHERE game='elden_ring' AND game_mode='vanilla'
+            AND session_deaths < (
+                SELECT MIN(session_deaths) FROM sl_leaderboard_entries
+                WHERE user_id=:uid AND game='elden_ring' AND game_mode='vanilla'
+            )
+        """), {'uid': uid}).scalar()
+
+        lb_err = db.execute(text("""
+            SELECT COUNT(*) + 1 FROM sl_leaderboard_entries
+            WHERE game='elden_ring' AND game_mode='err'
+            AND session_deaths < (
+                SELECT MIN(session_deaths) FROM sl_leaderboard_entries
+                WHERE user_id=:uid AND game='elden_ring' AND game_mode='err'
+            )
+        """), {'uid': uid}).scalar()
+
+    return JsonResponse({
+        'ok':       True,
+        'username': username,
+        'user_id':  uid,
+        'builds':   builds,
+        'active_runs': run_list,
+        'run_history': [
+            {
+                'token':        r[0], 'build_name': r[1],
+                'game':         r[2], 'game_mode':  r[3] or 'vanilla',
+                'deaths':       r[4] or 0,
+                'survival_sec': r[5] or 0,
+                'longest_life': r[6] or 0,
+                'started_at':   r[7], 'ended_at': r[8],
+            }
+            for r in history
+        ],
+        'leaderboard': {
+            'er_rank':  lb_er,
+            'err_rank': lb_err,
+        },
+    })
+
+
+@require_http_methods(['GET', 'POST'])
+def api_sl_builds_desktop(request):
+    """
+    GET  /api/soulslike/desktop/builds/?game=elden_ring  - list builds
+    POST /api/soulslike/desktop/builds/?game=elden_ring  - save/update build
+    Header: X-Listener-Key: ql_xxx
+
+    Same logic as api_sl_builds but auth via API key instead of web session.
+    """
+    import json as _json
+    import secrets as _sec
+
+    user = _resolve_api_key_user(request)
+    if not user:
+        return JsonResponse({'error': 'Invalid or missing API key'}, status=401)
+    uid, username = user
+
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
+    table = _GAME_TABLES.get(game, 'sl_er_builds')
+
+    if request.method == 'GET':
+        with get_db_session() as db:
+            rows = db.execute(text(
+                "SELECT id, name, total_level, playstyle_tag, is_public, "
+                "upvotes, share_token, created_at, updated_at "
+                f"FROM {table} WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
+            ), {'uid': uid}).fetchall()
+        return JsonResponse({'builds': [
+            {'id': r[0], 'name': r[1], 'level': r[2], 'tag': r[3],
+             'is_public': bool(r[4]), 'upvotes': r[5],
+             'share_token': r[6], 'created_at': r[7], 'updated_at': r[8]}
+            for r in rows
+        ]})
+
+    # POST - save build (same logic as api_sl_builds POST but with api key auth)
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    name = sanitize_text(str(data.get('name', 'Untitled Build'))[:200])
+    if not name:
+        return JsonResponse({'error': 'Build name required'}, status=400)
+
+    now   = int(time.time())
+    token = _sec.token_urlsafe(10)
+
+    def _si(key, default=None, mn=None, mx=None):
+        return safe_int(data.get(key, default), default, mn, mx)
+
+    stats = {s: _si(s, 10, 1, 99)
+             for s in ('vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane')}
+
+    _VALID_TAGS = {'pve','pvp','boss_rush','challenge','beginner'}
+    raw_spells = data.get('spells', [])
+    if not isinstance(raw_spells, list): raw_spells = []
+    spell_ids = [int(s) for s in raw_spells if isinstance(s, int) and s > 0][:20]
+
+    tag_raw = str(data.get('playstyle_tag', 'pve'))
+    validated_tag = tag_raw if tag_raw in _VALID_TAGS else 'pve'
+
+    def _aow(key):
+        return sanitize_text(str(data.get(key) or '')[:200]) or None
+
+    with get_db_session() as db:
+        existing = db.execute(text(
+            f"SELECT id, share_token FROM {table} WHERE user_id=:uid AND name=:name"
+        ), {'uid': uid, 'name': name}).fetchone()
+
+        if existing:
+            build_id = existing[0]
+            db.execute(text(
+                f"UPDATE {table} SET "
+                "description=:desc, class_id=:cls, "
+                "vigor=:vigor, mind=:mind, endurance=:endurance, strength=:strength, "
+                "dexterity=:dex, intelligence=:int, faith=:faith, arcane=:arc, "
+                "total_level=:level, "
+                "rh1_weapon_id=:rh1, rh1_aow_name=:rh1aow, "
+                "rh2_weapon_id=:rh2, rh2_aow_name=:rh2aow, "
+                "rh3_weapon_id=:rh3, rh3_aow_name=:rh3aow, "
+                "lh1_weapon_id=:lh1, lh1_aow_name=:lh1aow, "
+                "lh2_weapon_id=:lh2, lh2_aow_name=:lh2aow, "
+                "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, "
+                "helm_id=:helm, chest_id=:chest, gauntlet_id=:gaunt, leg_id=:leg, "
+                "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
+                "spells=:spells, playstyle_tag=:tag, is_public=:pub, updated_at=:now "
+                f"WHERE id=:bid AND user_id=:uid"
+            ), {
+                'desc': sanitize_text(str(data.get('description',''))[:1000]),
+                'cls': _si('class_id'),
+                'vigor': stats['vigor'], 'mind': stats['mind'], 'endurance': stats['endurance'],
+                'strength': stats['strength'], 'dex': stats['dexterity'],
+                'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
+                'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
+                'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'),
+                'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'),
+                'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'),
+                'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'),
+                'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'),
+                'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'),
+                'helm': _si('helm_id'), 'chest': _si('chest_id'),
+                'gaunt': _si('gauntlet_id'), 'leg': _si('leg_id'),
+                't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
+                't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
+                'spells': _json.dumps(spell_ids), 'tag': validated_tag,
+                'pub': 1 if data.get('is_public', False) else 0,
+                'now': now, 'bid': build_id, 'uid': uid,
+            })
+            db.commit()
+            return JsonResponse({'ok': True, 'build_id': build_id,
+                                 'share_token': existing[1], 'updated': True})
+
+        build_count = db.execute(text(
+            f"SELECT COUNT(*) FROM {table} WHERE user_id=:uid"
+        ), {'uid': uid}).scalar() or 0
+        if build_count >= 50:
+            return JsonResponse({'error': 'Build limit reached (50 max)'}, status=429)
+
+        db.execute(text(
+            f"INSERT INTO {table} "
+            "(user_id, name, description, class_id, "
+            " vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane, "
+            " total_level, "
+            " rh1_weapon_id, rh1_aow_name, rh2_weapon_id, rh2_aow_name, "
+            " rh3_weapon_id, rh3_aow_name, "
+            " lh1_weapon_id, lh1_aow_name, lh2_weapon_id, lh2_aow_name, "
+            " lh3_weapon_id, lh3_aow_name, "
+            " helm_id, chest_id, gauntlet_id, leg_id, "
+            " talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
+            " spells, playstyle_tag, is_public, share_token, created_at, updated_at) "
+            "VALUES "
+            "(:uid, :name, :desc, :cls, "
+            " :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc, "
+            " :level, "
+            " :rh1, :rh1aow, :rh2, :rh2aow, :rh3, :rh3aow, "
+            " :lh1, :lh1aow, :lh2, :lh2aow, :lh3, :lh3aow, "
+            " :helm, :chest, :gaunt, :leg, "
+            " :t1, :t2, :t3, :t4, "
+            " :spells, :tag, :pub, :token, :now, :now)"
+        ), {
+            'uid': uid, 'name': name,
+            'desc': sanitize_text(str(data.get('description',''))[:1000]),
+            'cls': _si('class_id'),
+            'vigor': stats['vigor'], 'mind': stats['mind'], 'endurance': stats['endurance'],
+            'strength': stats['strength'], 'dex': stats['dexterity'],
+            'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
+            'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
+            'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'),
+            'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'),
+            'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'),
+            'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'),
+            'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'),
+            'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'),
+            'helm': _si('helm_id'), 'chest': _si('chest_id'),
+            'gaunt': _si('gauntlet_id'), 'leg': _si('leg_id'),
+            't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
+            't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
+            'spells': _json.dumps(spell_ids), 'tag': validated_tag,
+            'pub': 1 if data.get('is_public', False) else 0,
+            'token': token, 'now': now,
+        })
+        build_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+        db.commit()
+
+    return JsonResponse({'ok': True, 'build_id': build_id, 'share_token': token, 'updated': False})

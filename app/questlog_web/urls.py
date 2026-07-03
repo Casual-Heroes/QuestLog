@@ -56,6 +56,9 @@ from .views_pages import (
     fluxer_guild_member_rss,
     fluxer_guild_member_games,
     fluxer_guild_member_flairs,
+    api_listener_generate_key, api_listener_runs,
+    listener_auth_page, api_listener_auth_exchange,
+    api_sl_desktop_profile, api_sl_builds_desktop,
     api_public_testimonials,
     api_calendar_game_nights,
     api_calendar_lfg_events,
@@ -304,6 +307,9 @@ from .views_soulslike import (
     api_sl_session_create, api_sl_collect, api_sl_uncollect,
     api_sl_death, api_sl_session_status, api_sl_session_end, api_sl_reset_deaths, api_sl_heartbeat,
     api_sl_boss_mark, api_sl_boss_unmark, api_sl_seed_bosses, api_sl_set_focus,
+    api_sl_manual_start, sl_run_manifest, api_sl_desktop_session_create,
+    api_sl_stream,
+    api_sl_subtract_death, api_sl_active_runs,
     sl_runs, sl_run_detail, sl_leaderboards, api_sl_leaderboards,
     sl_overlay_collection, sl_overlay_deaths,
     sl_overlay_mortality, sl_overlay_hollow, sl_overlay_combined,
@@ -351,38 +357,38 @@ urlpatterns = [
     path('password-reset/',                          password_reset_request, name='questlog_web_password_reset'),
     path('password-reset/confirm/<str:token>/',      password_reset_confirm, name='questlog_web_password_reset_confirm'),
 
-    # Steam — optional connection (unlocks game-tracking features)
+    # Steam - optional connection (unlocks game-tracking features)
     path('auth/steam/link/',     steam_link,          name='questlog_web_steam_link'),
     path('auth/steam/callback/', steam_link_callback, name='questlog_web_steam_callback'),
     path('auth/steam/unlink/',   steam_unlink,        name='questlog_web_steam_unlink'),
 
-    # Discord — optional account linking
+    # Discord - optional account linking
     path('auth/discord/link/',          discord_link,          name='questlog_web_discord_link'),
     path('auth/discord/link/callback/', discord_link_callback, name='questlog_web_discord_link_callback'),
     path('auth/discord/unlink/',        discord_unlink,        name='questlog_web_discord_unlink'),
 
-    # Fluxer — optional account linking
+    # Fluxer - optional account linking
     path('auth/fluxer/link/',          fluxer_link,          name='questlog_web_fluxer_link'),
     path('auth/fluxer/link/callback/', fluxer_link_callback, name='questlog_web_fluxer_link_callback'),
     path('auth/fluxer/unlink/',        fluxer_unlink,        name='questlog_web_fluxer_unlink'),
 
-    # Fluxer / Discord — standalone dashboard OAuth (no QL account required)
+    # Fluxer / Discord - standalone dashboard OAuth (no QL account required)
     path('auth/fluxer/dashboard/login/',    fluxer_dashboard_login,    name='questlog_web_fluxer_dashboard_login'),
     path('auth/fluxer/dashboard/callback/', fluxer_dashboard_callback, name='questlog_web_fluxer_dashboard_callback'),
     path('auth/discord/dashboard/login/',    discord_dashboard_login,    name='questlog_web_discord_dashboard_login'),
     path('auth/discord/dashboard/callback/', discord_dashboard_callback, name='questlog_web_discord_dashboard_callback'),
 
-    # Twitch OAuth — creator profile integration
+    # Twitch OAuth - creator profile integration
     path('auth/twitch/link/',     twitch_oauth_initiate, name='questlog_web_twitch_link'),
     path('auth/twitch/callback/', twitch_oauth_callback, name='questlog_web_twitch_callback'),
     path('auth/twitch/unlink/',   twitch_disconnect,     name='questlog_web_twitch_unlink'),
 
-    # YouTube OAuth — creator profile integration
+    # YouTube OAuth - creator profile integration
     path('auth/youtube/link/',     youtube_oauth_initiate, name='questlog_web_youtube_link'),
     path('auth/youtube/callback/', youtube_oauth_callback, name='questlog_web_youtube_callback'),
     path('auth/youtube/unlink/',   youtube_disconnect,     name='questlog_web_youtube_unlink'),
 
-    # Kick OAuth — creator profile integration
+    # Kick OAuth - creator profile integration
     path('auth/kick/link/',     kick_oauth_initiate, name='questlog_web_kick_link'),
     path('auth/kick/callback/', kick_oauth_callback, name='questlog_web_kick_callback'),
     path('auth/kick/unlink/',   kick_disconnect,     name='questlog_web_kick_unlink'),
@@ -546,6 +552,11 @@ urlpatterns = [
     path('api/soulslike/session/<str:token>/boss/unmark/',   api_sl_boss_unmark,    name='api_sl_boss_unmark'),
     path('api/soulslike/session/<str:token>/seed-bosses/',   api_sl_seed_bosses,    name='api_sl_seed_bosses'),
     path('api/soulslike/session/<str:token>/set-focus/',     api_sl_set_focus,      name='api_sl_set_focus'),
+    path('api/soulslike/session/<str:token>/stream/',        api_sl_stream,         name='api_sl_stream'),
+    path('api/soulslike/session/<str:token>/manual-start/',    api_sl_manual_start,    name='api_sl_manual_start'),
+    path('api/soulslike/session/<str:token>/subtract-death/', api_sl_subtract_death, name='api_sl_subtract_death'),
+    path('api/soulslike/runs/active/',                        api_sl_active_runs,     name='api_sl_active_runs'),
+    path('soulslike/runs/<str:token>/manifest.json',        sl_run_manifest,       name='sl_run_manifest'),
     path('soulslike/runs/',                             sl_runs,                name='questlog_web_sl_runs'),
     path('soulslike/runs/<str:token>/',                 sl_run_detail,          name='questlog_web_sl_run_detail'),
     path('soulslike/overlay/<str:token>/collection/',   sl_overlay_collection,  name='questlog_web_sl_overlay_collection'),
@@ -787,6 +798,17 @@ urlpatterns = [
     path('api/u/<str:username>/now-playing/', api_user_now_playing, name='questlog_web_api_user_now_playing'),
     path('api/profile/user-prefs/', api_save_user_prefs, name='questlog_web_api_user_prefs'),
     path('api/invite/',             api_invite_link,    name='questlog_web_api_invite'),
+
+    # Listener SSO + API
+    path('listener/auth/',                   listener_auth_page,          name='listener_auth_page'),
+    path('api/listener/auth/exchange/',      api_listener_auth_exchange,  name='api_listener_auth_exchange'),
+    path('api/listener/generate-key/',       api_listener_generate_key,   name='api_listener_generate_key'),
+    path('api/listener/runs/',               api_listener_runs,           name='api_listener_runs'),
+
+    # Desktop app profile + builds (API key auth)
+    path('api/soulslike/desktop/profile/',          api_sl_desktop_profile,         name='api_sl_desktop_profile'),
+    path('api/soulslike/desktop/builds/',           api_sl_builds_desktop,          name='api_sl_builds_desktop'),
+    path('api/soulslike/desktop/session/create/',   api_sl_desktop_session_create,  name='api_sl_desktop_session_create'),
 
     # Embed Validation API
     path('api/embed/validate/', api_validate_embed, name='questlog_web_api_validate_embed'),
