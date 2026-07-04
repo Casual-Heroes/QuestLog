@@ -31,7 +31,7 @@ def run():
             ))
             print("Added show_playing_status column.")
         else:
-            print("show_playing_status already exists — skipping.")
+            print("show_playing_status already exists - skipping.")
 
         # current_game
         result = conn.execute(text(
@@ -48,7 +48,7 @@ def run():
             ))
             print("Added current_game column.")
         else:
-            print("current_game already exists — skipping.")
+            print("current_game already exists - skipping.")
 
         conn.commit()
         print("Migration complete.")

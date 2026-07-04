@@ -33,7 +33,7 @@ with engine.connect() as conn:
             else:
                 raise
 
-    # Unique index on invite_code (sparse — only indexes non-NULL values in MySQL 8+)
+    # Unique index on invite_code (sparse - only indexes non-NULL values in MySQL 8+)
     try:
         conn.execute(text("ALTER TABLE web_users ADD UNIQUE INDEX idx_web_users_invite_code (invite_code)"))
         print("  + index idx_web_users_invite_code")

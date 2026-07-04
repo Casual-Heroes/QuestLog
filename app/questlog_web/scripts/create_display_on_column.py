@@ -24,7 +24,7 @@ def run():
             "AND column_name = 'display_on'"
         ))
         if result.scalar() > 0:
-            print("display_on column already exists — nothing to do.")
+            print("display_on column already exists - nothing to do.")
             return
 
         conn.execute(text(

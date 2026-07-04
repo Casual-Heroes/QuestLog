@@ -28,7 +28,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not STEAM_API_KEY:
-            self.stderr.write('STEAM_API_KEY not set — aborting poll.')
+            self.stderr.write('STEAM_API_KEY not set - aborting poll.')
             return
 
         with get_db_session() as db:
@@ -86,7 +86,7 @@ class Command(BaseCommand):
                 logger.error(f'poll_steam_stats: error processing user {user.id}: {e}')
                 continue
 
-            # Rate limit — avoid hammering the Steam API
+            # Rate limit - avoid hammering the Steam API
             time.sleep(0.5)
 
         self.stdout.write(f'Done. Total HP awarded this run: {total_hp}')

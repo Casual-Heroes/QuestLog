@@ -37,7 +37,7 @@ with engine.connect() as conn:
         else:
             raise
 
-    # 2. Seed the Early Tester VIP flair (idempotent — check by name)
+    # 2. Seed the Early Tester VIP flair (idempotent - check by name)
     print("Seeding Early Tester VIP flair...")
     existing = conn.execute(text(
         "SELECT id FROM web_flairs WHERE name = 'Early Tester' LIMIT 1"
