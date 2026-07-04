@@ -623,7 +623,8 @@
 
         <!-- Fortunes tab (ERR only) -->
         <div id="equip-panel-fortunes" class="hidden p-2">
-          <!-- Selected Fortune display -->
+          <!-- Main Fortune display -->
+          <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Main Fortune</div>
           <div id="fortune-selected-display" class="hidden mb-2 p-2.5 bg-amber-950/30 border border-amber-800/30 rounded-lg">
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs font-bold text-amber-400" id="fortune-selected-name"></span>
@@ -633,7 +634,27 @@
             </div>
             <span id="fortune-selected-type" class="text-[10px] px-1.5 py-0.5 bg-neutral-800 text-gray-400 rounded capitalize"></span>
           </div>
-          <!-- Fortune list -->
+          <!-- Minor Fortune display -->
+          <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 mt-3">
+            Minor Fortune
+            <span class="text-gray-700 font-normal normal-case ml-1">(unlock: defeat Royal Guardian Helicos)</span>
+          </div>
+          <div id="minor-fortune-selected-display" class="hidden mb-2 p-2.5 bg-purple-950/30 border border-purple-800/30 rounded-lg">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-purple-400" id="minor-fortune-selected-name"></span>
+              <button onclick="clearMinorFortune()" class="text-gray-600 hover:text-red-400 text-[10px] transition">
+                <i class="fas fa-times mr-0.5"></i>Clear
+              </button>
+            </div>
+            <span class="text-[10px] text-gray-500">Weaker effect, no downsides. Cannot match main fortune.</span>
+          </div>
+          <!-- Fortune list - switches between main and minor mode -->
+          <div class="flex gap-1.5 mb-2">
+            <button onclick="setFortuneMode('main')" id="fortune-mode-main"
+                    class="flex-1 text-[10px] py-1 rounded border border-amber-700/50 text-amber-400 bg-amber-900/20 font-bold">Main</button>
+            <button onclick="setFortuneMode('minor')" id="fortune-mode-minor"
+                    class="flex-1 text-[10px] py-1 rounded border border-neutral-700 text-gray-500 hover:text-white transition">Minor</button>
+          </div>
           <div id="fortune-panel-list"><div class="text-xs text-gray-600 text-center py-3">Loading Fortunes...</div></div>
         </div>
 
@@ -1012,7 +1033,8 @@ const BUILD = {
   spirit_ash: null,          // { name, fp_cost, hp_cost, description }
   spirit_ash_upgrade: 0,     // 0-10
   tears: [null, null],       // [tear1, tear2] - each { name, effect }
-  fortune: null,             // ERR only - selected Fortune object
+  fortune: null,             // ERR only - selected main Fortune object
+  minor_fortune: null,       // ERR only - selected Minor Fortune object (different from main)
 };
 
 let CLASSES = [];
@@ -1133,6 +1155,18 @@ function loadCurios() {
 
 let ALL_FORTUNES = [];
 let _fortunesLoaded = false;
+let _fortuneMode = 'main'; // 'main' or 'minor'
+
+function setFortuneMode(mode) {
+  _fortuneMode = mode;
+  document.getElementById('fortune-mode-main').className =
+    'flex-1 text-[10px] py-1 rounded border font-bold transition ' +
+    (mode === 'main' ? 'border-amber-700/50 text-amber-400 bg-amber-900/20' : 'border-neutral-700 text-gray-500 hover:text-white');
+  document.getElementById('fortune-mode-minor').className =
+    'flex-1 text-[10px] py-1 rounded border font-bold transition ' +
+    (mode === 'minor' ? 'border-purple-700/50 text-purple-400 bg-purple-900/20' : 'border-neutral-700 text-gray-500 hover:text-white');
+  renderFortunePanel();
+}
 
 function loadFortunes() {
   if (BUILD.game !== 'err') return;
@@ -1149,31 +1183,47 @@ function renderFortunePanel() {
   if (!el) return;
   if (!ALL_FORTUNES.length) { el.innerHTML = '<div class="text-xs text-gray-600 text-center py-3">No fortunes found</div>'; return; }
 
+  const isMinorMode = _fortuneMode === 'minor';
+  // Minor mode: exclude Basic tier (cannot be minor) and exclude current main fortune
+  const mainName = BUILD.fortune?.name;
+  const minorName = BUILD.minor_fortune?.name;
+  const visibleFortunes = isMinorMode
+    ? ALL_FORTUNES.filter(f => f.fortune_type !== 'basic' && f.name !== mainName)
+    : ALL_FORTUNES;
+
   const byType = {};
-  ALL_FORTUNES.forEach(f => { (byType[f.fortune_type] = byType[f.fortune_type] || []).push(f); });
+  visibleFortunes.forEach(f => { (byType[f.fortune_type] = byType[f.fortune_type] || []).push(f); });
 
   const typeOrder = ['basic', 'common', 'uncommon', 'rare', 'legendary', 'unique'];
   const typeColors = { basic:'text-gray-400', common:'text-green-400', uncommon:'text-blue-400', rare:'text-purple-400', legendary:'text-amber-400', unique:'text-red-400' };
+  const selectedName = isMinorMode ? minorName : mainName;
+  const selectedColor = isMinorMode ? 'bg-purple-900/20 border-purple-700/40' : 'bg-amber-900/20 border-amber-700/40';
+  const checkColor = isMinorMode ? 'text-purple-400' : 'text-amber-400';
 
   el.innerHTML = typeOrder.filter(t => byType[t]).map(type => `
     <div class="mb-3">
       <div class="text-[10px] font-bold uppercase tracking-widest px-1 mb-1 ${typeColors[type] || 'text-gray-500'}">${type}</div>
       <div class="space-y-1">
         ${byType[type].map(f => `
-          <div class="sl-equip-slot group cursor-pointer rounded-lg px-2 py-1.5 ${BUILD.fortune && BUILD.fortune.name === f.name ? 'bg-amber-900/20 border-amber-700/40' : ''}"
-               onclick="selectFortune(${JSON.stringify(f).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})">
+          <div class="sl-equip-slot group cursor-pointer rounded-lg px-2 py-1.5 ${selectedName === f.name ? selectedColor : ''}"
+               onclick="${isMinorMode ? 'selectMinorFortune' : 'selectFortune'}(${JSON.stringify(f).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})">
             <div class="flex-1 min-w-0">
               <div class="sl-slot-name text-xs">${escapeHtml(f.name)}</div>
-              ${f.buffs && f.buffs.length ? `<div class="text-[10px] text-green-600 truncate">${escapeHtml(f.buffs[0])}</div>` : ''}
-              ${f.drawbacks && f.drawbacks.length ? `<div class="text-[10px] text-red-700 truncate">${escapeHtml(f.drawbacks[0])}</div>` : ''}
+              ${isMinorMode && f.minor_effects ? `<div class="text-[10px] text-green-600 truncate">${escapeHtml(f.minor_effects)}</div>` :
+                (f.buffs && f.buffs.length ? `<div class="text-[10px] text-green-600 truncate">${escapeHtml(f.buffs[0])}</div>` : '')}
+              ${!isMinorMode && f.drawbacks && f.drawbacks.length ? `<div class="text-[10px] text-red-700 truncate">${escapeHtml(f.drawbacks[0])}</div>` : ''}
             </div>
-            ${BUILD.fortune && BUILD.fortune.name === f.name ? '<i class="fas fa-check text-amber-400 text-[10px] flex-shrink-0"></i>' : ''}
+            ${selectedName === f.name ? `<i class="fas fa-check ${checkColor} text-[10px] flex-shrink-0"></i>` : ''}
           </div>`).join('')}
       </div>
     </div>`).join('');
 }
 
 function selectFortune(fortune) {
+  // If this was the minor fortune, clear minor (can't have same as main)
+  if (BUILD.minor_fortune && BUILD.minor_fortune.name === fortune.name) {
+    clearMinorFortune();
+  }
   BUILD.fortune = fortune;
   const disp = document.getElementById('fortune-selected-display');
   const nameEl = document.getElementById('fortune-selected-name');
@@ -1196,6 +1246,23 @@ function clearFortune() {
   updateDerivedStats();
   updateAllStatBars();
   updateAllWeaponARs();
+}
+
+function selectMinorFortune(fortune) {
+  BUILD.minor_fortune = fortune;
+  const disp = document.getElementById('minor-fortune-selected-display');
+  const nameEl = document.getElementById('minor-fortune-selected-name');
+  if (disp && nameEl) {
+    nameEl.textContent = fortune.name;
+    disp.classList.remove('hidden');
+  }
+  renderFortunePanel();
+}
+
+function clearMinorFortune() {
+  BUILD.minor_fortune = null;
+  document.getElementById('minor-fortune-selected-display')?.classList.add('hidden');
+  renderFortunePanel();
 }
 
 function loadRuneforging() {
@@ -1709,20 +1776,25 @@ function loadBuildData(d) {
     updatePoise();
   });
 
-  // Restore Fortune (ERR only)
-  if (d.fortune_name && BUILD.game === 'err') {
-    // If fortunes already loaded find it, else load and then apply
-    const applyFortune = () => {
-      const found = ALL_FORTUNES.find(f => f.name === d.fortune_name);
-      if (found) selectFortune(found);
+  // Restore Fortune + Minor Fortune (ERR only)
+  if ((d.fortune_name || d.minor_fortune_name) && BUILD.game === 'err') {
+    const applyFortunes = () => {
+      if (d.fortune_name) {
+        const found = ALL_FORTUNES.find(f => f.name === d.fortune_name);
+        if (found) selectFortune(found);
+      }
+      if (d.minor_fortune_name) {
+        const found = ALL_FORTUNES.find(f => f.name === d.minor_fortune_name);
+        if (found) selectMinorFortune(found);
+      }
     };
-    if (_fortunesLoaded) { applyFortune(); }
+    if (_fortunesLoaded) { applyFortunes(); }
     else {
       fetch('/api/soulslike/err/fortunes/')
         .then(r => r.json()).then(fd => {
           ALL_FORTUNES = fd.fortunes || [];
           _fortunesLoaded = true;
-          applyFortune();
+          applyFortunes();
         }).catch(() => {});
     }
   }
@@ -3666,8 +3738,11 @@ function toggleErrPanels(isErr) {
     const active = document.querySelector('#equip-tab-curios.active, #equip-tab-runes.active, #equip-tab-fortunes.active');
     if (active) switchEquipTab('armament');
     BUILD.fortune = null;
+    BUILD.minor_fortune = null;
     document.getElementById('fortune-selected-display')?.classList.add('hidden');
+    document.getElementById('minor-fortune-selected-display')?.classList.add('hidden');
     _fortunesLoaded = false;
+    _fortuneMode = 'main';
   }
   // Show affinity rows on all weapon slots if ERR and weapon is equipped
   ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
@@ -3886,6 +3961,7 @@ function saveBuild() {
     tear_2_name:        BUILD.tears[1]?.name || null,
     scadutree_level:    BUILD.scadutree || 0,
     fortune_name:       BUILD.fortune?.name || null,
+    minor_fortune_name: BUILD.minor_fortune?.name || null,
   };
   csrfFetch('/api/soulslike/builds/?game=' + BUILD.game, {
     method: 'POST',
@@ -3988,10 +4064,17 @@ function startCollectionRun() {
 
 function buildCollectionItems() {
   const items = [];
+  const SKIP_AOW = new Set(['No Skill', 'Stamp (Upward Cut)', 'Kick', 'Quickstep', 'Parry']);
+
   // Weapons
   ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
     const w = BUILD.slots[slot];
     if (w) items.push({ item_type: 'weapon', item_id: w.id, item_name: w.name });
+    // AoW for this slot (ER + ERR) - skip basic/default skills
+    const aow = BUILD.aow?.[slot];
+    if (aow && aow.name && !SKIP_AOW.has(aow.name)) {
+      items.push({ item_type: 'aow', item_id: null, item_name: aow.name });
+    }
   });
   // Armor
   ['helm','chest','gauntlet','leg'].forEach(slot => {
@@ -4005,14 +4088,33 @@ function buildCollectionItems() {
   });
   // Spells
   BUILD.spells.forEach(s => items.push({ item_type: 'spell', item_id: s.id, item_name: s.name }));
-  // Spirit Ash
+  // Spirit Ash (ER + ERR)
   if (BUILD.spirit_ash) {
     items.push({ item_type: 'spirit_ash', item_id: null, item_name: BUILD.spirit_ash.name });
   }
-  // Crystal Tears / Wondrous Physick
+  // Crystal Tears / Wondrous Physick (ER + ERR)
   BUILD.tears.forEach((tear, i) => {
     if (tear) items.push({ item_type: 'crystal_tear', item_id: null, item_name: tear.name, location_hint: `Tear ${i + 1}` });
   });
+  // ERR only
+  if (BUILD.game === 'err') {
+    // Main Fortune
+    if (BUILD.fortune) {
+      items.push({ item_type: 'fortune', item_id: null, item_name: BUILD.fortune.name });
+    }
+    // Minor Fortune
+    if (BUILD.minor_fortune) {
+      items.push({ item_type: 'minor_fortune', item_id: null, item_name: BUILD.minor_fortune.name });
+    }
+    // Curios - each active/unsealed curio
+    if (BUILD.curio_selections) {
+      Object.entries(BUILD.curio_selections).forEach(([name, state]) => {
+        if (state && state !== 'locked') {
+          items.push({ item_type: 'curio', item_id: null, item_name: name });
+        }
+      });
+    }
+  }
   return items;
 }
 

@@ -6170,7 +6170,7 @@ def api_sl_err_fortunes(request):
     with get_db_session() as db:
         rows = db.execute(text(
             "SELECT id, name, fortune_type, description, buffs, drawbacks, "
-            "unique_effects, how_to_unlock "
+            "unique_effects, how_to_unlock, minor_effects "
             "FROM sl_err_fortunes ORDER BY fortune_type, name"
         )).fetchall()
 
@@ -6190,6 +6190,7 @@ def api_sl_err_fortunes(request):
             'drawbacks':     _parse(r[5]),
             'unique_effects': r[6] or '',
             'how_to_unlock': r[7] or '',
+            'minor_effects':  r[8] or '',
         }
         for r in rows
     ]})
@@ -6581,6 +6582,7 @@ def api_sl_builds(request):
                 if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
                 if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
                 fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
+            minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
             db.execute(text(
                 f"UPDATE {table} SET "
@@ -6599,7 +6601,7 @@ def api_sl_builds(request):
                 "spells=:spells, playstyle_tag=:tag, is_public=:pub, "
                 "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
                 "tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
-                "curio_selections=:curio, rune_inventory=:runes, fortune_name=:fortune, "
+                "curio_selections=:curio, rune_inventory=:runes, fortune_name=:fortune, minor_fortune_name=:mfortune, "
                 "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
@@ -6629,6 +6631,7 @@ def api_sl_builds(request):
                 'curio':    curio_sel,
                 'runes':    rune_inv,
                 'fortune':  fortune_name,
+                'mfortune': minor_fortune_name,
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -6656,6 +6659,7 @@ def api_sl_builds(request):
             if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
             if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
             fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
+            minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
         _common = {
             'uid': uid, 'name': name,
@@ -6702,7 +6706,7 @@ def api_sl_builds(request):
                      talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id,
                      spells, playstyle_tag, is_public, share_token,
                      spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
-                     curio_selections, rune_inventory, fortune_name,
+                     curio_selections, rune_inventory, fortune_name, minor_fortune_name,
                      created_at, updated_at)
                 VALUES
                     (:uid, :name, :desc, :cls,
@@ -6714,9 +6718,9 @@ def api_sl_builds(request):
                      :t1, :t2, :t3, :t4,
                      :spells, :tag, :pub, :token,
                      :ash, :ash_upg, :tear1, :tear2, :scadu,
-                     :curio, :runes, :fortune,
+                     :curio, :runes, :fortune, :mfortune,
                      :now, :now)
-            """), {**_common, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name})
+            """), {**_common, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name})
         else:
             db.execute(text("""
                 INSERT INTO sl_er_builds
@@ -7024,6 +7028,7 @@ def api_sl_build_detail(request, share_token):
         'curio_selections':   _safe_json_loads(row.get('curio_selections'), {}),
         'rune_inventory':     _safe_json_loads(row.get('rune_inventory'), []),
         'fortune_name':       row.get('fortune_name') or '',
+        'minor_fortune_name': row.get('minor_fortune_name') or '',
     })
 
 
@@ -7526,6 +7531,7 @@ def api_sl_builds_desktop(request):
             if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
             if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
             fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
+            minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
         # Shared params for both ER and ERR
         _common_params = {
@@ -7574,7 +7580,7 @@ def api_sl_builds_desktop(request):
                      talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id,
                      spells, playstyle_tag, is_public, share_token,
                      spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
-                     curio_selections, rune_inventory, fortune_name,
+                     curio_selections, rune_inventory, fortune_name, minor_fortune_name,
                      created_at, updated_at)
                 VALUES
                     (:uid, :name, :desc, :cls,
@@ -7586,9 +7592,9 @@ def api_sl_builds_desktop(request):
                      :t1, :t2, :t3, :t4,
                      :spells, :tag, :pub, :token,
                      :ash, :ash_upg, :tear1, :tear2, :scadu,
-                     :curio, :runes, :fortune,
+                     :curio, :runes, :fortune, :mfortune,
                      :now, :now)
-            """), {**_common_params, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name})
+            """), {**_common_params, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name})
         else:
             # ER INSERT - no ERR-only columns
             db.execute(text("""
