@@ -62,7 +62,7 @@ load_dotenv()
 # Configure logger for views
 logger = logging.getLogger(__name__)
 
-# Discord webhook for game suggestions (server-side only — never exposed to clients)
+# Discord webhook for game suggestions (server-side only - never exposed to clients)
 GAME_SUGGESTION_WEBHOOK = os.getenv('GAME_SUGGESTION_WEBHOOK', '')
 
 
@@ -1378,7 +1378,7 @@ DISCORD_GAMES = [
     {
         "id": "ESO",
         "name": "Elder Scrolls Online",
-        "description": "Casual Legends is building a PC-NA ESO guild for adults who want chill runs and real progress—without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
+        "description": "Casual Legends is building a PC-NA ESO guild for adults who want chill runs and real progress-without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
         "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
         "discord_invite": DISCORD_INVITE_URL,
         "steam_appid": "306130",
@@ -2524,7 +2524,7 @@ articles = [
             {
                 "title": "V Rising: Invaders of Oakveil",
                 "summary": """V Rising: Invaders of Oakveil is out now and it’s a massive step forward for the game. 
-                It builds smartly on what V Rising already did well — from world design to progression — and adds meaningful features like the cursed forest biome, PvP duel arenas, and deeper character customization.
+                It builds smartly on what V Rising already did well - from world design to progression - and adds meaningful features like the cursed forest biome, PvP duel arenas, and deeper character customization.
                 What really stands out in this update is how it pushes both PvE and PvP players forward. The cursed forest introduces new tactical layers with poison-based enemies and new gear, while the duel arenas finally give PvP-focused players a structured way to test their builds.
                 If you were already a fan of V Rising, this update makes the game feel more complete. And if you're new? There’s never been a better time to jump in.""",
                 "image": "img/games/survivalgames/V-Rising-Invaders-of-Oakveil.jpg"
@@ -7738,7 +7738,7 @@ def api_reaction_roles(request, guild_id):
             if not entry['remove_on_unreact']:
                 flags.append("Keeps role on unreact")
             flags_text = f" ({'; '.join(flags)})" if flags else ''
-            lines.append(f"{entry['emoji']} — {role_display}{flags_text}")
+            lines.append(f"{entry['emoji']} - {role_display}{flags_text}")
 
         embed_description = "\n".join(lines) if lines else "Choose your roles below."
 
@@ -7912,7 +7912,7 @@ def api_reaction_role_detail(request, guild_id, message_id):
             if not entry['remove_on_unreact']:
                 flags.append("Keeps role on unreact")
             flags_text = f" ({'; '.join(flags)})" if flags else ''
-            lines.append(f"{entry['emoji']} — {role_display}{flags_text}")
+            lines.append(f"{entry['emoji']} - {role_display}{flags_text}")
 
         embed_description = "\n".join(lines) if lines else "Choose your roles below."
 

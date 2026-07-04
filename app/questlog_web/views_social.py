@@ -1,4 +1,4 @@
-# QuestLog Web — social features
+# QuestLog Web - social features
 
 import re
 import json
@@ -431,7 +431,7 @@ def api_posts(request):
                 updated_at=now,
             )
 
-            # GIFs must come from GIPHY's CDN — reject anything else
+            # GIFs must come from GIPHY's CDN - reject anything else
             if post_type == 'gif' and gif_url:
                 if not _is_valid_giphy_url(gif_url):
                     return JsonResponse({'error': 'Invalid GIF source'}, status=400)
@@ -494,7 +494,7 @@ def api_posts(request):
             db.add(post)
             db.flush()  # Get post.id
 
-            # media_urls are pre-uploaded via /api/upload/image/ — just store the references
+            # media_urls are pre-uploaded via /api/upload/image/ - just store the references
             max_images = 8 if (is_champion or is_admin) else 4
             if media_urls and post_type == 'image':
                 for i, img_data in enumerate(media_urls[:max_images]):
@@ -900,7 +900,7 @@ def _get_recent_activity(request):
                 'web_level': u.web_level or 1,
             })
 
-        # New members this week — used as sidebar fallback when no suggested users
+        # New members this week - used as sidebar fallback when no suggested users
         new_members_q = db.query(WebUser).filter(
             WebUser.created_at >= week_ago,
             WebUser.is_banned == False,
@@ -2082,7 +2082,7 @@ def api_post_share(request, post_id):
     """
     POST: Record a share event and award Hero Points.
     Called client-side when the user taps Share on a post.
-    Does not create a new post — just logs the action for HP purposes.
+    Does not create a new post - just logs the action for HP purposes.
     """
     banned = check_banned(request)
     if banned:

@@ -424,7 +424,7 @@ function annSearchGifs(q) {
   _annGifTimer = setTimeout(async function() {
     if (!q) return;
     try {
-      const r = await fetch('/ql/api/gifs/search/?q=' + encodeURIComponent(q) + '&limit=9');
+      const r = await fetch('/api/gifs/search/?q=' + encodeURIComponent(q) + '&limit=9');
       const d = await r.json();
       const grid = document.getElementById('annGifResults');
       grid.innerHTML = '';
@@ -518,7 +518,7 @@ function annSearchGames(q) {
       const d = await r.json();
       const list = document.getElementById('annGameResults');
       list.innerHTML = '';
-      (d.results || []).slice(0, 8).forEach(function(g) {
+      (d.games || d.results || []).slice(0, 8).forEach(function(g) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'w-full flex items-center gap-2 px-2 py-1.5 hover:bg-neutral-700 rounded-lg transition text-left';

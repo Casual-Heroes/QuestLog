@@ -8,7 +8,7 @@
 
 <script>
   const CSRF_TOKEN = '{{ csrf_token }}';
-  // XSS protection — was missing, causing silent autocomplete failure
+  // XSS protection - was missing, causing silent autocomplete failure
 </script>
 
 <!-- Header -->
@@ -364,7 +364,7 @@ const ACTIVITY_CHOICES = [
   'Build Testing','Open World','Social/Chill',
 ];
 
-// WoW-specific activities — only shown when WoW is selected
+// WoW-specific activities - only shown when WoW is selected
 const WOW_ACTIVITY_CHOICES = [
   'Raid','Dungeon','Mythic+','PvP','Arena','Battleground',
   'World Boss','Open World','Story/Questing','Crafting',
@@ -805,7 +805,7 @@ async function searchGames(q) {
     const data = await res.json();
     renderGameResults(data.games || [], q);
   } catch {
-    container.innerHTML = `<div class="px-4 py-3 text-gray-400 text-sm">Search failed — <button type="button" onclick="setCustomGameName('${escapeHtml(q)}')" class="text-green-400 underline">use "${escapeHtml(q)}"</button></div>`;
+    container.innerHTML = `<div class="px-4 py-3 text-gray-400 text-sm">Search failed - <button type="button" onclick="setCustomGameName('${escapeHtml(q)}')" class="text-green-400 underline">use "${escapeHtml(q)}"</button></div>`;
   }
 }
 
@@ -815,7 +815,7 @@ function renderGameResults(games, query) {
 
   if (games.length === 0) {
     container.innerHTML = `
-      <div class="px-4 py-3 text-gray-400 text-sm">No IGDB results for "${escapeHtml(query)}" —
+      <div class="px-4 py-3 text-gray-400 text-sm">No IGDB results for "${escapeHtml(query)}" -
         <button type="button" onclick="setCustomGameName('${escapeHtml(query)}')"
           class="text-green-400 hover:text-green-300 underline ml-1">use this name</button>
       </div>`;

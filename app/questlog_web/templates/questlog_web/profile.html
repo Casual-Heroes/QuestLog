@@ -494,37 +494,6 @@
     </div>
     <div id="pe-feedback" class="hidden p-3 rounded-lg text-sm"></div>
 
-    <!-- QuestLog Listener API Key -->
-    <div class="bg-neutral-900/50 rounded-lg border border-amber-900/30 p-6 mt-4">
-      <h2 class="text-base font-semibold text-white mb-1">
-        <i class="fas fa-plug text-amber-500 mr-2"></i>QuestLog Listener
-      </h2>
-      <p class="text-gray-400 text-sm mb-4">Generate an API key to connect the QuestLog Listener desktop app to your account. The app will use this key to find your active runs automatically - no token copy-paste required.</p>
-      <div class="flex items-center gap-3">
-        <div class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 font-mono text-sm" id="listener-key-display">
-          {% if listener_api_key %}
-            <span class="text-amber-400" id="listener-key-value">{{ listener_api_key }}</span>
-          {% else %}
-            <span class="text-gray-600 italic" id="listener-key-value">No key generated yet</span>
-          {% endif %}
-        </div>
-        {% if listener_api_key %}
-        <button onclick="copyListenerKey()" class="flex-shrink-0 px-3 py-2.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-bold rounded-lg transition" title="Copy key">
-          <i class="fas fa-copy"></i>
-        </button>
-        {% endif %}
-        <button onclick="generateListenerKey()" id="listener-key-btn"
-                class="flex-shrink-0 px-4 py-2.5 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition">
-          {% if listener_api_key %}<i class="fas fa-sync mr-1"></i>Regenerate{% else %}<i class="fas fa-key mr-1"></i>Generate Key{% endif %}
-        </button>
-      </div>
-      <p class="text-gray-600 text-xs mt-2">
-        <i class="fas fa-info-circle mr-1"></i>
-        Regenerating invalidates your old key - you'll need to update the Listener app.
-        <a href="/soulslike/listener/" class="text-amber-600 hover:text-amber-400 ml-1">Download Listener</a>
-      </p>
-      <div id="listener-key-feedback" class="hidden mt-2 text-xs text-green-400"></div>
-    </div>
 
     <!-- Data & Privacy -->
     <div class="bg-neutral-900/50 rounded-lg border border-red-900/30 p-6 mt-4">
@@ -2004,53 +1973,5 @@ function submitResubmit(slug) {
   });
 }
 
-function generateListenerKey() {
-  var btn = document.getElementById('listener-key-btn');
-  var had_key = btn.textContent.trim().startsWith('Regen');
-  if (had_key && !confirm('Regenerate your Listener API key? Your current key will stop working immediately.')) return;
-  btn.disabled = true;
-  btn.textContent = 'Generating...';
-  csrfFetch('/api/listener/generate-key/', {method: 'POST'})
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.ok) {
-        var keyEl = document.getElementById('listener-key-value');
-        keyEl.textContent = d.key;
-        keyEl.className = 'text-amber-400';
-        btn.innerHTML = '<i class="fas fa-sync mr-1"></i>Regenerate';
-        btn.disabled = false;
-        // Show copy button if not already there
-        var display = document.getElementById('listener-key-display');
-        if (!document.getElementById('listener-copy-btn')) {
-          var copyBtn = document.createElement('button');
-          copyBtn.id = 'listener-copy-btn';
-          copyBtn.onclick = copyListenerKey;
-          copyBtn.title = 'Copy key';
-          copyBtn.className = 'flex-shrink-0 px-3 py-2.5 bg-neutral-700 hover:bg-neutral-600 text-gray-300 text-xs font-bold rounded-lg transition';
-          copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
-          display.parentNode.insertBefore(copyBtn, btn);
-        }
-        var fb = document.getElementById('listener-key-feedback');
-        fb.textContent = 'Key generated! Copy it into the QuestLog Listener app.';
-        fb.className = 'mt-2 text-xs text-green-400';
-        fb.classList.remove('hidden');
-      }
-    }).catch(function() {
-      btn.disabled = false;
-      btn.textContent = 'Error - try again';
-    });
-}
-
-function copyListenerKey() {
-  var key = document.getElementById('listener-key-value').textContent.trim();
-  if (!key || key === 'No key generated yet') return;
-  navigator.clipboard.writeText(key).then(function() {
-    var fb = document.getElementById('listener-key-feedback');
-    fb.textContent = 'Copied to clipboard!';
-    fb.className = 'mt-2 text-xs text-green-400';
-    fb.classList.remove('hidden');
-    setTimeout(function() { fb.classList.add('hidden'); }, 2000);
-  });
-}
 </script>
 {% endblock %}

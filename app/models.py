@@ -2880,7 +2880,7 @@ class SiteActivityGame(Base):
     # Game Type (data source)
     game_type = Column(String(20), default="discord")  # 'discord', 'amp', or 'both'
 
-    # Display destination — which public page(s) this game appears on
+    # Display destination - which public page(s) this game appears on
     display_on = Column(String(20), default="gamesweplay")  # 'gamesweplay', 'gameservers', or 'both'
 
     # AMP Server (if game_type = 'amp' or 'both')

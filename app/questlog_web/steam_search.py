@@ -2,7 +2,7 @@
 Steam Search Execution
 Uses Steam's storefront search API (tag-based) for game discovery.
 
-SteamSpy is NOT used — it is blocked from this server.
+SteamSpy is NOT used - it is blocked from this server.
 Tag names are resolved to Steam numeric tag IDs via:
   1. An in-process cache seeded with known common tags
   2. Fallback: parse the Steam tag page to extract the ID
@@ -22,7 +22,7 @@ from .models import WebFoundGame
 
 logger = logging.getLogger(__name__)
 
-# Platforms that are NOT consoles — filtered out when building console_platforms
+# Platforms that are NOT consoles - filtered out when building console_platforms
 _PC_PLATFORMS = {
     'pc (microsoft windows)', 'windows', 'mac', 'macos', 'linux',
     'pc dos', 'steamos', 'android', 'ios', 'windows phone',
@@ -116,7 +116,7 @@ def _get_steam_tag_id(tag_name):
     except Exception as e:
         logger.warning(f'steam_search: tag ID lookup failed for "{tag_name}": {e}')
 
-    logger.warning(f'steam_search: could not resolve Steam tag ID for "{tag_name}" — add it to KNOWN_TAG_IDS')
+    logger.warning(f'steam_search: could not resolve Steam tag ID for "{tag_name}" - add it to KNOWN_TAG_IDS')
     return None
 
 
@@ -281,7 +281,7 @@ def _resolve_and_search(include_tags, exclude_tags, coming_soon=False):
         return set()
 
     if coming_soon:
-        # Use the HTML endpoint (without json=1) — it correctly applies BOTH
+        # Use the HTML endpoint (without json=1) - it correctly applies BOTH
         # the tags filter AND filter=comingsoon. The json=1 endpoint ignores
         # tags when filter=comingsoon is set, returning all coming-soon games.
         result = _steam_search_app_ids_html(include_ids, filter_mode='comingsoon')

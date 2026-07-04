@@ -9,7 +9,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Maintenance mode flag file — if this file exists, the site is in maintenance mode
+# Maintenance mode flag file - if this file exists, the site is in maintenance mode
 # Override with MAINTENANCE_FLAG env var for custom deployment paths
 import pathlib as _pathlib
 MAINTENANCE_FLAG = os.getenv(
@@ -24,16 +24,16 @@ MAINTENANCE_EXEMPT_PREFIXES = [
     'admin-login',    # hardened admin-only login (replaces login)
     'auth',           # OAuth callbacks (Steam etc.)
     'verify-email',
-    'api/igdb/',      # public read-only game search — no reason to block
-    # 'login',        # disabled — public login removed in closed-access mode
-    # '/login/',          # disabled — public login removed in closed-access mode
+    'api/igdb/',      # public read-only game search - no reason to block
+    # 'login',        # disabled - public login removed in closed-access mode
+    # '/login/',          # disabled - public login removed in closed-access mode
     '/logout/',
     '/static/',
     '/media/',
     '/questchat/',
     'qc/',            # QuestChat bridge API - app stays accessible during maintenance
     '/auth/discord/',     # Discord OAuth flow must complete before we can check identity
-    '/questlog/login/',   # Discord OAuth entry point — must be reachable to initiate auth
+    '/questlog/login/',   # Discord OAuth entry point - must be reachable to initiate auth
 ]
 
 # Dashboard paths only the bot owner / site admin can access during maintenance
@@ -78,7 +78,7 @@ class MaintenanceMiddleware:
             if any(path.startswith(p) for p in MAINTENANCE_EXEMPT_PREFIXES):
                 return self.get_response(request)
 
-            # Discord bot dashboard — only the bot owner can access during maintenance
+            # Discord bot dashboard - only the bot owner can access during maintenance
             if any(path.startswith(p) for p in DASHBOARD_PREFIXES):
                 discord_user = request.session.get('discord_user', {})
                 discord_id = str(discord_user.get('id', ''))
@@ -96,7 +96,7 @@ class MaintenanceMiddleware:
                                 return self.get_response(request)
                     except Exception:
                         pass  # fall through to deny if DB check fails
-                # Not the owner — send to maintenance page (not Discord login)
+                # Not the owner - send to maintenance page (not Discord login)
                 response = render(request, 'questlog_web/maintenance.html', status=503)
                 response['Retry-After'] = '3600'
                 return response

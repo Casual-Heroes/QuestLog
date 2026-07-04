@@ -62,7 +62,7 @@
       <p class="text-gray-400 text-sm">
         <i class="fas fa-info-circle text-indigo-400 mr-2"></i>
         <strong>Example output:</strong>
-        <code class="ml-2 text-orange-400">🧙 Pantheon Heroes: 22 members — 2 currently playing</code>
+        <code class="ml-2 text-orange-400">🧙 Pantheon Heroes: 22 members - 2 currently playing</code>
       </p>
     </div>
   </div>
@@ -101,7 +101,7 @@
           {% else %}
           <div class="bg-neutral-800 rounded-lg p-3 text-sm mb-3">
             <p class="text-gray-400 text-xs mb-1">Preview:</p>
-            <code class="text-orange-400">{{ tracker.emoji|default:"" }} {{ tracker.label }}: X members{% if tracker.game_name %} — Y currently playing{% endif %}</code>
+            <code class="text-orange-400">{{ tracker.emoji|default:"" }} {{ tracker.label }}: X members{% if tracker.game_name %} - Y currently playing{% endif %}</code>
           </div>
           {% endif %}
 
@@ -183,7 +183,7 @@
             <span class="px-2 py-1 bg-gray-700 text-gray-400 rounded text-xs">Example</span>
           </div>
           <div class="bg-neutral-800 rounded-lg p-3 text-sm">
-            <code class="text-orange-400">🧙 Pantheon Heroes: 22 members — 2 currently playing</code>
+            <code class="text-orange-400">🧙 Pantheon Heroes: 22 members - 2 currently playing</code>
           </div>
           <p class="text-gray-500 text-xs mt-2">Tracks: @Pantheon role | Game: "pantheon"</p>
         </div>
@@ -377,7 +377,7 @@
 
     let preview = `${emoji} ${label}: X members`;
     if (gameName) {
-      preview += ' — Y currently playing';
+      preview += ' - Y currently playing';
     }
 
     document.getElementById('tracker-preview').textContent = preview;

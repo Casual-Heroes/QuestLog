@@ -1086,7 +1086,7 @@ async function handleImageSelect(input) {
 async function handlePasteImage(event) {
   const items = Array.from(event.clipboardData?.items || []);
   const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
-  if (!imageItems.length) return; // No image — let normal text paste proceed
+  if (!imageItems.length) return; // No image - let normal text paste proceed
   event.preventDefault();
   if (uploadedImages.length >= 4) return;
   if (selectedGif) clearGif();

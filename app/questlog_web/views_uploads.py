@@ -1,4 +1,4 @@
-# QuestLog Web — file uploads & GIF search
+# QuestLog Web - file uploads & GIF search
 
 import os
 import json

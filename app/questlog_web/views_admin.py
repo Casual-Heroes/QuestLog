@@ -1,4 +1,4 @@
-# QuestLog Web — admin views & APIs
+# QuestLog Web - admin views & APIs
 
 import json
 import re
@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 @web_login_required
 def admin_verify_pin(request):
-    """Legacy endpoint — PIN auth replaced by Django superuser check."""
+    """Legacy endpoint - PIN auth replaced by Django superuser check."""
     if request.user.is_authenticated and request.user.is_superuser:
         return redirect('questlog_web_admin')
     messages.error(request, "Access denied.")
@@ -70,7 +70,7 @@ def admin_verify_pin(request):
 @web_mod_required
 @add_web_user_context
 def admin_panel(request):
-    """Admin panel — admins and mods."""
+    """Admin panel - admins and mods."""
     wu = request.web_user
     context = {
         'web_user': wu,
@@ -1794,7 +1794,7 @@ def api_admin_steam_search_detail(request, search_id):
 @require_http_methods(["POST"])
 def api_admin_run_steam_search(request, search_id):
     """API: Immediately run a Steam search config.
-    ?clear=1  — delete all WebFoundGame rows for this config first, then re-run.
+    ?clear=1  - delete all WebFoundGame rows for this config first, then re-run.
     """
     from .steam_search import run_steam_search_config
     clear = request.GET.get('clear') == '1'
@@ -2485,7 +2485,7 @@ def api_admin_user_action(request, user_id):
 
         elif action == 'revoke_vip':
             user.is_vip = False
-            # Leave the flair in their collection — it's a reward they earned
+            # Leave the flair in their collection - it's a reward they earned
 
         elif action == 'grant_founder':
             user.is_founder = True
@@ -2507,7 +2507,7 @@ def api_admin_user_action(request, user_id):
 
         elif action == 'revoke_founder':
             user.is_founder = False
-            # Leave the flair — it's earned, not revoked
+            # Leave the flair - it's earned, not revoked
 
         elif action == 'grant_ffxiv':
             user.is_ffxiv_member = True
@@ -3237,7 +3237,7 @@ def api_admin_flairs(request):
                 'owner_count': db.query(WebUserFlair).filter_by(flair_id=f.id).count(),
             } for f in flairs]})
 
-        # POST — create
+        # POST - create
         try:
             body = json.loads(request.body)
         except Exception:
@@ -3281,7 +3281,7 @@ def api_admin_flair_detail(request, flair_id):
             log_admin_action(request, 'delete_flair', target_id=flair_id, details=f'name={flair.name}')
             return JsonResponse({'success': True})
 
-        # PUT — update
+        # PUT - update
         try:
             body = json.loads(request.body)
         except Exception:
@@ -3328,7 +3328,7 @@ def api_admin_rank_titles(request):
                 'icon': t.icon or '',
             } for t in titles]})
 
-        # POST — create
+        # POST - create
         try:
             body = json.loads(request.body)
         except Exception:
@@ -3415,7 +3415,7 @@ def api_admin_xp_leaderboard(request):
 
 
 # =============================================================================
-# ADMIN: STEAM GAME SEARCH (proxy — avoids browser CORS)
+# ADMIN: STEAM GAME SEARCH (proxy - avoids browser CORS)
 # =============================================================================
 
 @web_admin_required
@@ -3502,7 +3502,7 @@ def api_admin_server_polls(request):
                 result.append(_serialize_poll(p, opts))
             return JsonResponse({'polls': result})
 
-        # POST — create
+        # POST - create
         try:
             data = json.loads(request.body)
         except (ValueError, KeyError):
@@ -3572,7 +3572,7 @@ def api_admin_server_poll_detail(request, poll_id):
             log_admin_action(request, 'delete_server_poll', 'server_poll', poll_id, {})
             return JsonResponse({'success': True})
 
-        # PUT — update
+        # PUT - update
         try:
             data = json.loads(request.body)
         except (ValueError, KeyError):

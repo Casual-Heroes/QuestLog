@@ -349,11 +349,11 @@
         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Platform Activity</h3>
         <div class="grid grid-cols-2 gap-2">
           <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
-            <div class="text-indigo-400 font-bold text-xl leading-tight" id="stat-posts-today">—</div>
+            <div class="text-indigo-400 font-bold text-xl leading-tight" id="stat-posts-today">-</div>
             <div class="text-gray-500 text-xs mt-0.5">Posts Today</div>
           </div>
           <div class="bg-neutral-800/60 rounded-lg p-3 text-center">
-            <div class="text-green-400 font-bold text-xl leading-tight" id="stat-active-users">—</div>
+            <div class="text-green-400 font-bold text-xl leading-tight" id="stat-active-users">-</div>
             <div class="text-gray-500 text-xs mt-0.5">Active Today</div>
           </div>
         </div>
@@ -668,8 +668,8 @@ async function loadSidebarData() {
   try {
     const res = await fetch('/api/activity/');
     const data = await res.json();
-    document.getElementById('stat-posts-today').textContent = data.posts_today ?? '—';
-    document.getElementById('stat-active-users').textContent = data.active_posters_today ?? '—';
+    document.getElementById('stat-posts-today').textContent = data.posts_today ?? '-';
+    document.getElementById('stat-active-users').textContent = data.active_posters_today ?? '-';
     renderSuggestedUsers(data.suggested_gamers || []);
     renderTrendingGames(data.trending_games || []);
   } catch(e) {
@@ -1110,7 +1110,7 @@ async function handleImageSelect(input) {
 async function handlePasteImage(event) {
   const items = Array.from(event.clipboardData?.items || []);
   const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
-  if (!imageItems.length) return; // No image — let normal text paste proceed
+  if (!imageItems.length) return; // No image - let normal text paste proceed
   event.preventDefault();
   if (uploadedImages.length >= 4) return;
   if (selectedGif) clearGif();

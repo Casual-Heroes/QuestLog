@@ -287,7 +287,7 @@ def get_steam_stats(steam_id: str, api_key: str):
         return None
 
     # Total unlocked achievements via GetPlayerAchievements per game is too slow at scale.
-    # Use the global achievement percentages endpoint as a proxy — instead, use
+    # Use the global achievement percentages endpoint as a proxy - instead, use
     # GetPlayerStatsForGame is per-app only. Best scalable option: GetSchemaForGame per app.
     # Practical approach: count unlocked achievements from recently-played games only.
     achievements_total = 0

@@ -248,7 +248,7 @@ function filterAndRender() {
   else if (sort === 'name')    filtered.sort((a, b) => a.name.localeCompare(b.name));
   else if (sort === 'score')   filtered.sort((a, b) => (b.review_score || 0) - (a.review_score || 0));
   else if (sort === 'release') filtered.sort((a, b) => {
-    // release_date is a string like "Jan 15, 2025" — parse best-effort
+    // release_date is a string like "Jan 15, 2025" - parse best-effort
     const da = new Date(a.release_date || 0), db2 = new Date(b.release_date || 0);
     return (isNaN(db2) ? 0 : db2) - (isNaN(da) ? 0 : da);
   });

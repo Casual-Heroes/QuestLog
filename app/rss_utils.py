@@ -1,5 +1,5 @@
 """
-RSS feed security utilities — SSRF-protected fetch and URL validation.
+RSS feed security utilities - SSRF-protected fetch and URL validation.
 
 Shared between app.views (bot dashboard RSS) and app.questlog_web (QuestLog RSS feeds).
 """

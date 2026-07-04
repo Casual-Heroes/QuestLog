@@ -195,20 +195,20 @@ urlpatterns = [
     # =========================================================================
     # SITE-WIDE AUTH
     # =========================================================================
-    # path('login/', ql_views.ql_login, name='site_login'),  # disabled — closed-access mode
+    # path('login/', ql_views.ql_login, name='site_login'),  # disabled - closed-access mode
     path('register/', ql_views.ql_register, name='site_register'),
     path('verify-email/<str:token>/', ql_views.verify_email, name='site_verify_email'),
     path('resend-verification/',      ql_views.resend_verification, name='site_resend_verification'),
     path('logout/',   ql_views.logout,      name='site_logout'),
 
-    # Steam — optional connection (game features)
+    # Steam - optional connection (game features)
     path('auth/steam/link/',     ql_views.steam_link,          name='site_steam_link'),
     path('auth/steam/callback/', ql_views.steam_link_callback, name='site_steam_callback'),
 
     path("dashboard/", views.dashboard, name="dashboard"),
 
     # QuestLog Web (web-native, no Discord dependency)
-    # casual-heroes.com/ql/ — distinct from dashboard.casual-heroes.com/questlog/
+    # casual-heroes.com/ql/ - distinct from dashboard.casual-heroes.com/questlog/
     path('', include('app.questlog_web.urls')),
 
     # QuestLog (Discord bot dashboard - on dashboard.casual-heroes.com)
@@ -217,7 +217,7 @@ urlpatterns = [
     path('questlog/creatorofthemonth/', views.creator_of_the_month_page, name='creator_of_the_month'),
     path('questlog/creatoroftheweek/', views.creator_of_the_week_page, name='creator_of_the_week'),
 
-    # Discord auth — re-enabled for dashboard.casual-heroes.com (Discord bot dashboard)
+    # Discord auth - re-enabled for dashboard.casual-heroes.com (Discord bot dashboard)
     # Matrix SSO runs separately for casual-heroes.com/ql
     path('auth/discord/login/', views.discord_login, name='discord_login'),
     path('auth/discord/callback/', views.discord_callback, name='discord_callback'),
