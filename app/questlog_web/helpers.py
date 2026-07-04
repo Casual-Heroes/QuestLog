@@ -1,4 +1,4 @@
-# QuestLog Web — shared utilities (all other view modules import from here)
+# QuestLog Web - shared utilities (all other view modules import from here)
 
 import os
 import re
@@ -74,7 +74,7 @@ def safe_int(value, default=1, min_val=None, max_val=None):
 def safe_redirect_url(next_url, default='/'):
     """
     Validate a ?next= redirect parameter to prevent open redirect attacks.
-    Only allows relative paths on the same host — rejects:
+    Only allows relative paths on the same host - rejects:
       - Absolute URLs (http://, https://)
       - Protocol-relative URLs (//)
       - Backslash bypasses (/\attacker.com)
@@ -115,7 +115,7 @@ def get_client_ip(request):
 
 
 def _hash_ip(ip_address):
-    # Store a full 64-char SHA-256 hex digest — correlatable within a session, not reversible
+    # Store a full 64-char SHA-256 hex digest - correlatable within a session, not reversible
     return hashlib.sha256(
         (ip_address + AUDIT_LOG_SALT).encode('utf-8')
     ).hexdigest()
@@ -1020,6 +1020,8 @@ XP_ACTIONS = {
     # --- Blog / Articles ---
     'article_published':      {'xp': 10,  'daily_max': 2},     # contributor publishes an article
     'article_comment':        {'xp': 3,   'daily_max': 10},    # leaving a comment on an article
+    'guide_published':        {'xp': 25,  'daily_max': 2},     # publishing a soulslike guide
+    'guide_comment':          {'xp': 3,   'daily_max': 10},    # commenting on a guide
 }
 
 # HP conversion: every XP_TO_HP_THRESHOLD XP earns HP_PER_THRESHOLD HP
@@ -2050,9 +2052,9 @@ def process_uploaded_image(uploaded_file, dest_subdir='posts',
     Security layers:
       1. Content-type allowlist (JPEG/PNG/GIF/WebP only)
       2. File size cap before decoding
-      3. Pillow .verify() — rejects malformed/polyglot files
-      4. Max pixel dimension — prevents decompression bomb attacks
-      5. EXIF stripping — fresh Image object, never copies metadata
+      3. Pillow .verify() - rejects malformed/polyglot files
+      4. Max pixel dimension - prevents decompression bomb attacks
+      5. EXIF stripping - fresh Image object, never copies metadata
     """
     from PIL import Image
 
@@ -2070,7 +2072,7 @@ def process_uploaded_image(uploaded_file, dest_subdir='posts',
         limit_mb = size_limit / (1024 * 1024)
         raise ValueError(f'File too large. Maximum size is {limit_mb:.0f}MB.')
 
-    # 3. Pillow verify — confirms this is a real image, catches polyglot/malformed files
+    # 3. Pillow verify - confirms this is a real image, catches polyglot/malformed files
     try:
         img = Image.open(uploaded_file)
         img.verify()
@@ -2079,7 +2081,7 @@ def process_uploaded_image(uploaded_file, dest_subdir='posts',
     except Exception:
         raise ValueError('Invalid image file.')
 
-    # 4. Dimension cap — prevents decompression bomb attacks (e.g. 1px PNG expanding to 4GB)
+    # 4. Dimension cap - prevents decompression bomb attacks (e.g. 1px PNG expanding to 4GB)
     width, height = img.size
     if width > max_dimension or height > max_dimension:
         raise ValueError(f'Image too large. Maximum dimensions are {max_dimension}x{max_dimension} pixels.')

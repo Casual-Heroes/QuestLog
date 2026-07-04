@@ -223,11 +223,13 @@
   <!-- Header -->
   <div class="mb-4">
     <!-- Row 1: back link + title + level -->
+    <div class="flex items-center gap-2 text-xs text-gray-600 mb-1">
+      <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+      <span>/</span>
+      <span class="text-gray-500">Character Builder</span>
+    </div>
     <div class="flex items-center justify-between mb-2">
       <div class="flex items-center gap-2 min-w-0">
-        <a href="/soulslike/" class="text-gray-600 hover:text-gray-400 transition flex-shrink-0">
-          <i class="fas fa-chevron-left text-sm"></i>
-        </a>
         <div class="flex items-center gap-2 min-w-0">
           <i class="fas fa-shield-alt text-amber-500 flex-shrink-0"></i>
           <h1 class="text-lg font-black text-white truncate">Build Planner</h1>
@@ -724,7 +726,7 @@
       <!-- My Builds -->
       <div class="sl-panel">
         <div class="sl-panel-title flex items-center justify-between">
-          <span>My Builds</span>
+          <a href="/soulslike/my-builds/" class="hover:text-amber-400 transition">My Builds</a>
           <button onclick="loadMyBuilds()" class="text-[10px] text-gray-500 hover:text-amber-400 transition normal-case font-normal tracking-normal">
             <i class="fas fa-refresh mr-1"></i>Refresh
           </button>
@@ -757,9 +759,15 @@
             <textarea id="build-description" rows="2" placeholder="Describe your build..."
                       class="sl-search-input resize-none"></textarea>
           </div>
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="build-public" class="rounded border-neutral-600">
-            <label for="build-public" class="text-xs text-gray-400">Share publicly</label>
+          <div>
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="build-public" class="rounded border-neutral-600">
+              <label for="build-public" class="text-xs text-gray-400">Share publicly</label>
+            </div>
+            <p class="text-[10px] text-gray-600 mt-1 ml-5">
+              <i class="fas fa-trophy text-amber-700 mr-0.5"></i>
+              Public builds appear on community leaderboards when you end a run. Private builds track stats for you only.
+            </p>
           </div>
         </div>
       </div>
@@ -871,13 +879,34 @@
         <p class="text-gray-500 text-xs text-center py-2">Items from your build will appear here</p>
       </div>
 
+      <!-- Hardcore toggle -->
+      <div class="border border-neutral-700 rounded-lg overflow-hidden">
+        <button id="hc-toggle-btn" onclick="toggleHardcore()" class="w-full flex items-center justify-between p-3 text-left hover:bg-neutral-800 transition">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-fire text-red-500 text-sm"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Hardcore Mode</p>
+              <p class="text-[10px] text-gray-500">One life only - first death ends the run</p>
+            </div>
+          </div>
+          <div id="hc-toggle-indicator" class="w-10 h-5 rounded-full bg-neutral-700 relative transition-colors duration-200 flex-shrink-0">
+            <div id="hc-toggle-knob" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-neutral-500 transition-transform duration-200"></div>
+          </div>
+        </button>
+        <div id="hc-info-panel" class="hidden px-3 pb-3 space-y-1 border-t border-neutral-700/50 bg-red-950/20">
+          <p class="text-[10px] text-red-400 mt-2"><i class="fas fa-skull mr-1"></i>Death ends the run permanently. No resets.</p>
+          <p class="text-[10px] text-gray-500">Points: Enemy=10 | Great Enemy=25 | Legend=50 | Demigod=100 | God=250 | Item=5</p>
+          <p class="text-[10px] text-gray-500">Deathless full clear = 2x score multiplier</p>
+        </div>
+      </div>
+
       <div class="p-2.5 bg-amber-900/20 border border-amber-700/30 rounded-lg">
         <p class="text-[10px] text-amber-500"><i class="fas fa-info-circle mr-1"></i>Get the <a href="/soulslike/listener/" class="underline">QuestLog Listener</a> for auto-detection of deaths via OCR.</p>
       </div>
 
       <div class="flex gap-2 justify-end">
         <button onclick="closeRunModal()" class="px-4 py-2 text-xs text-gray-400 hover:text-white transition">Cancel</button>
-        <button onclick="confirmStartRun()" class="px-5 py-2 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition">
+        <button id="start-run-btn" onclick="confirmStartRun()" class="px-5 py-2 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition">
           <i class="fas fa-skull mr-1"></i>Start Run
         </button>
       </div>
@@ -928,18 +957,20 @@ document.addEventListener('DOMContentLoaded', function() {
   loadArData();
   updateDerivedStats();
 
-  // Check for ?view= share token - load a shared build in view-only mode
+  // Check URL params - ?load= for edit, ?view= for view-only
   const urlParams = new URLSearchParams(window.location.search);
+  const loadToken = urlParams.get('load');
   const viewToken = urlParams.get('view');
-  const gameParam = urlParams.get('game');
-  if (viewToken) {
-    // If game specified in URL, switch to it first
+  const gameParam = urlParams.get('game') || urlParams.get('mode');
+  if (loadToken || viewToken) {
     if (gameParam && gameParam !== BUILD.game) {
       selectGame(gameParam, gameParam === 'err' ? 'Elden Ring Reforged' : 'Elden Ring');
     }
-    // Wait for data to load then load the build
     AR_DATA_READY.then(() => {
-      setTimeout(() => loadBuildViewOnly(viewToken), 800);
+      setTimeout(() => {
+        if (loadToken) loadBuild(loadToken);
+        else loadBuildViewOnly(viewToken);
+      }, 800);
     });
   }
 });
@@ -1473,7 +1504,7 @@ function applyViewOnlyBuild(d) {
     viewBanner.innerHTML = `
       <i class="fas fa-eye mr-2 text-amber-400"></i>
       Viewing <strong class="text-white mx-1">${escapeHtml(d.name)}</strong>
-      by <span class="text-amber-400 mx-1">${escapeHtml(d.author || 'Unknown')}</span>
+      by <a href="/ql/u/${encodeURIComponent(d.author_username || d.author || '')}/" class="text-amber-400 hover:text-amber-300 transition mx-1">${escapeHtml(d.author || 'Unknown')}</a>
       <span class="text-gray-500 mx-2">·</span>
       {% if web_user %}
       <button onclick="forkBuild()" class="text-green-400 hover:text-green-300 transition font-semibold">
@@ -1567,15 +1598,23 @@ function loadBuildData(d) {
   activePicker = null;
 
   Promise.all(weaponPromises).then(() => {
-    // Restore AoW for each weapon slot after weapons are loaded
+    // Restore AoW and affinity for each weapon slot
     weaponSlots.forEach(slot => {
+      if (!BUILD.slots[slot]) return;
+      // Restore affinity first (affects AR variant selection)
+      const affinity = d.weapons?.[slot + '_affinity'];
+      if (affinity && BUILD.slots[slot]) {
+        BUILD.slots[slot].equippedAffinity = affinity;
+      }
+      // Restore AoW
       const aowName = d.weapons?.[slot + '_aow'];
-      if (!aowName || !BUILD.slots[slot]) return;
-      const found = ALL_AOW.find(a => a.name === aowName);
-      if (found) {
-        activePicker = { category: 'aow', slot };
-        equipAow(found);
-        activePicker = null;
+      if (aowName) {
+        const found = ALL_AOW.find(a => a.name === aowName);
+        if (found) {
+          activePicker = { category: 'aow', slot };
+          equipAow(found);
+          activePicker = null;
+        }
       }
     });
     updateAllStatBars();
@@ -3660,12 +3699,12 @@ function saveBuild() {
     class_id: BUILD.class_id,
     ...BUILD.stats,
     total_level: parseInt(document.getElementById('total-level').textContent) || 1,
-    rh1_weapon_id: BUILD.slots.rh1?.id || null, rh1_aow_name: BUILD.aow.rh1?.name || null,
-    rh2_weapon_id: BUILD.slots.rh2?.id || null, rh2_aow_name: BUILD.aow.rh2?.name || null,
-    rh3_weapon_id: BUILD.slots.rh3?.id || null, rh3_aow_name: BUILD.aow.rh3?.name || null,
-    lh1_weapon_id: BUILD.slots.lh1?.id || null, lh1_aow_name: BUILD.aow.lh1?.name || null,
-    lh2_weapon_id: BUILD.slots.lh2?.id || null, lh2_aow_name: BUILD.aow.lh2?.name || null,
-    lh3_weapon_id: BUILD.slots.lh3?.id || null, lh3_aow_name: BUILD.aow.lh3?.name || null,
+    rh1_weapon_id: BUILD.slots.rh1?.id || null, rh1_aow_name: BUILD.aow.rh1?.name || null, rh1_affinity: BUILD.slots.rh1?.equippedAffinity || null,
+    rh2_weapon_id: BUILD.slots.rh2?.id || null, rh2_aow_name: BUILD.aow.rh2?.name || null, rh2_affinity: BUILD.slots.rh2?.equippedAffinity || null,
+    rh3_weapon_id: BUILD.slots.rh3?.id || null, rh3_aow_name: BUILD.aow.rh3?.name || null, rh3_affinity: BUILD.slots.rh3?.equippedAffinity || null,
+    lh1_weapon_id: BUILD.slots.lh1?.id || null, lh1_aow_name: BUILD.aow.lh1?.name || null, lh1_affinity: BUILD.slots.lh1?.equippedAffinity || null,
+    lh2_weapon_id: BUILD.slots.lh2?.id || null, lh2_aow_name: BUILD.aow.lh2?.name || null, lh2_affinity: BUILD.slots.lh2?.equippedAffinity || null,
+    lh3_weapon_id: BUILD.slots.lh3?.id || null, lh3_aow_name: BUILD.aow.lh3?.name || null, lh3_affinity: BUILD.slots.lh3?.equippedAffinity || null,
     shield_id:           BUILD.slots.shield?.id    || null,
     helm_id:             BUILD.slots.helm?.id      || null,
     chest_id:            BUILD.slots.chest?.id     || null,
@@ -3707,6 +3746,32 @@ function saveBuild() {
 // ── Start Run ─────────────────────────────────────────────────────────────────
 let _runSpoilerMode = 'blind';
 let _runGameMode = 'vanilla';
+let _runHardcore = false;
+
+function toggleHardcore() {
+  _runHardcore = !_runHardcore;
+  const indicator = document.getElementById('hc-toggle-indicator');
+  const knob = document.getElementById('hc-toggle-knob');
+  const panel = document.getElementById('hc-info-panel');
+  const btn = document.getElementById('start-run-btn');
+  if (_runHardcore) {
+    indicator.classList.replace('bg-neutral-700', 'bg-red-700');
+    knob.classList.replace('bg-neutral-500', 'bg-white');
+    knob.style.transform = 'translateX(20px)';
+    panel.classList.remove('hidden');
+    btn.innerHTML = '<i class="fas fa-fire mr-1"></i>Start Hardcore Run';
+    btn.classList.replace('bg-amber-700', 'bg-red-700');
+    btn.classList.replace('hover:bg-amber-600', 'hover:bg-red-600');
+  } else {
+    indicator.classList.replace('bg-red-700', 'bg-neutral-700');
+    knob.classList.replace('bg-white', 'bg-neutral-500');
+    knob.style.transform = 'translateX(0)';
+    panel.classList.add('hidden');
+    btn.innerHTML = '<i class="fas fa-skull mr-1"></i>Start Run';
+    btn.classList.replace('bg-red-700', 'bg-amber-700');
+    btn.classList.replace('hover:bg-red-600', 'hover:bg-amber-600');
+  }
+}
 
 function setGameMode(mode) {
   _runGameMode = mode;
@@ -3740,6 +3805,15 @@ function startCollectionRun() {
   }
   setSpoilerMode('blind');
   setGameMode('vanilla');
+  // Reset hardcore toggle to off
+  _runHardcore = false;
+  const ind = document.getElementById('hc-toggle-indicator');
+  const knb = document.getElementById('hc-toggle-knob');
+  if (ind) { ind.className = 'w-10 h-5 rounded-full bg-neutral-700 relative transition-colors duration-200 flex-shrink-0'; }
+  if (knb) { knb.style.transform = 'translateX(0)'; knb.className = 'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-neutral-500 transition-transform duration-200'; }
+  document.getElementById('hc-info-panel')?.classList.add('hidden');
+  const sbtn = document.getElementById('start-run-btn');
+  if (sbtn) { sbtn.innerHTML = '<i class="fas fa-skull mr-1"></i>Start Run'; sbtn.className = 'px-5 py-2 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition'; }
   document.getElementById('run-modal').classList.remove('hidden');
 }
 
@@ -3805,6 +3879,7 @@ function confirmStartRun() {
     game_mode:    _runGameMode,
     timing_mode:  (window.innerWidth < 768) ? 'manual' : 'listener',
     spoiler_mode: _runSpoilerMode,
+    is_hardcore:  _runHardcore ? 1 : 0,
     build_id:     null,
     items,
   };

@@ -71,10 +71,12 @@
 <div class="max-w-2xl mx-auto px-3 py-4">
 
   <!-- Header -->
-  <div class="flex items-center gap-2 mb-1">
-    <a href="/soulslike/runs/" class="text-gray-600 hover:text-gray-400 text-xs transition">
-      <i class="fas fa-chevron-left mr-1"></i>My Runs
-    </a>
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <a href="/soulslike/runs/" class="hover:text-gray-400 transition">My Runs</a>
+    <span>/</span>
+    <span class="text-gray-500 truncate max-w-48">{{ build_name }}</span>
   </div>
   <div class="flex items-start justify-between mb-3">
     <div>
@@ -96,6 +98,20 @@
   {% if not is_active and summary %}
   <!-- ── COMPLETED RUN SUMMARY ── -->
   <div class="space-y-3">
+
+    <!-- HC result banner (completed runs) -->
+    {% if is_hardcore %}
+    <div class="flex items-center gap-3 px-4 py-3 rounded-lg border {% if summary.hc_completed %}bg-green-950/40 border-green-700/50{% else %}bg-red-950/40 border-red-700/50{% endif %}">
+      <i class="fas {% if summary.hc_completed %}fa-trophy text-yellow-400{% else %}fa-skull text-red-500{% endif %} text-xl"></i>
+      <div class="flex-1">
+        <p class="font-black uppercase tracking-wider {% if summary.hc_completed %}text-green-400{% else %}text-red-400{% endif %}">
+          {% if summary.hc_completed %}Hardcore - DEATHLESS CLEAR{% else %}Hardcore - Permadeath{% endif %}
+        </p>
+        <p class="text-[11px] text-gray-500">Final HC Score</p>
+      </div>
+      <div class="text-2xl font-black {% if summary.hc_completed %}text-yellow-400{% else %}text-red-400{% endif %}">{{ summary.hc_score }}</div>
+    </div>
+    {% endif %}
 
     <!-- Key stats grid -->
     <div class="grid grid-cols-3 gap-2">
@@ -168,6 +184,21 @@
   </div>
   {% else %}
 
+  <!-- HC Mode Banner -->
+  {% if is_hardcore %}
+  <div id="hc-banner" class="mb-3 flex items-center gap-3 px-3 py-2.5 bg-red-950/40 border border-red-700/50 rounded-lg">
+    <i class="fas fa-fire text-red-500 text-base animate-pulse"></i>
+    <div class="flex-1">
+      <p class="text-red-400 font-bold text-sm uppercase tracking-wider">Hardcore Mode - One Life</p>
+      <p class="text-[10px] text-red-600">Death ends this run permanently. No resets.</p>
+    </div>
+    <div class="text-right">
+      <div class="text-xl font-black text-red-400" id="hc-score-display">{{ hc_score }}</div>
+      <div class="text-[10px] text-gray-600 uppercase">HC Points</div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Status bar: Start Session shown by default, listener poll overrides -->
   {% if is_owner and is_active %}
   <div class="mb-3">
@@ -237,7 +268,8 @@
 
   <!-- ── Action buttons: same for everyone ── -->
   {% if is_owner and is_active %}
-  <div class="flex gap-2 mb-3" id="action-btns" style="display:none">
+  <div class="flex gap-2 mb-3 flex-wrap" id="action-btns" style="display:none">
+    {% if not is_hardcore %}
     <button onclick="showDeathPicker()" class="btn-die">
       <i class="fas fa-skull"></i> Log Death
     </button>
@@ -247,6 +279,14 @@
     <button onclick="resetDeaths()" class="btn-sm" title="Reset session">
       <i class="fas fa-rotate-right"></i> Reset
     </button>
+    {% else %}
+    <button onclick="logHcDeath()" class="btn-die bg-red-900 hover:bg-red-800">
+      <i class="fas fa-skull"></i> PERMADEATH
+    </button>
+    <button onclick="completeHcRun()" id="hc-complete-btn" class="btn-sm bg-green-800 hover:bg-green-700 text-green-200" title="Mark run as completed (all bosses defeated, 0 deaths)">
+      <i class="fas fa-trophy"></i> HC Complete
+    </button>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -379,14 +419,26 @@
 </div>
 
 <link rel="manifest" href="/soulslike/runs/{{ token }}/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="{{ build_name|truncatechars:20 }}">
+<meta name="theme-color" content="#d97706">
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw-soulslike.js', {scope: '/'})
+    .catch(function(e) { console.log('SW reg failed:', e); });
+}
+</script>
 
 <script>
-var TOKEN       = '{{ token }}';
+var TOKEN       = '{{ token|escapejs }}';
 var IS_ACTIVE   = {% if is_active %}true{% else %}false{% endif %};
 var IS_OWNER    = {% if is_owner %}true{% else %}false{% endif %};
-var GAME        = '{{ game }}' || 'elden_ring';
-var GAME_MODE   = '{{ game_mode }}' || 'vanilla';
-var TIMING_MODE = '{{ timing_mode }}';
+var GAME        = '{{ game|escapejs }}' || 'elden_ring';
+var GAME_MODE   = '{{ game_mode|escapejs }}' || 'vanilla';
+var TIMING_MODE = '{{ timing_mode|escapejs }}';
+var IS_HARDCORE = {% if is_hardcore %}true{% else %}false{% endif %};
 
 var allItems         = [];
 var allBosses        = {};
@@ -464,6 +516,14 @@ function loadStatus() {
       document.getElementById('stat-deaths').textContent     = deaths;
       document.getElementById('stat-death-rate').textContent = (d.true_death_rate||0).toFixed(1);
       document.getElementById('stat-longest').textContent    = d.longest_life_fmt || '00:00:00';
+
+      // HC score update
+      if (IS_HARDCORE) {
+        var hcEl = document.getElementById('hc-score-display');
+        if (hcEl) hcEl.textContent = d.hc_score || 0;
+        // If HC run ended via permadeath, reload to show summary
+        if (!d.is_active && IS_ACTIVE) { IS_ACTIVE = false; location.reload(); }
+      }
 
       // Timing - listener mode updates from server; manual mode uses local JS timer
       if (TIMING_MODE !== 'manual') {
@@ -857,13 +917,45 @@ function copyUrl(path){
   navigator.clipboard.writeText('https://questlog.casual-heroes.com'+path).catch(function(){});
 }
 
+// ── Hardcore Mode ────────────────────────────────────────────────────────────
+function logHcDeath(){
+  if(!confirm('PERMADEATH - This will end your hardcore run permanently. Are you sure?')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/death/',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body: JSON.stringify({boss:'', area:''})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.hc_death){
+      var banner = document.getElementById('hc-banner');
+      if(banner){
+        banner.innerHTML = '<i class="fas fa-skull text-red-500 text-xl"></i><div class="flex-1"><p class="text-red-400 font-black text-base uppercase tracking-wider">Run Ended - Permadeath</p><p class="text-[11px] text-red-600">Final HC Score: '+(d.hc_score||0)+' pts</p></div>';
+      }
+      setTimeout(function(){ location.reload(); }, 2000);
+    }
+  }).catch(function(){});
+}
+function completeHcRun(){
+  if(!confirm('Mark this Hardcore run as COMPLETE? This confirms you defeated all bosses with 0 deaths and applies the 2x score multiplier.')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/hc-complete/',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      alert('Hardcore Completed! Final Score: '+(d.hc_score||0)+' pts (2x multiplier applied)');
+      location.reload();
+    } else {
+      alert(d.error || 'Could not mark as complete');
+    }
+  }).catch(function(){});
+}
+
 // ── Keyboard hotkeys (PC) ────────────────────────────────────────────────────
 {% if is_owner and is_active %}
 document.addEventListener('keydown',function(e){
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
-  if(e.key==='F9'){ e.preventDefault(); showDeathPicker(); }
-  if(e.key==='F10'){ e.preventDefault(); undoLastDeath(); }
-  if(e.key==='F8'){ e.preventDefault(); resetDeaths(); }
+  if(e.key==='F9'){ e.preventDefault(); IS_HARDCORE ? logHcDeath() : showDeathPicker(); }
+  if(!IS_HARDCORE && e.key==='F10'){ e.preventDefault(); undoLastDeath(); }
+  if(!IS_HARDCORE && e.key==='F8'){ e.preventDefault(); resetDeaths(); }
 });
 {% endif %}
 
