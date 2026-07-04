@@ -1,0 +1,288 @@
+{% extends "questlog_web/base_web.html" %}
+{% block title %}{% if guide %}Edit Guide{% else %}Write a Guide{% endif %} - SoulsLike{% endblock %}
+
+{% block web_content %}
+<div class="max-w-3xl mx-auto px-4 py-6">
+
+  <!-- Header -->
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-5">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <a href="/soulslike/guides/" class="hover:text-gray-400 transition">Guides</a>
+    <span>/</span>
+    <span class="text-gray-500">{% if guide %}Edit{% else %}Write{% endif %}</span>
+  </div>
+
+  <h1 class="text-2xl font-black text-white mb-6">
+    {% if guide %}Edit Guide{% else %}Write a Guide{% endif %}
+  </h1>
+
+  <div class="space-y-4">
+
+    <!-- Title -->
+    <div>
+      <label class="block text-xs font-bold text-gray-400 mb-1">Title *</label>
+      <input id="g-title" type="text" maxlength="200"
+             value="{% if guide %}{{ guide.title }}{% endif %}"
+             placeholder="e.g. How to beat Malenia without Bleed"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 placeholder-gray-600">
+    </div>
+
+    <!-- Summary -->
+    <div>
+      <label class="block text-xs font-bold text-gray-400 mb-1">Summary <span class="text-gray-600 font-normal">(shown in guide list)</span></label>
+      <input id="g-summary" type="text" maxlength="400"
+             value="{% if guide %}{{ guide.summary }}{% endif %}"
+             placeholder="One-line description of what this guide covers"
+             class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 placeholder-gray-600">
+    </div>
+
+    <!-- Game + Type row -->
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-bold text-gray-400 mb-1">Game *</label>
+        <select id="g-game" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
+          {% for key, label in SUPPORTED_GAMES.items %}
+          <option value="{{ key }}" {% if guide and guide.game == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-400 mb-1">Guide Type *</label>
+        <select id="g-type" class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
+          {% for key, label in GUIDE_TYPES.items %}
+          <option value="{{ key }}" {% if guide and guide.guide_type == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Steam game tag -->
+    <div>
+      <label class="block text-xs font-bold text-gray-400 mb-1">Tag a Game <span class="text-gray-600 font-normal">(optional - tag the specific Steam game)</span></label>
+      <div id="game-tag-display" class="{% if not guide or not guide.game_tag_name %}hidden{% endif %} flex items-center gap-2 mb-2">
+        <span class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-950/50 border border-blue-800/40 rounded-lg text-blue-300 text-xs font-semibold">
+          <i class="fab fa-steam text-[11px]"></i>
+          <span id="game-tag-label">{% if guide %}{{ guide.game_tag_name }}{% endif %}</span>
+        </span>
+        <button onclick="clearGameTag()" class="text-gray-600 hover:text-red-400 text-xs transition"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="relative">
+        <input id="game-tag-input" type="text"
+               placeholder="Search Steam games to tag..."
+               oninput="searchGamesForTag(this.value)"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 placeholder-gray-600">
+        <div id="game-tag-results" class="hidden absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
+        </div>
+      </div>
+      <input type="hidden" id="game-tag-name-val" value="{% if guide %}{{ guide.game_tag_name }}{% endif %}">
+      <input type="hidden" id="game-tag-steam-id" value="{% if guide %}{{ guide.game_tag_steam_id }}{% endif %}">
+    </div>
+
+    <!-- Body editor -->
+    <div>
+      <label class="block text-xs font-bold text-gray-400 mb-1">Guide Content *</label>
+      <!-- Toolbar -->
+      <div class="flex flex-wrap gap-1 mb-2 p-2 bg-neutral-800 border border-neutral-700 rounded-t-xl border-b-0">
+        <button type="button" onclick="fmt('bold')" class="toolbar-btn" title="Bold"><i class="fas fa-bold"></i></button>
+        <button type="button" onclick="fmt('italic')" class="toolbar-btn" title="Italic"><i class="fas fa-italic"></i></button>
+        <div class="w-px bg-neutral-700 mx-1"></div>
+        <button type="button" onclick="insertHeading(2)" class="toolbar-btn text-[10px] font-bold" title="Heading 2">H2</button>
+        <button type="button" onclick="insertHeading(3)" class="toolbar-btn text-[10px] font-bold" title="Heading 3">H3</button>
+        <div class="w-px bg-neutral-700 mx-1"></div>
+        <button type="button" onclick="fmt('insertUnorderedList')" class="toolbar-btn" title="Bullet list"><i class="fas fa-list-ul"></i></button>
+        <button type="button" onclick="fmt('insertOrderedList')" class="toolbar-btn" title="Numbered list"><i class="fas fa-list-ol"></i></button>
+        <div class="w-px bg-neutral-700 mx-1"></div>
+        <button type="button" onclick="insertBlockquote()" class="toolbar-btn" title="Blockquote"><i class="fas fa-quote-left"></i></button>
+        <button type="button" onclick="insertHr()" class="toolbar-btn" title="Divider"><i class="fas fa-minus"></i></button>
+        <button type="button" onclick="insertLink()" class="toolbar-btn" title="Link"><i class="fas fa-link"></i></button>
+        <div class="w-px bg-neutral-700 mx-1"></div>
+        <button type="button" onclick="togglePreview()" class="toolbar-btn text-[10px]" id="preview-btn" title="Preview">Preview</button>
+      </div>
+      <div id="g-body-editor"
+           contenteditable="true"
+           class="w-full min-h-64 bg-neutral-800 border border-neutral-700 rounded-b-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-amber-500 leading-relaxed"
+           style="outline:none">{% if guide %}{{ guide.body|safe }}{% endif %}</div>
+      <div id="g-body-preview" class="hidden w-full min-h-64 bg-neutral-800/50 border border-neutral-700 rounded-b-xl px-4 py-3 guide-body text-sm leading-relaxed"></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex items-center justify-between pt-2">
+      <a href="/soulslike/guides/" class="text-sm text-gray-500 hover:text-white transition">Cancel</a>
+      <div class="flex gap-3">
+        {% if guide %}
+        <button onclick="deleteGuide()" class="px-4 py-2 text-sm text-red-500 hover:text-red-400 border border-red-900/40 rounded-xl transition">
+          <i class="fas fa-trash mr-1"></i>Delete
+        </button>
+        {% endif %}
+        <button onclick="saveGuide()" id="save-btn"
+                class="px-6 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition">
+          {% if guide %}<i class="fas fa-save mr-1"></i>Save Changes{% else %}<i class="fas fa-paper-plane mr-1"></i>Publish Guide{% endif %}
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.toolbar-btn { padding:.25rem .5rem; border-radius:.375rem; color:#9ca3af; transition:background .15s,color .15s; font-size:.75rem; }
+.toolbar-btn:hover { background:#374151; color:#fff; }
+#g-body-editor:empty:before { content:attr(data-placeholder); color:#6b7280; pointer-events:none; }
+.guide-body h1,.guide-body h2,.guide-body h3{color:#fff;font-weight:700;margin-top:1.25rem;margin-bottom:.4rem}
+.guide-body h2{font-size:1.1rem}.guide-body h3{font-size:1rem}
+.guide-body ul,.guide-body ol{padding-left:1.5rem;margin:.5rem 0}
+.guide-body ul li{list-style:disc;margin:.2rem 0}.guide-body ol li{list-style:decimal;margin:.2rem 0}
+.guide-body a{color:#f59e0b;text-decoration:underline}
+.guide-body blockquote{border-left:3px solid #404040;padding-left:1rem;color:#9ca3af;margin:.75rem 0}
+.guide-body code{background:#1f1f1f;padding:.1rem .35rem;border-radius:.25rem;font-size:.8em;color:#fbbf24}
+.guide-body strong{color:#fff;font-weight:700}.guide-body em{font-style:italic}
+.guide-body img{max-width:100%;border-radius:.5rem;margin:.75rem auto;display:block}
+.guide-body hr{border-color:#374151;margin:1.5rem 0}.guide-body p{margin:.4rem 0}
+</style>
+
+<script>
+var GUIDE_ID = {% if guide %}{{ guide.id }}{% else %}null{% endif %};
+var _gameTagSearchTimeout = null;
+
+document.getElementById('g-body-editor').setAttribute('data-placeholder','Write your guide here...\n\nUse the toolbar for headings, lists, links, and more.');
+
+function getCsrf() {
+  var c = document.cookie.split(';');
+  for(var i=0;i<c.length;i++){var p=c[i].trim();if(p.startsWith('csrftoken='))return p.slice(10);}
+  return '';
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── Toolbar ──────────────────────────────────────────────────────────────────
+function fmt(cmd){ document.getElementById('g-body-editor').focus(); document.execCommand(cmd,false,null); }
+function insertHeading(level){
+  document.getElementById('g-body-editor').focus();
+  document.execCommand('formatBlock',false,'H'+level);
+}
+function insertBlockquote(){
+  document.getElementById('g-body-editor').focus();
+  document.execCommand('formatBlock',false,'blockquote');
+}
+function insertHr(){
+  document.getElementById('g-body-editor').focus();
+  document.execCommand('insertHTML',false,'<hr>');
+}
+function insertLink(){
+  var url = prompt('URL:');
+  if(!url) return;
+  document.getElementById('g-body-editor').focus();
+  document.execCommand('createLink',false,url);
+}
+function togglePreview(){
+  var editor  = document.getElementById('g-body-editor');
+  var preview = document.getElementById('g-body-preview');
+  var btn     = document.getElementById('preview-btn');
+  if(preview.classList.contains('hidden')){
+    preview.innerHTML = '<div class="guide-body">'+editor.innerHTML+'</div>';
+    preview.classList.remove('hidden');
+    editor.classList.add('hidden');
+    btn.textContent='Edit';
+  } else {
+    preview.classList.add('hidden');
+    editor.classList.remove('hidden');
+    btn.textContent='Preview';
+  }
+}
+
+// ── Game tag search ───────────────────────────────────────────────────────────
+function searchGamesForTag(q){
+  clearTimeout(_gameTagSearchTimeout);
+  var results = document.getElementById('game-tag-results');
+  if(!q||q.length<2){results.classList.add('hidden');return;}
+  _gameTagSearchTimeout = setTimeout(async()=>{
+    try{
+      var res = await fetch('/api/igdb/search/?q='+encodeURIComponent(q));
+      var data = await res.json();
+      if(data.games&&data.games.length){
+        results.classList.remove('hidden');
+        results.innerHTML = data.games.map(g=>`
+          <button type="button" onclick="selectGameTag(${g.id},'${esc(g.name).replace(/'/g,"\\'")}',${g.steam_id||'null'})"
+                  class="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-800 transition text-left">
+            ${g.cover_url?`<img src="${esc(g.cover_url)}" class="w-7 h-7 rounded object-cover">`:'<div class="w-7 h-7 bg-neutral-800 rounded flex items-center justify-center"><i class="fas fa-gamepad text-gray-600 text-xs"></i></div>'}
+            <div class="flex-1 min-w-0">
+              <p class="text-white text-xs truncate">${esc(g.name)}</p>
+              ${g.release_year?`<p class="text-gray-600 text-[10px]">${g.release_year}</p>`:''}
+            </div>
+          </button>`).join('');
+      } else {
+        results.classList.remove('hidden');
+        results.innerHTML='<p class="text-gray-500 text-xs p-3">No games found</p>';
+      }
+    }catch(e){results.classList.add('hidden');}
+  },350);
+}
+
+function selectGameTag(id, name, steamId){
+  document.getElementById('game-tag-label').textContent = name;
+  document.getElementById('game-tag-name-val').value = name;
+  document.getElementById('game-tag-steam-id').value = steamId||'';
+  document.getElementById('game-tag-display').classList.remove('hidden');
+  document.getElementById('game-tag-input').value='';
+  document.getElementById('game-tag-results').classList.add('hidden');
+}
+
+function clearGameTag(){
+  document.getElementById('game-tag-label').textContent='';
+  document.getElementById('game-tag-name-val').value='';
+  document.getElementById('game-tag-steam-id').value='';
+  document.getElementById('game-tag-display').classList.add('hidden');
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+function saveGuide(){
+  var title   = document.getElementById('g-title').value.trim();
+  var body    = document.getElementById('g-body-editor').innerHTML.trim();
+  if(!title){ alert('Title is required'); return; }
+  if(!body||body==='<br>'){ alert('Guide content is required'); return; }
+
+  var payload = {
+    title:             title,
+    summary:           document.getElementById('g-summary').value.trim(),
+    body:              body,
+    game:              document.getElementById('g-game').value,
+    guide_type:        document.getElementById('g-type').value,
+    game_tag_name:     document.getElementById('game-tag-name-val').value||'',
+    game_tag_steam_id: parseInt(document.getElementById('game-tag-steam-id').value)||null,
+  };
+
+  var btn = document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='Saving...';
+
+  var url = GUIDE_ID ? '/api/soulslike/guides/'+GUIDE_ID+'/edit/' : '/api/soulslike/guides/create/';
+  fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify(payload)
+  }).then(r=>r.json()).then(d=>{
+    btn.disabled=false; btn.textContent=GUIDE_ID?'Save Changes':'Publish Guide';
+    if(d.ok){
+      window.location.href='/soulslike/guides/'+d.slug+'/';
+    } else {
+      alert(d.error||'Failed to save');
+    }
+  }).catch(()=>{btn.disabled=false;btn.textContent=GUIDE_ID?'Save Changes':'Publish Guide';});
+}
+
+function deleteGuide(){
+  if(!confirm('Delete this guide permanently?')) return;
+  fetch('/api/soulslike/guides/'+GUIDE_ID+'/delete/',{
+    method:'POST',headers:{'X-CSRFToken':getCsrf()}
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok) window.location.href='/soulslike/guides/';
+  });
+}
+
+// Close game tag dropdown on outside click
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#game-tag-input')&&!e.target.closest('#game-tag-results')){
+    document.getElementById('game-tag-results').classList.add('hidden');
+  }
+});
+</script>
+{% endblock %}

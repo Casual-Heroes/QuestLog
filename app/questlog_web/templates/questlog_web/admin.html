@@ -38,7 +38,7 @@
     <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
     </svg>
-    <span>⚠ MAINTENANCE MODE IS ACTIVE — Public pages are offline. Only admins can access the site.</span>
+    <span>⚠ MAINTENANCE MODE IS ACTIVE - Public pages are offline. Only admins can access the site.</span>
     <button onclick="toggleMaintenance()" class="ml-auto px-3 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-bold transition">BRING BACK ONLINE</button>
   </div>
 
@@ -49,12 +49,12 @@
       <div id="maintenanceStatusDot" class="w-3 h-3 rounded-full bg-green-500 flex-shrink-0" title="Site status"></div>
       <div class="min-w-0">
         <p class="text-sm font-semibold text-white" id="maintenanceStatusLabel">Site is Online</p>
-        <p class="text-xs text-neutral-500 truncate">Emergency kill switch — disables all public pages instantly.</p>
+        <p class="text-xs text-neutral-500 truncate">Emergency kill switch - disables all public pages instantly.</p>
       </div>
     </div>
     <button id="ohShitBtn" onclick="toggleMaintenance()"
       class="flex-shrink-0 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-neutral-900 bg-red-700 hover:bg-red-600 text-white focus:ring-red-500 border border-red-600">
-      🚨 OH SHIT — TAKE SITE OFFLINE
+      🚨 OH SHIT - TAKE SITE OFFLINE
     </button>
   </div>
 
@@ -64,7 +64,7 @@
       <div id="loginLockDot" class="w-3 h-3 rounded-full bg-green-500 flex-shrink-0" title="Login status"></div>
       <div class="min-w-0">
         <p class="text-sm font-semibold text-white" id="loginLockLabel">Logins Open</p>
-        <p class="text-xs text-neutral-500 truncate">Blocks login + registration — use during traffic spikes or influx events.</p>
+        <p class="text-xs text-neutral-500 truncate">Blocks login + registration - use during traffic spikes or influx events.</p>
       </div>
     </div>
     <button id="loginLockBtn" onclick="toggleLoginLock()"
@@ -220,6 +220,9 @@
         <div class="flex flex-wrap gap-1">
           <button onclick="switchTab('announcements')" id="tab-announcements" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
             <i class="fas fa-bullhorn mr-1"></i>Announcements
+          </button>
+          <button onclick="switchTab('tournaments')" id="tab-tournaments" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
+            <i class="fas fa-medal mr-1"></i>Tournaments
           </button>
           <button onclick="switchTab('broadcasts')" id="tab-broadcasts" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition">
             <i class="fas fa-broadcast-tower mr-1"></i>Broadcasts
@@ -1125,7 +1128,7 @@ function setMaintenanceUI(enabled) {
     dot.className    = 'w-3 h-3 rounded-full bg-green-500 flex-shrink-0';
     label.textContent = 'Site is Online';
     label.className   = 'text-sm font-semibold text-white';
-    btn.textContent   = '🚨 OH SHIT — TAKE SITE OFFLINE';
+    btn.textContent   = '🚨 OH SHIT - TAKE SITE OFFLINE';
     btn.className     = btn.className.replace('bg-green-700 hover:bg-green-600 text-white focus:ring-green-500 border border-green-600',
                                               'bg-red-700 hover:bg-red-600 text-white focus:ring-red-500 border border-red-600');
     banner.classList.add('hidden');
@@ -1180,7 +1183,7 @@ function setLoginLockUI(disabled) {
   const btn   = document.getElementById('loginLockBtn');
   if (disabled) {
     dot.className    = 'w-3 h-3 rounded-full bg-yellow-500 flex-shrink-0 animate-pulse';
-    label.textContent = '🔒 Logins are LOCKED — access temporarily disabled';
+    label.textContent = '🔒 Logins are LOCKED - access temporarily disabled';
     label.className   = 'text-sm font-semibold text-yellow-400';
     btn.textContent   = '🔓 UNLOCK LOGINS';
     btn.className     = btn.className.replace('bg-yellow-700 hover:bg-yellow-600 text-white focus:ring-yellow-500 border border-yellow-600',
@@ -1892,7 +1895,7 @@ async function fetchRSSFeedNow(id, clear = false) {
     if (d.success) {
       tabLoaded.rss = false;
       await loadRSSFeeds();
-      if (btn) btn.title = `Done — ${d.new_articles} new article${d.new_articles !== 1 ? 's' : ''}`;
+      if (btn) btn.title = `Done - ${d.new_articles} new article${d.new_articles !== 1 ? 's' : ''}`;
     } else {
       alert('Fetch failed: ' + (d.error || 'Unknown error'));
     }
@@ -2848,14 +2851,14 @@ function addPollOptionRow() {
           autocomplete="off">
         <!-- Autocomplete dropdown -->
         <div id="drop-${uid}" class="absolute left-0 right-0 top-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl z-50 hidden max-h-56 overflow-y-auto"></div>
-        <!-- Hidden appid field — filled by selection or manually -->
+        <!-- Hidden appid field - filled by selection or manually -->
         <input type="hidden" class="poll-opt-appid">
         <!-- Manual fallback: show after picking or if no results -->
         <div id="manual-${uid}" class="mt-1 hidden">
           <input type="text" placeholder="Steam App ID (optional)"
             class="poll-opt-appid-manual w-full bg-neutral-800 border border-dashed border-neutral-600 rounded-lg px-3 py-1 text-gray-400 text-xs focus:border-indigo-500 focus:outline-none"
             autocomplete="off">
-          <p class="text-neutral-600 text-[10px] mt-0.5">No Steam match found — enter App ID manually if you know it, or leave blank.</p>
+          <p class="text-neutral-600 text-[10px] mt-0.5">No Steam match found - enter App ID manually if you know it, or leave blank.</p>
         </div>
       </div>
       <button onclick="this.closest('.poll-option-row').remove()" class="text-red-500 hover:text-red-400 mt-1.5 flex-shrink-0">
@@ -2889,7 +2892,7 @@ async function steamGameSearch(query, uid, row) {
     const d = await res.json();
     const results = d.results || [];
     if (!results.length) {
-      drop.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs">No Steam results — you can still add this game manually.</div>';
+      drop.innerHTML = '<div class="px-3 py-2 text-gray-500 text-xs">No Steam results - you can still add this game manually.</div>';
       // Show manual App ID fallback after a moment
       setTimeout(() => {
         drop.classList.add('hidden');
@@ -4479,6 +4482,167 @@ function renderBotStats(d) {
 </div>
 
 <!-- Broadcasts Tab -->
+<!-- ═══════════════════════════════════════════════════════════════════════
+     TOURNAMENTS PANEL
+══════════════════════════════════════════════════════════════════════ -->
+<div id="panel-tournaments" class="admin-panel hidden">
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h2 class="text-lg font-bold text-white flex items-center gap-2">
+        <i class="fas fa-medal text-amber-500"></i> Tournaments
+      </h2>
+      <p class="text-xs text-gray-500 mt-0.5">Create and manage SoulsLike tournaments. Players join, run ends = auto-entered.</p>
+    </div>
+    <button onclick="openCreateTournament()" class="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition flex items-center gap-2">
+      <i class="fas fa-plus"></i> Create Tournament
+    </button>
+  </div>
+
+  <!-- Filter tabs -->
+  <div class="flex gap-2 mb-4">
+    <button onclick="loadAdminTournaments('active')"   id="tourn-admin-active"   class="px-3 py-1.5 text-xs font-bold rounded-lg bg-amber-700 text-white">Active</button>
+    <button onclick="loadAdminTournaments('upcoming')" id="tourn-admin-upcoming" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-neutral-800 text-gray-400 hover:text-white transition">Upcoming</button>
+    <button onclick="loadAdminTournaments('past')"     id="tourn-admin-past"     class="px-3 py-1.5 text-xs font-bold rounded-lg bg-neutral-800 text-gray-400 hover:text-white transition">Past</button>
+    <button onclick="loadAdminTournaments('all')"      id="tourn-admin-all"      class="px-3 py-1.5 text-xs font-bold rounded-lg bg-neutral-800 text-gray-400 hover:text-white transition">All</button>
+  </div>
+
+  <div id="tourn-admin-list">
+    <div class="text-gray-600 text-xs text-center py-8">Loading...</div>
+  </div>
+</div>
+
+<!-- Create/Edit Tournament Modal -->
+<div id="tourn-create-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-5 border-b border-neutral-800">
+      <h3 class="text-white font-bold" id="tourn-modal-title">Create Tournament</h3>
+      <button onclick="closeCreateTournament()" class="text-gray-500 hover:text-white text-lg">&times;</button>
+    </div>
+    <div class="p-5 space-y-4">
+
+      <div>
+        <label class="block text-xs font-bold text-gray-400 mb-1">Tournament Name *</label>
+        <input id="tc-name" type="text" maxlength="200" placeholder="e.g. Summer Death Challenge 2026"
+               class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-400 mb-1">Description</label>
+        <textarea id="tc-desc" rows="3" placeholder="Rules, theme, prizes..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500 resize-none"></textarea>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">Game</label>
+          <select id="tc-game" onchange="tcGameChanged()" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+            <option value="elden_ring">Elden Ring</option>
+            <option value="err">Elden Ring (ERR)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">Mode</label>
+          <select id="tc-mode" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+            <option value="vanilla">Vanilla + DLC</option>
+            <option value="err">Elden Ring Reforged</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-400 mb-1">Category (what's tracked) *</label>
+        <select id="tc-cat" onchange="tcCatChanged()" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+          <optgroup label="Per-Session">
+            <option value="longest_life">Iron Tarnished - Longest single life</option>
+            <option value="true_grit">True Grit - Lowest Deaths/HR (min 5 deaths)</option>
+            <option value="death_machine">Death Machine - Most deaths in one session</option>
+            <option value="hollow_lord">Hollow Lord - Most time in HOLLOW state</option>
+            <option value="hollow_depth">Hollow Depth - Most times gone hollow</option>
+            <option value="boss_slayer">Boss Slayer - Most bosses in one session</option>
+            <option value="glass_cannon">Glass Cannon - Highest D/HR with 5+ bosses</option>
+            <option value="from_hollow_rising">From Hollow, Rising - Boss kills while hollow</option>
+          </optgroup>
+          <optgroup label="Lifetime">
+            <option value="tarnished_legend">Tarnished Legend - Total bosses ever killed</option>
+            <option value="undying">Undying - Most 0-death runs</option>
+            <option value="veteran">Veteran - Most completed runs</option>
+            <option value="the_grind">The Grind - Total hours played</option>
+            <option value="sisyphus">Sisyphus - Most resets in one session</option>
+          </optgroup>
+          <optgroup label="Hardcore">
+            <option value="hc_score">HC Score - Highest point total in one HC run</option>
+            <option value="hc_completions">HC Completions - Fastest deathless full clear</option>
+            <option value="hc_perma">Perma Deaths - Most HC permadeaths ever</option>
+          </optgroup>
+          <optgroup label="Custom">
+            <option value="custom">Custom - Define your own tracked stat</option>
+          </optgroup>
+        </select>
+        <p class="text-[10px] text-gray-600 mt-1" id="tc-cat-desc">Longest single life before dying.</p>
+        <div id="tc-cat-custom" class="hidden mt-2">
+          <input id="tc-cat-custom-value" type="text" maxlength="100"
+                 placeholder="e.g. Most Scarlet Rot kills, Fastest Malenia kill..."
+                 class="w-full bg-neutral-800 border border-amber-600/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+          <p class="text-[10px] text-gray-500 mt-1">This label is stored as-is. No automatic leaderboard scoring - use for themed/judged tournaments.</p>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-400 mb-1">Season Type</label>
+        <select id="tc-season" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+          <option value="custom">Custom / Community Challenge</option>
+          <option value="spring">Spring</option>
+          <option value="summer">Summer</option>
+          <option value="fall">Fall / Harvest</option>
+          <option value="winter">Winter</option>
+          <option value="halloween">Halloween</option>
+          <option value="christmas">Christmas</option>
+          <option value="new_year">New Year</option>
+          <option value="valentines">Valentine's Day</option>
+          <option value="st_patricks">St. Patrick's Day</option>
+          <option value="easter">Easter</option>
+          <option value="thanksgiving">Thanksgiving</option>
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">Start Date *</label>
+          <input id="tc-start" type="datetime-local"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-400 mb-1">End Date *</label>
+          <input id="tc-end" type="datetime-local"
+                 class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-400 mb-1">Banner Color</label>
+        <div class="flex items-center gap-3">
+          <input id="tc-color" type="color" value="#d97706" class="w-10 h-8 rounded cursor-pointer bg-neutral-800 border border-neutral-700">
+          <div class="flex gap-2">
+            <button onclick="document.getElementById('tc-color').value='#d97706'" class="w-6 h-6 rounded-full cursor-pointer border-2 border-transparent hover:border-white transition" style="background:#d97706"></button>
+            <button onclick="document.getElementById('tc-color').value='#ef4444'" class="w-6 h-6 rounded-full cursor-pointer border-2 border-transparent hover:border-white transition" style="background:#ef4444"></button>
+            <button onclick="document.getElementById('tc-color').value='#22c55e'" class="w-6 h-6 rounded-full cursor-pointer border-2 border-transparent hover:border-white transition" style="background:#22c55e"></button>
+            <button onclick="document.getElementById('tc-color').value='#818cf8'" class="w-6 h-6 rounded-full cursor-pointer border-2 border-transparent hover:border-white transition" style="background:#818cf8"></button>
+            <button onclick="document.getElementById('tc-color').value='#f472b6'" class="w-6 h-6 rounded-full cursor-pointer border-2 border-transparent hover:border-white transition" style="background:#f472b6"></button>
+            <button onclick="document.getElementById('tc-color').value='#f97316'" class="w-6 h-6 rounded-full cursor-pointer border-2 border-transparent hover:border-white transition" style="background:#f97316"></button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="flex gap-3 justify-end px-5 pb-5">
+      <button onclick="closeCreateTournament()" class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+      <button onclick="saveTournament()" id="tc-save-btn" class="px-5 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-bold rounded-lg transition">
+        <i class="fas fa-plus mr-1"></i>Create Tournament
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="panel-broadcasts" class="admin-panel hidden">
   <h2 class="text-lg font-semibold text-white mb-6"><i class="fas fa-broadcast-tower text-yellow-400 mr-2"></i>Post Broadcasts</h2>
 
@@ -6459,6 +6623,230 @@ function removeFromPool(slotId) {
     else alert(d.error || 'Failed');
   });
 }
+
+// ══════════════════════════════════════════════════════
+// TOURNAMENTS ADMIN
+// ══════════════════════════════════════════════════════
+var _tournAdminStatus = 'active';
+var _editingTournId = null;
+
+const CAT_DESCS = {
+  'longest_life':'Longest single life before dying.',
+  'true_grit':'Lowest Deaths/HR (min 5 deaths).',
+  'death_machine':'Most deaths in a single session.',
+  'hollow_lord':'Most time spent in HOLLOW state.',
+  'hollow_depth':'Most times gone hollow in one session.',
+  'boss_slayer':'Most bosses defeated in one session.',
+  'glass_cannon':'Highest Deaths/HR with 5+ bosses killed.',
+  'from_hollow_rising':'Most boss kills while in HOLLOW state.',
+  'tarnished_legend':'Total bosses killed across ALL runs ever.',
+  'undying':'Most completed runs with 0 deaths.',
+  'veteran':'Most completed runs total.',
+  'the_grind':'Total hours played across all runs.',
+  'sisyphus':'Most resets in a single session.',
+  'hc_score':'Highest HC point total in one Hardcore run (boss tier points + items, 2x for deathless clear).',
+  'hc_completions':'Fastest deathless full clear in Hardcore mode.',
+  'hc_perma':'Most Hardcore permadeaths across all time - for the brave and reckless.',
+};
+
+function loadAdminTournaments(status) {
+  _tournAdminStatus = status || _tournAdminStatus;
+  ['active','upcoming','past','all'].forEach(function(s) {
+    var btn = document.getElementById('tourn-admin-'+s);
+    if (btn) btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg transition ' +
+      (s === _tournAdminStatus ? 'bg-amber-700 text-white' : 'bg-neutral-800 text-gray-400 hover:text-white');
+  });
+  var list = document.getElementById('tourn-admin-list');
+  list.innerHTML = '<div class="text-gray-600 text-xs text-center py-6">Loading...</div>';
+
+  csrfFetch('/api/soulslike/admin/tournaments/').then(r => r.json()).then(function(d) {
+    var ts = (d.tournaments || []).filter(function(t) {
+      var now = Math.floor(Date.now()/1000);
+      if (_tournAdminStatus === 'active')   return t.starts_at <= now && t.ends_at >= now;
+      if (_tournAdminStatus === 'upcoming') return t.starts_at > now && !t.is_finalized;
+      if (_tournAdminStatus === 'past')     return t.ends_at < now || t.is_finalized;
+      return true;
+    });
+
+    if (!ts.length) {
+      list.innerHTML = '<div class="text-gray-600 text-xs text-center py-6">No '+_tournAdminStatus+' tournaments.</div>';
+      return;
+    }
+
+    list.innerHTML = ts.map(function(t) {
+      var now = Math.floor(Date.now()/1000);
+      var statusBadge = t.is_finalized
+        ? '<span class="text-[10px] bg-neutral-700 text-gray-400 px-1.5 py-0.5 rounded">Finalized</span>'
+        : t.ends_at < now
+        ? '<span class="text-[10px] bg-red-900/40 text-red-400 px-1.5 py-0.5 rounded">Ended</span>'
+        : t.starts_at > now
+        ? '<span class="text-[10px] bg-blue-900/40 text-blue-400 px-1.5 py-0.5 rounded">Upcoming</span>'
+        : '<span class="text-[10px] bg-green-900/40 text-green-400 px-1.5 py-0.5 rounded animate-pulse">Active</span>';
+
+      var startStr = new Date(t.starts_at*1000).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      var endStr   = new Date(t.ends_at*1000).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+      return '<div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 mb-3">' +
+        '<div class="flex items-start justify-between gap-3">' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-2 flex-wrap mb-1">' +
+              statusBadge +
+              '<span class="text-[10px] text-gray-600">'+esc(t.game_mode==='err'?'ERR':'ER')+'</span>' +
+              '<span class="text-[10px] text-amber-600">'+esc(getCatNameAdmin(t.category))+'</span>' +
+            '</div>' +
+            '<h3 class="text-white font-bold text-sm mb-0.5">'+esc(t.name)+'</h3>' +
+            '<p class="text-[11px] text-gray-500">'+startStr+' - '+endStr+
+              ' &nbsp;|&nbsp; <i class="fas fa-users mr-0.5"></i>'+t.participants+' joined</p>' +
+          '</div>' +
+          '<div class="flex gap-1.5 flex-shrink-0">' +
+            (t.ends_at < now && !t.is_finalized ?
+              '<button onclick="finalizeTournament('+t.id+')" class="px-2.5 py-1.5 bg-amber-900/40 hover:bg-amber-700 text-amber-400 hover:text-white text-xs font-bold rounded-lg transition">Finalize</button>' : '') +
+            '<button onclick="deleteTournament('+t.id+',\''+esc(t.name)+'\')" class="px-2.5 py-1.5 bg-neutral-800 hover:bg-red-900/40 text-gray-500 hover:text-red-400 text-xs font-bold rounded-lg transition"><i class="fas fa-trash"></i></button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  });
+}
+
+function getCatNameAdmin(cat) {
+  var names = {
+    'longest_life':'Iron Tarnished','true_grit':'True Grit','death_machine':'Death Machine',
+    'hollow_lord':'Hollow Lord','hollow_depth':'Hollow Depth','boss_slayer':'Boss Slayer',
+    'glass_cannon':'Glass Cannon','from_hollow_rising':'From Hollow Rising',
+    'tarnished_legend':'Tarnished Legend','undying':'Undying','veteran':'Veteran',
+    'the_grind':'The Grind','sisyphus':'Sisyphus'
+  };
+  return names[cat] || cat;
+}
+
+function openCreateTournament() {
+  _editingTournId = null;
+  document.getElementById('tourn-modal-title').textContent = 'Create Tournament';
+  document.getElementById('tc-save-btn').innerHTML = '<i class="fas fa-plus mr-1"></i>Create Tournament';
+  document.getElementById('tc-name').value = '';
+  document.getElementById('tc-desc').value = '';
+  document.getElementById('tc-game').value = 'elden_ring';
+  document.getElementById('tc-mode').value = 'vanilla';
+  document.getElementById('tc-cat').value  = 'longest_life';
+  document.getElementById('tc-cat-custom').classList.add('hidden');
+  document.getElementById('tc-cat-custom-value').value = '';
+  document.getElementById('tc-season').value = 'custom';
+  document.getElementById('tc-color').value = '#d97706';
+  document.getElementById('tc-cat-desc').textContent = CAT_DESCS['longest_life'];
+  // Default: starts now, ends in 7 days
+  var now = new Date();
+  var end = new Date(now.getTime() + 7*24*60*60*1000);
+  document.getElementById('tc-start').value = now.toISOString().slice(0,16);
+  document.getElementById('tc-end').value   = end.toISOString().slice(0,16);
+  document.getElementById('tourn-create-modal').classList.remove('hidden');
+}
+
+function closeCreateTournament() {
+  document.getElementById('tourn-create-modal').classList.add('hidden');
+}
+
+function tcGameChanged() {
+  var game = document.getElementById('tc-game').value;
+  var modeEl = document.getElementById('tc-mode');
+  if (game === 'err') {
+    modeEl.value = 'err';
+  } else {
+    modeEl.value = 'vanilla';
+  }
+}
+
+function tcCatChanged() {
+  var val = document.getElementById('tc-cat').value;
+  var customBox = document.getElementById('tc-cat-custom');
+  if (val === 'custom') {
+    customBox.classList.remove('hidden');
+    document.getElementById('tc-cat-desc').textContent = 'Custom category - you define what players are competing on.';
+  } else {
+    customBox.classList.add('hidden');
+    document.getElementById('tc-cat-desc').textContent = CAT_DESCS[val] || '';
+  }
+}
+
+function saveTournament() {
+  var name  = document.getElementById('tc-name').value.trim();
+  var start = document.getElementById('tc-start').value;
+  var end   = document.getElementById('tc-end').value;
+  if (!name) { alert('Name is required'); return; }
+  if (!start || !end) { alert('Start and end dates are required'); return; }
+  if (new Date(start) >= new Date(end)) { alert('End must be after start'); return; }
+
+  var catVal = document.getElementById('tc-cat').value;
+  if (catVal === 'custom') {
+    catVal = document.getElementById('tc-cat-custom-value').value.trim();
+    if (!catVal) { alert('Please describe your custom category'); return; }
+    catVal = 'custom:' + catVal;
+  }
+
+  var payload = {
+    name:        name,
+    description: document.getElementById('tc-desc').value.trim(),
+    game:        'elden_ring',
+    game_mode:   document.getElementById('tc-mode').value,
+    category:    catVal,
+    season_type: document.getElementById('tc-season').value,
+    banner_color:document.getElementById('tc-color').value,
+    starts_at:   Math.floor(new Date(start).getTime()/1000),
+    ends_at:     Math.floor(new Date(end).getTime()/1000),
+  };
+
+  var btn = document.getElementById('tc-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  csrfFetch('/api/soulslike/admin/tournaments/', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
+  }).then(r => r.json()).then(function(d) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus mr-1"></i>Create Tournament';
+    if (d.ok) {
+      closeCreateTournament();
+      loadAdminTournaments(_tournAdminStatus);
+      showToastAdmin('Tournament created! Players can now join from the Leaderboards page.');
+    } else {
+      alert(d.error || 'Failed to create tournament');
+    }
+  }).catch(function() {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus mr-1"></i>Create Tournament';
+    alert('Request failed');
+  });
+}
+
+function finalizeTournament(id) {
+  if (!confirm('Finalize this tournament? This locks results and awards flairs to top 3. Cannot be undone.')) return;
+  csrfFetch('/api/soulslike/tournaments/'+id+'/finalize/', {method:'POST'})
+    .then(r => r.json()).then(function(d) {
+      if (d.ok) {
+        showToastAdmin('Tournament finalized! '+d.ranked+' players ranked.');
+        loadAdminTournaments(_tournAdminStatus);
+      } else alert(d.error || 'Failed');
+    });
+}
+
+function deleteTournament(id, name) {
+  if (!confirm('Delete tournament "'+name+'"? This removes all entries. Cannot be undone.')) return;
+  csrfFetch('/api/soulslike/admin/tournaments/'+id+'/', {method:'DELETE'})
+    .then(r => r.json()).then(function(d) {
+      if (d.ok) {
+        showToastAdmin('Tournament deleted.');
+        loadAdminTournaments(_tournAdminStatus);
+      } else alert(d.error || 'Failed');
+    });
+}
+
+// Load when tab opens
+const _origSwitchTab = window.switchTab;
+window.switchTab = function(tab) {
+  if (typeof _origSwitchTab === 'function') _origSwitchTab(tab);
+  if (tab === 'tournaments') loadAdminTournaments('active');
+};
 </script>
 
 {% endblock %}

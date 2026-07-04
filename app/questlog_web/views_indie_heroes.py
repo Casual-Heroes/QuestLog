@@ -1,7 +1,9 @@
 import json
+import os
 import re
 import time
 import logging
+import hashlib
 
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -16,6 +18,49 @@ from .helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+_INDIE_COVER_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'media', 'uploads', 'indie')
+_ALLOWED_COVER_HOSTS = ('images.igdb.com', 'cdn.cloudflare.steamstatic.com', 'steamcdn-a.akamaihd.net', 'shared.cloudflare.steamstatic.com')
+
+
+def _mirror_cover_url(remote_url):
+    """Download a cover image from a trusted CDN and return the local /media/ URL.
+    Returns the original URL unchanged on any failure so the game still saves."""
+    if not remote_url:
+        return remote_url
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(remote_url)
+        if parsed.netloc not in _ALLOWED_COVER_HOSTS:
+            return remote_url
+        # Stable filename: hash of the URL so re-saving the same URL reuses the file
+        ext = os.path.splitext(parsed.path)[1].lower() or '.jpg'
+        if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
+            ext = '.jpg'
+        fname = hashlib.sha1(remote_url.encode()).hexdigest()[:16] + ext
+        local_path = os.path.join(_INDIE_COVER_DIR, fname)
+        if os.path.exists(local_path):
+            return f'/media/uploads/indie/{fname}'
+        import requests as _req
+        resp = _req.get(remote_url, timeout=8, stream=True)
+        resp.raise_for_status()
+        content_type = resp.headers.get('content-type', '')
+        if not content_type.startswith('image/'):
+            return remote_url
+        size = 0
+        with open(local_path, 'wb') as f:
+            for chunk in resp.iter_content(8192):
+                size += len(chunk)
+                if size > 2 * 1024 * 1024:  # 2MB cap
+                    break
+                f.write(chunk)
+        if size == 0:
+            os.remove(local_path)
+            return remote_url
+        return f'/media/uploads/indie/{fname}'
+    except Exception as e:
+        logger.warning('indie cover mirror failed for %s: %s', remote_url, e)
+        return remote_url
 
 
 def _extract_steam_app_id(url):
@@ -589,7 +634,7 @@ def api_indie_game_admin(request):
             steam_url=(data.get('steam_url') or '').strip()[:500] or None,
             igdb_id=safe_int(data.get('igdb_id'), None) or None,
             igdb_url=(data.get('igdb_url') or '').strip()[:500] or None,
-            cover_url=validate_admin_image_url((data.get('cover_url') or '').strip()) or None,
+            cover_url=_mirror_cover_url(validate_admin_image_url((data.get('cover_url') or '').strip()) or None),
             banner_url=validate_admin_image_url((data.get('banner_url') or '').strip()) or None,
             platforms=json.dumps(data.get('platforms') or []),
             genres=json.dumps(data.get('genres') or []),
@@ -644,7 +689,7 @@ def api_indie_game_admin_update(request, slug):
         if 'dev_user_id' in data:
             game.dev_user_id = safe_int(data.get('dev_user_id'), None) or None
         if 'cover_url' in data:
-            game.cover_url = validate_admin_image_url((data.get('cover_url') or '').strip()) or None
+            game.cover_url = _mirror_cover_url(validate_admin_image_url((data.get('cover_url') or '').strip()) or None)
         if 'banner_url' in data:
             game.banner_url = validate_admin_image_url((data.get('banner_url') or '').strip()) or None
         if 'platforms' in data:

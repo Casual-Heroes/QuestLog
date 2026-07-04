@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  background: transparent;
+  width: 1920px;
+  height: 1080px;
+  overflow: visible;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.panel {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  width: 400px;
+  background: rgba(0,0,0,0.85);
+  border-left: 5px solid #d97706;
+  border-radius: 0 8px 8px 0;
+  /* No max-height - grows to fit all items */
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+.build-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #d97706;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+.progress-text {
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  flex-shrink: 0;
+}
+.progress-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #92400e, #d97706);
+  transition: width 0.5s;
+}
+.item {
+  display: flex;
+  align-items: center;
+  padding: 4px 14px;
+  gap: 10px;
+}
+.item.done { opacity: 0.22; }
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid #4b5563;
+  flex-shrink: 0;
+}
+.dot.done { background: #22c55e; border-color: #22c55e; }
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f3f4f6;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.name.done { text-decoration: line-through; color: #6b7280; }
+.type {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  flex-shrink: 0;
+  min-width: 52px;
+  text-align: right;
+}
+.footer {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 5px 14px;
+  font-size: 10px;
+  color: #374151;
+}
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="header">
+    <span class="build-name" id="bname">Loading...</span>
+    <span class="progress-text" id="prog">-/-</span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="bar" style="width:0%"></div></div>
+  <div id="list"></div>
+  <div class="footer">questlog.casual-heroes.com</div>
+</div>
+
+<script>
+var POLL_URL = '{{ poll_url }}';
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function load() {
+  fetch(POLL_URL)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || d.error) return;
+      document.getElementById('bname').textContent = d.build_name || 'Collection Run';
+      document.getElementById('prog').textContent  = d.progress || '0/0';
+      var pct = d.total ? Math.round(d.collected / d.total * 100) : 0;
+      document.getElementById('bar').style.width = pct + '%';
+
+      var items = d.items || [];
+      var sorted = items.filter(function(i){return !i.collected;})
+                        .concat(items.filter(function(i){return i.collected;}));
+
+      var html = '';
+      for (var i = 0; i < sorted.length; i++) {
+        var it = sorted[i];
+        var dc = it.collected ? ' done' : '';
+        html += '<div class="item' + dc + '">' +
+          '<div class="dot' + dc + '"></div>' +
+          '<span class="name' + dc + '">' + esc(it.name) + '</span>' +
+          '<span class="type">' + esc(it.type) + '</span>' +
+          '</div>';
+      }
+      document.getElementById('list').innerHTML = html;
+    })
+    .catch(function(){});
+}
+
+}
+load();
+setInterval(load, 1000);
+</script>
+</body>
+</html>

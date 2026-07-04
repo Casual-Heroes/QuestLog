@@ -2,114 +2,181 @@
 {% load static %}
 {% block title %}SoulsLike Hub - Casual Heroes{% endblock %}
 {% block og_title %}SoulsLike Hub - Casual Heroes{% endblock %}
-{% block og_description %}Tools, guides, trackers, and character builders for Elden Ring, Dark Souls, Bloodborne, and more.{% endblock %}
+{% block og_description %}Tools, trackers, guides, and character builders for Elden Ring and more.{% endblock %}
 
 {% block web_content %}
 
 <!-- Hero -->
-<div class="relative w-full overflow-hidden" style="height: 480px;">
+<div class="relative w-full overflow-hidden" style="height:420px">
   <img src="{% static 'img/siteassets/soulslike_hero.jpg' %}" alt="SoulsLike Hub"
        class="w-full h-full object-cover object-center">
   <div class="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent"></div>
   <div class="absolute inset-0 bg-gradient-to-r from-neutral-950/80 via-transparent to-neutral-950/40"></div>
-
   <div class="absolute bottom-0 left-0 right-0 p-8 sm:p-12 max-w-5xl mx-auto">
-    <div class="flex items-center gap-3 mb-4">
-      <i class="fas fa-skull text-red-400 text-lg"></i>
+    <div class="flex items-center gap-2 mb-3">
+      <i class="fas fa-skull text-red-400"></i>
       <span class="text-xs font-bold uppercase tracking-widest text-red-400">Casual Heroes</span>
     </div>
-    <h1 class="text-4xl sm:text-6xl font-black text-white leading-tight mb-3" style="text-shadow: 0 2px 20px rgba(0,0,0,0.8);">
+    <h1 class="text-4xl sm:text-5xl font-black text-white leading-tight mb-3" style="text-shadow:0 2px 20px rgba(0,0,0,0.8)">
       SoulsLike Hub
     </h1>
-    <p class="text-gray-300 text-lg max-w-xl leading-relaxed">
-      Tools, trackers, guides, and builders for the games that punish you — and you keep coming back.
+    <p class="text-gray-300 text-base max-w-lg leading-relaxed">
+      Tools, trackers, and builders for the games that punish you and keep you coming back.
     </p>
   </div>
 </div>
 
-<!-- Content -->
-<div class="max-w-5xl mx-auto px-4 py-10 space-y-12">
+<div class="max-w-5xl mx-auto px-4 py-10 space-y-10">
 
-  <!-- Feature Cards -->
+  <!-- Live community stats -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    {% with stats_items=stats.items %}
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-amber-400">{{ stats.total_runs }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Runs</div>
+    </div>
+    <div class="bg-neutral-900/60 border border-green-900/30 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-green-400">{{ stats.active_runs }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Active Now</div>
+    </div>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-red-400">{{ stats.total_deaths }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Deaths</div>
+    </div>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-amber-400">{{ stats.bosses_killed }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Bosses Killed</div>
+    </div>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-indigo-400">{{ stats.total_builds }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Builds</div>
+    </div>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-purple-400">{{ stats.leaderboard }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">On Leaderboard</div>
+    </div>
+    {% endwith %}
+  </div>
+
+  <!-- Tools grid -->
   <div>
-    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-5">What's Here</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Tools</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
-      <!-- Mortality Tracker - LIVE -->
+      <!-- EldenTracker -->
       <a href="/soulslike/tracker/"
-         class="group relative bg-neutral-900 border border-neutral-800 hover:border-red-700/50 rounded-2xl overflow-hidden transition-all hover:shadow-xl hover:shadow-red-900/20">
-        <div class="h-32 bg-gradient-to-br from-red-950/60 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
-          <i class="fas fa-crosshairs text-5xl text-red-600/60 group-hover:text-red-500/80 transition-colors"></i>
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-red-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-red-900/20">
+        <div class="h-28 bg-gradient-to-br from-red-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-crosshairs text-5xl text-red-500 group-hover:text-red-400 transition-colors"></i>
           <span class="absolute top-2 right-2 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
         </div>
         <div class="p-4">
-          <p class="text-white font-bold text-sm mb-1 group-hover:text-red-300 transition">Mortality Tracker</p>
-          <p class="text-gray-500 text-xs leading-relaxed">Track deaths, boss kills, and your rage meter. Download the listener - deaths log automatically via OCR.</p>
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-red-300 transition">EldenTracker</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Desktop app for tracking deaths, boss kills, and rage meter. Connects live to the web.</p>
         </div>
       </a>
 
-      <!-- Guides - Coming Soon -->
-      <div class="group relative bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden opacity-60">
-        <div class="h-32 bg-gradient-to-br from-amber-950/40 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
-          <i class="fas fa-book-open text-5xl text-amber-700/40"></i>
-          <span class="absolute top-2 right-2 px-2 py-0.5 bg-neutral-700 text-gray-400 text-[10px] font-bold uppercase tracking-wide rounded-full">Soon</span>
+      <!-- Build Planner -->
+      <a href="/soulslike/builder/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-amber-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-amber-900/20">
+        <div class="h-28 bg-gradient-to-br from-amber-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <span style="font-size:3rem;line-height:1">⚔️</span>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
         </div>
         <div class="p-4">
-          <p class="text-white font-bold text-sm mb-1">Guides</p>
-          <p class="text-gray-500 text-xs leading-relaxed">Boss strategies, builds, and progression routes written by the community.</p>
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-amber-300 transition">Character Builder</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Plan stats, weapons, talismans and spells. AR calculator with soft cap indicators. ER + ERR.</p>
         </div>
-      </div>
+      </a>
 
-      <!-- Character Builder - Coming Soon -->
-      <div class="group relative bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden opacity-60">
-        <div class="h-32 bg-gradient-to-br from-purple-950/40 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
-          <i class="fas fa-user-shield text-5xl text-purple-700/40"></i>
-          <span class="absolute top-2 right-2 px-2 py-0.5 bg-neutral-700 text-gray-400 text-[10px] font-bold uppercase tracking-wide rounded-full">Soon</span>
+      <!-- Community Builds -->
+      <a href="/soulslike/builds/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-indigo-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-indigo-900/20">
+        <div class="h-28 bg-gradient-to-br from-indigo-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-users text-5xl text-indigo-500 group-hover:text-indigo-400 transition-colors"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
         </div>
         <div class="p-4">
-          <p class="text-white font-bold text-sm mb-1">Character Builder</p>
-          <p class="text-gray-500 text-xs leading-relaxed">Plan your build, allocate stats, and share your setup with the community.</p>
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-indigo-300 transition">Community Builds</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Browse and search builds shared by the community. PvE, PvP, challenge runs and more.</p>
         </div>
-      </div>
+      </a>
 
-      <!-- Content - Coming Soon -->
-      <div class="group relative bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden opacity-60">
-        <div class="h-32 bg-gradient-to-br from-blue-950/40 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
-          <i class="fas fa-play-circle text-5xl text-blue-700/40"></i>
-          <span class="absolute top-2 right-2 px-2 py-0.5 bg-neutral-700 text-gray-400 text-[10px] font-bold uppercase tracking-wide rounded-full">Soon</span>
+      <!-- My Runs -->
+      <a href="/soulslike/runs/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-green-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-green-900/20">
+        <div class="h-28 bg-gradient-to-br from-green-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-skull text-5xl text-green-500 group-hover:text-green-400 transition-colors"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-green-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
         </div>
         <div class="p-4">
-          <p class="text-white font-bold text-sm mb-1">Content</p>
-          <p class="text-gray-500 text-xs leading-relaxed">Videos, streams, and community content from Casual Heroes creators.</p>
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-green-300 transition">My Runs</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Boss tracker, item checklist, rage system, death log, and stream overlays. Console or PC.</p>
         </div>
-      </div>
+      </a>
+
+      <!-- Leaderboards -->
+      <a href="/soulslike/leaderboards/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-yellow-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-yellow-900/20">
+        <div class="h-28 bg-gradient-to-br from-yellow-950/60 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-trophy text-5xl text-yellow-500 group-hover:text-yellow-400 transition-colors"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-yellow-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
+        </div>
+        <div class="p-4">
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-yellow-300 transition">Leaderboards</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Longest life, best Deaths/HR, most bosses killed. Compete with the community.</p>
+        </div>
+      </a>
+
+      <!-- Guides -->
+      <a href="/soulslike/guides/" class="group relative bg-neutral-900 border border-neutral-800 hover:border-purple-700/50 rounded-2xl overflow-hidden transition">
+        <div class="h-28 bg-gradient-to-br from-purple-950/50 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-book-open text-5xl text-purple-700/60 group-hover:text-purple-500 transition"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-purple-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
+        </div>
+        <div class="p-4">
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-purple-300 transition">Guides</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Boss strategies, build guides, and progression routes written by the community.</p>
+        </div>
+      </a>
 
     </div>
   </div>
 
-  <!-- Games Supported -->
-  <div>
-    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-5">Games</h2>
-    <div class="flex flex-wrap gap-3">
-      {% for game in games_list %}
-      <span class="px-3 py-1.5 bg-neutral-900 border border-neutral-800 rounded-xl text-sm text-gray-300">
-        {{ game }}
-      </span>
-      {% endfor %}
-      <span class="px-3 py-1.5 bg-neutral-900 border border-neutral-700 rounded-xl text-sm text-gray-500 italic">+ more coming</span>
+  <!-- Desktop App CTA -->
+  <div class="bg-gradient-to-r from-neutral-900 via-neutral-900 to-amber-950/20 border border-amber-900/30 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6">
+    <div class="w-14 h-14 rounded-2xl bg-amber-900/30 border border-amber-700/30 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-desktop text-amber-400 text-xl"></i>
     </div>
-  </div>
-
-  <!-- CTA -->
-  <div class="bg-neutral-900 border border-red-900/30 rounded-2xl p-8 flex flex-col sm:flex-row items-center gap-6">
     <div class="flex-1">
-      <h3 class="text-white font-bold text-xl mb-2">Start tracking your journey</h3>
-      <p class="text-gray-400 text-sm leading-relaxed">Download the Mortality Tracker listener and let OCR detect your deaths automatically. Works with Elden Ring out of the box.</p>
+      <div class="flex items-center gap-2 mb-1">
+        <h3 class="text-white font-bold text-base">EldenTracker Desktop App</h3>
+        <span class="text-[10px] px-1.5 py-0.5 bg-blue-900/40 border border-blue-700/40 text-blue-300 font-bold rounded"><i class="fab fa-windows mr-0.5"></i>Win</span>
+        <span class="text-[10px] px-1.5 py-0.5 bg-orange-900/40 border border-orange-700/40 text-orange-300 font-bold rounded"><i class="fab fa-linux mr-0.5"></i>Linux</span>
+        <span class="text-[10px] px-1.5 py-0.5 bg-neutral-700 border border-neutral-600 text-gray-300 font-bold rounded"><i class="fab fa-apple mr-0.5"></i>Mac</span>
+      </div>
+      <p class="text-gray-400 text-sm leading-relaxed">Full desktop experience - boss tracker, character builder, death tracking, and live sync to the web. Windows EXE or run from source on Linux and macOS.</p>
     </div>
     <a href="/soulslike/tracker/"
-       class="flex-shrink-0 inline-flex items-center gap-2 px-6 py-3 bg-red-700 hover:bg-red-600 text-white font-semibold rounded-xl transition text-sm">
-      <i class="fas fa-download"></i> Get the Tracker
+       class="flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-amber-700 hover:bg-amber-600 text-white font-bold rounded-xl transition text-sm">
+      <i class="fas fa-download"></i> Get the App
     </a>
+  </div>
+
+  <!-- Supported Games -->
+  <div>
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Supported Games</h2>
+    <div class="flex flex-wrap gap-2">
+      <a href="https://store.steampowered.com/app/1245620/ELDEN_RING/" target="_blank" rel="noopener"
+         class="px-3 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-amber-700/50 rounded-xl text-sm text-gray-300 hover:text-amber-400 transition flex items-center gap-1.5">
+        <i class="fab fa-steam text-xs"></i> Elden Ring
+      </a>
+      <a href="https://www.nexusmods.com/eldenring/mods/541" target="_blank" rel="noopener"
+         class="px-3 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-purple-700/50 rounded-xl text-sm text-gray-300 hover:text-purple-400 transition flex items-center gap-1.5">
+        <i class="fas fa-puzzle-piece text-xs"></i> Elden Ring Reforged
+      </a>
+      <span class="px-3 py-1.5 bg-neutral-900 border border-neutral-700 rounded-xl text-sm text-gray-600 italic">+ more coming</span>
+    </div>
   </div>
 
 </div>

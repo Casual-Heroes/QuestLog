@@ -1,0 +1,134 @@
+{% extends "questlog_web/base_web.html" %}
+{% block title %}SoulsLike Guides - QuestLog{% endblock %}
+{% block og_title %}SoulsLike Community Guides{% endblock %}
+{% block og_description %}Boss strategies, build guides, and progression routes written by the Casual Heroes community.{% endblock %}
+
+{% block web_content %}
+<div class="max-w-4xl mx-auto px-4 py-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <div class="flex items-center gap-2 text-xs text-gray-600 mb-1">
+        <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+        <span>/</span>
+        <span class="text-gray-500">Guides</span>
+      </div>
+      <h1 class="text-2xl font-black text-white">Community Guides</h1>
+      <p class="text-gray-500 text-sm mt-0.5">Boss strategies, build guides, and progression routes</p>
+    </div>
+    {% if web_user %}
+    <a href="/soulslike/guides/new/" class="inline-flex items-center gap-2 px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition">
+      <i class="fas fa-pen"></i> Write a Guide
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Filters -->
+  <form method="get" class="flex flex-wrap gap-2 mb-5" id="filter-form">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search guides..."
+           class="flex-1 min-w-40 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 placeholder-gray-600">
+
+    <select name="game" onchange="this.form.submit()"
+            class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+      <option value="">All Games</option>
+      {% for key, label in SUPPORTED_GAMES.items %}
+      <option value="{{ key }}" {% if game_filter == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="type" onchange="this.form.submit()"
+            class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+      <option value="">All Types</option>
+      {% for key, label in GUIDE_TYPES.items %}
+      <option value="{{ key }}" {% if type_filter == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm rounded-lg transition">
+      <i class="fas fa-search"></i>
+    </button>
+    {% if q or game_filter or type_filter %}
+    <a href="/soulslike/guides/" class="px-4 py-2 text-gray-400 hover:text-white text-sm rounded-lg border border-neutral-700 transition">
+      Clear
+    </a>
+    {% endif %}
+  </form>
+
+  <!-- Guide cards -->
+  {% if guides %}
+  <div class="space-y-3">
+    {% for g in guides %}
+    <a href="/soulslike/guides/{{ g.slug }}/"
+       class="group block bg-neutral-900 border border-neutral-800 hover:border-neutral-600 rounded-2xl p-4 transition">
+      <div class="flex items-start gap-3">
+        <!-- Avatar -->
+        <div class="w-9 h-9 rounded-full bg-neutral-700 overflow-hidden flex-shrink-0 mt-0.5">
+          {% if g.avatar %}
+          <img src="{{ g.avatar }}" class="w-full h-full object-cover" alt="{{ g.author }}">
+          {% else %}
+          <div class="w-full h-full flex items-center justify-center text-gray-500 text-sm font-bold">{{ g.author|first|upper }}</div>
+          {% endif %}
+        </div>
+
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start gap-2 flex-wrap mb-1">
+            {% if g.is_pinned %}<span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider"><i class="fas fa-thumbtack mr-0.5"></i>Pinned</span>{% endif %}
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-neutral-800 text-gray-400 font-medium">{{ g.type_label }}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-neutral-800 text-purple-400 font-medium">{{ g.game_label }}</span>
+            {% if g.game_tag_name %}
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950/60 text-blue-400 font-medium">
+              <i class="fab fa-steam mr-0.5 text-[9px]"></i>{{ g.game_tag_name }}
+            </span>
+            {% endif %}
+          </div>
+          <h2 class="text-white font-bold text-sm group-hover:text-amber-300 transition leading-snug">{{ g.title }}</h2>
+          {% if g.summary %}
+          <p class="text-gray-500 text-xs mt-0.5 line-clamp-2">{{ g.summary }}</p>
+          {% endif %}
+          <div class="flex items-center gap-3 mt-2 text-[11px] text-gray-600">
+            <span>by <span class="text-gray-400">{{ g.author }}</span></span>
+            <span>{{ g.date }}</span>
+            <span><i class="fas fa-heart mr-0.5"></i>{{ g.like_count }}</span>
+            <span><i class="fas fa-comment mr-0.5"></i>{{ g.comment_count }}</span>
+            <span><i class="fas fa-eye mr-0.5"></i>{{ g.view_count }}</span>
+          </div>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if has_prev or has_next %}
+  <div class="flex justify-center gap-3 mt-6">
+    {% if has_prev %}
+    <a href="?page={{ page|add:"-1" }}&game={{ game_filter }}&type={{ type_filter }}&q={{ q }}"
+       class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-sm rounded-lg transition">
+      <i class="fas fa-arrow-left mr-1"></i>Previous
+    </a>
+    {% endif %}
+    <span class="px-4 py-2 text-gray-500 text-sm">Page {{ page }}</span>
+    {% if has_next %}
+    <a href="?page={{ page|add:"1" }}&game={{ game_filter }}&type={{ type_filter }}&q={{ q }}"
+       class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-sm rounded-lg transition">
+      Next<i class="fas fa-arrow-right ml-1"></i>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="text-center py-16">
+    <i class="fas fa-book-open text-4xl text-neutral-700 mb-4"></i>
+    <p class="text-gray-500 text-sm">No guides yet{% if q or game_filter or type_filter %} matching those filters{% endif %}.</p>
+    {% if web_user %}
+    <a href="/soulslike/guides/new/" class="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-amber-700 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition">
+      <i class="fas fa-pen"></i> Be the first to write one
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1042,30 +1042,56 @@ def api_quest_control_claim(request):
     if not _validate_instance_name(instance_name) or not guild_id:
         return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name or guild_id'})
 
-    # Verify caller owns or admins this Fluxer guild
+    # Verify caller owns or admins this guild (Fluxer OR Discord)
     try:
         with engine.connect() as conn:
             user_row = conn.execute(sa_text2(
-                "SELECT fluxer_id FROM web_users WHERE id = :uid LIMIT 1"
+                "SELECT fluxer_id, discord_id FROM web_users WHERE id = :uid LIMIT 1"
             ), {'uid': web_user_id}).fetchone()
-            if not user_row or not user_row.fluxer_id:
-                return JsonResponse({'ok': False, 'error': 'No Fluxer account linked'}, status=403)
-            fluxer_id = str(user_row.fluxer_id)
+            if not user_row:
+                return JsonResponse({'ok': False, 'error': 'User not found'}, status=403)
 
-            guild_row = conn.execute(sa_text2(
-                "SELECT owner_id FROM web_fluxer_guild_settings WHERE guild_id = :g LIMIT 1"
-            ), {'g': guild_id}).fetchone()
-            if not guild_row:
-                return JsonResponse({'ok': False, 'error': 'Guild not found'}, status=403)
-            if str(guild_row.owner_id) != fluxer_id:
-                # Check if web-panel admin/mod
-                panel_row = conn.execute(sa_text2(
-                    "SELECT role FROM web_fluxer_guild_settings WHERE guild_id = :g AND panel_user_id = :uid LIMIT 1"
-                ), {'g': guild_id, 'uid': web_user_id}).fetchone()
-                if not panel_row:
-                    return JsonResponse({'ok': False, 'error': 'Not authorized for this guild'}, status=403)
+            authorized = False
+
+            # Try Fluxer guild auth first
+            fluxer_id = str(user_row.fluxer_id) if user_row.fluxer_id else None
+            if fluxer_id:
+                guild_row = conn.execute(sa_text2(
+                    "SELECT owner_id FROM web_fluxer_guild_settings WHERE guild_id = :g LIMIT 1"
+                ), {'g': guild_id}).fetchone()
+                if guild_row:
+                    if str(guild_row.owner_id) == fluxer_id:
+                        authorized = True
+                    else:
+                        panel_row = conn.execute(sa_text2(
+                            "SELECT role FROM web_fluxer_guild_settings WHERE guild_id = :g AND panel_user_id = :uid LIMIT 1"
+                        ), {'g': guild_id, 'uid': web_user_id}).fetchone()
+                        if panel_row:
+                            authorized = True
+
+            # Try Discord guild auth if Fluxer auth didn't match
+            if not authorized:
+                discord_id = str(user_row.discord_id) if user_row.discord_id else None
+                if discord_id:
+                    discord_guild_row = conn.execute(sa_text2(
+                        "SELECT guild_id FROM guilds WHERE guild_id = :g AND owner_id = :did LIMIT 1"
+                    ), {'g': guild_id, 'did': discord_id}).fetchone()
+                    if discord_guild_row:
+                        authorized = True
+                    elif caller.is_admin:
+                        # Site admins can claim for any Discord guild
+                        discord_exists = conn.execute(sa_text2(
+                            "SELECT guild_id FROM guilds WHERE guild_id = :g LIMIT 1"
+                        ), {'g': guild_id}).fetchone()
+                        if discord_exists:
+                            authorized = True
+
+            if not authorized:
+                return JsonResponse({'ok': False, 'error': 'Not authorized for this guild'}, status=403)
+
     except Exception as e:
-        return JsonResponse({'ok': False, 'error': f'Auth check failed: {e}'}, status=500)
+        logger.error('api_quest_control_claim auth error: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Authorization check failed'}, status=500)
 
     # Claim it - assign guild_id and mark configured=1 so bot commands work immediately
     try:

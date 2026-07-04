@@ -1,0 +1,158 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Community Builds - Elden Ring | QuestLog{% endblock %}
+{% block og_title %}Elden Ring Community Builds | QuestLog{% endblock %}
+{% block og_description %}Browse Elden Ring builds shared by the QuestLog community. PvE, PvP, challenge runs, and beginner-friendly setups.{% endblock %}
+
+{% block web_content %}
+<style>
+.sl-tag-btn {
+  padding: 0.3rem 0.7rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: all 0.15s;
+  background: transparent; color: #6b7280;
+}
+.sl-tag-btn:hover { border-color: #b48c3c; color: #b48c3c; }
+.sl-tag-btn.active { background: rgba(180,140,60,0.2); border-color: #b48c3c; color: #f0d090; }
+.build-card {
+  background: rgba(10,8,6,0.95); border: 1px solid rgba(180,140,60,0.2); border-radius: 8px;
+  padding: 1rem; transition: border-color 0.15s, transform 0.15s;
+}
+.build-card:hover { border-color: rgba(180,140,60,0.5); transform: translateY(-2px); }
+</style>
+
+<div class="max-w-5xl mx-auto px-3 py-4">
+
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <span class="text-gray-500">Community Builds</span>
+  </div>
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-black text-white flex items-center gap-2">
+      <i class="fas fa-users text-amber-500 text-base"></i> Community Builds
+    </h1>
+    <div class="flex gap-2">
+      {% if web_user %}
+      <a href="/soulslike/my-builds/" class="px-4 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-bold rounded transition">
+        <i class="fas fa-shield-halved mr-1"></i>My Builds
+      </a>
+      {% endif %}
+      <a href="/soulslike/builder/" class="px-4 py-1.5 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded transition">
+        <i class="fas fa-plus mr-1"></i>Create Build
+      </a>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex flex-col sm:flex-row gap-3 mb-4">
+    <input type="text" id="search-input" placeholder="Search builds..."
+           class="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-amber-600 focus:outline-none"
+           oninput="onSearchInput()">
+    <div class="flex gap-1.5 flex-wrap" id="tag-filters">
+      {% for tag, label in playstyle_tags %}
+      <button class="sl-tag-btn {% if forloop.first %}active{% endif %}" data-tag="{{ tag }}" onclick="setTagFilter('{{ tag }}')">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2 mb-3 flex-wrap">
+    <span class="text-xs text-gray-500">Game:</span>
+    <button class="sl-tag-btn active" data-game="elden_ring" onclick="setGame('elden_ring')">Elden Ring</button>
+    <button class="sl-tag-btn" data-game="err" onclick="setGame('err')">ERR</button>
+  </div>
+  <div class="flex items-center gap-2 mb-4 flex-wrap">
+    <span class="text-xs text-gray-500">Sort:</span>
+    <button class="sl-tag-btn active" data-sort="recent" onclick="setSort('recent')">Recent</button>
+    <button class="sl-tag-btn" data-sort="popular" onclick="setSort('popular')">Popular</button>
+    <button class="sl-tag-btn" data-sort="level" onclick="setSort('level')">Highest Level</button>
+  </div>
+
+  <!-- Build grid -->
+  <div id="builds-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div class="text-gray-600 text-sm text-center py-12 col-span-full">Loading builds...</div>
+  </div>
+</div>
+
+<script>
+let currentTag = '';
+let currentSort = 'recent';
+let currentGame = 'elden_ring';
+let searchQuery = '';
+let searchDebounce = null;
+
+function setGame(game) {
+  currentGame = game;
+  document.querySelectorAll('[data-game]').forEach(b => b.classList.toggle('active', b.dataset.game === game));
+  loadBuilds();
+}
+
+document.addEventListener('DOMContentLoaded', loadBuilds);
+
+function onSearchInput() {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    searchQuery = document.getElementById('search-input').value.trim();
+    loadBuilds();
+  }, 300);
+}
+
+function setTagFilter(tag) {
+  currentTag = tag;
+  document.querySelectorAll('#tag-filters .sl-tag-btn').forEach(b => b.classList.toggle('active', b.dataset.tag === tag));
+  loadBuilds();
+}
+
+function setSort(sort) {
+  currentSort = sort;
+  document.querySelectorAll('[data-sort]').forEach(b => b.classList.toggle('active', b.dataset.sort === sort));
+  loadBuilds();
+}
+
+function loadBuilds() {
+  const params = new URLSearchParams({ game: currentGame, sort: currentSort });
+  if (currentTag) params.set('tag', currentTag);
+  if (searchQuery) params.set('q', searchQuery);
+
+  fetch('/api/soulslike/builds/browse/?' + params.toString())
+    .then(r => r.json()).then(d => {
+      const grid = document.getElementById('builds-grid');
+      const builds = d.builds || [];
+      if (!builds.length) {
+        grid.innerHTML = '<div class="text-gray-600 text-sm text-center py-12 col-span-full">No builds found. Be the first to share one!</div>';
+        return;
+      }
+      grid.innerHTML = builds.map(b => `
+        <a href="/soulslike/builder/?view=${b.share_token}&game=${currentGame}" class="build-card block">
+          <div class="flex items-start justify-between mb-2">
+            <h3 class="text-white font-bold text-sm leading-tight">${esc(b.name)}</h3>
+            <span class="text-[10px] bg-neutral-800 text-amber-400 px-1.5 py-0.5 rounded flex-shrink-0 ml-2">Lv ${b.level}</span>
+          </div>
+          ${b.class_name ? `<div class="text-[11px] text-gray-500 mb-1.5">${esc(b.class_name)}</div>` : ''}
+          ${b.description ? `<p class="text-gray-500 text-xs leading-relaxed line-clamp-2 mb-2">${esc(b.description)}</p>` : ''}
+          <div class="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+            <div class="flex items-center gap-1.5">
+              ${safeAvatarUrl(b.author_avatar) ? `<img src="${safeAvatarUrl(b.author_avatar)}" class="w-4 h-4 rounded-full object-cover">` : ''}
+              <span class="text-[11px] text-gray-500">${esc(b.author)}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-gray-600 uppercase tracking-wider">${esc((b.tag||'').replace('_',' '))}</span>
+              <span class="text-[11px] text-amber-600"><i class="fas fa-arrow-up text-[9px]"></i> ${b.upvotes}</span>
+            </div>
+          </div>
+        </a>`).join('');
+    }).catch(() => {
+      document.getElementById('builds-grid').innerHTML = '<div class="text-gray-600 text-sm text-center py-12 col-span-full">Failed to load builds.</div>';
+    });
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function safeAvatarUrl(url) {
+  if (!url) return '';
+  const allowed = ['/media/uploads/', 'https://cdn.discordapp.com/', 'https://avatars.steamstatic.com/', 'https://media.discordapp.net/'];
+  if (allowed.some(p => url.startsWith(p))) return url;
+  return '';
+}
+</script>
+{% endblock %}

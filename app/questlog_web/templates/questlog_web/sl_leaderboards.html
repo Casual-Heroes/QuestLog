@@ -1,0 +1,430 @@
+{% extends "questlog_web/base_web.html" %}
+{% block title %}Souls Leaderboards | QuestLog{% endblock %}
+
+{% block web_content %}
+<style>
+.lb-tab { padding:0.5rem 1rem; font-size:0.7rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#6b7280; border-bottom:2px solid transparent; cursor:pointer; transition:all 0.15s; background:none; border-top:none; border-left:none; border-right:none; white-space:nowrap; }
+.lb-tab.active { color:#d97706; border-bottom-color:#d97706; }
+.cat-btn { padding:0.3rem 0.65rem; font-size:0.62rem; font-weight:700; border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#6b7280; cursor:pointer; background:transparent; transition:all 0.15s; white-space:nowrap; }
+.cat-btn:hover,.cat-btn.active { border-color:#d97706; color:#d97706; background:rgba(217,119,6,0.08); }
+.cat-section-label { font-size:0.58rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#374151; padding:0.25rem 0; }
+.lb-row { display:grid; align-items:center; padding:0.6rem 1rem; border-bottom:1px solid rgba(255,255,255,0.05); transition:background 0.15s; }
+.lb-row:hover { background:rgba(255,255,255,0.03); }
+.lb-row:last-child { border-bottom:none; }
+.rank { font-size:0.8rem; font-weight:900; color:#4b5563; width:2rem; flex-shrink:0; }
+.rank.gold   { color:#f59e0b; }
+.rank.silver { color:#9ca3af; }
+.rank.bronze { color:#cd7c2f; }
+.tier-badge { font-size:0.58rem; font-weight:700; text-transform:uppercase; padding:0.1rem 0.35rem; border-radius:3px; }
+.game-badge { background:rgba(251,146,60,0.15); color:#fb923c; }
+.err-badge  { background:rgba(167,139,250,0.15); color:#a78bfa; }
+/* Tournament card */
+.tourn-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:14px; overflow:hidden; transition:all 0.15s; }
+.tourn-card:hover { border-color:rgba(255,255,255,0.15); }
+.tourn-active { border-color:rgba(217,119,6,0.4) !important; box-shadow:0 0 20px rgba(217,119,6,0.08); }
+</style>
+
+<div class="max-w-4xl mx-auto px-3 py-4">
+
+  <!-- Header -->
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <span class="text-gray-500">Leaderboards</span>
+  </div>
+  <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-black text-white flex items-center gap-2">
+        <i class="fas fa-trophy text-amber-500"></i> Souls Leaderboards
+      </h1>
+      <p class="text-xs text-gray-500 mt-0.5">Track your progress and compete with the community.</p>
+    </div>
+    <div class="flex gap-2">
+      <button class="cat-btn active" data-game="elden_ring" onclick="setGame(this)">Elden Ring</button>
+      <button class="cat-btn" data-game="err" onclick="setGame(this)">ERR</button>
+    </div>
+  </div>
+
+  <!-- Main tabs: My Records / Community / Tournaments -->
+  <div class="flex border-b border-white/5 mb-5 overflow-x-auto" style="scrollbar-width:none">
+    {% if web_user %}
+    <button class="lb-tab active" data-scope="personal" onclick="setScope(this)">My Records</button>
+    {% endif %}
+    <button class="lb-tab {% if not web_user %}active{% endif %}" data-scope="community" onclick="setScope(this)">Community</button>
+    <button class="lb-tab" data-scope="tournaments" onclick="setScope(this)"><i class="fas fa-medal mr-1"></i>Tournaments</button>
+  </div>
+
+  <!-- LEADERBOARD VIEW (personal + community) -->
+  <div id="view-leaderboard">
+
+    <!-- Per-session categories -->
+    <div class="mb-2">
+      <div class="cat-section-label mb-1.5">Per-Session</div>
+      <div class="flex flex-wrap gap-1.5">
+        <button class="cat-btn active" data-cat="longest_life"       onclick="setCat(this)"><i class="fas fa-shield-alt mr-1"></i>Iron Tarnished</button>
+        <button class="cat-btn" data-cat="true_grit"                 onclick="setCat(this)"><i class="fas fa-crosshairs mr-1"></i>True Grit</button>
+        <button class="cat-btn" data-cat="death_machine"             onclick="setCat(this)"><i class="fas fa-skull mr-1"></i>Death Machine</button>
+        <button class="cat-btn" data-cat="hollow_lord"               onclick="setCat(this)"><i class="fas fa-fire mr-1"></i>Hollow Lord</button>
+        <button class="cat-btn" data-cat="hollow_depth"              onclick="setCat(this)"><i class="fas fa-ghost mr-1"></i>Hollow Depth</button>
+        <button class="cat-btn" data-cat="boss_slayer"               onclick="setCat(this)"><i class="fas fa-dragon mr-1"></i>Boss Slayer</button>
+        <button class="cat-btn" data-cat="glass_cannon"              onclick="setCat(this)"><i class="fas fa-bolt mr-1"></i>Glass Cannon</button>
+        <button class="cat-btn" data-cat="from_hollow_rising"        onclick="setCat(this)"><i class="fas fa-arrow-up mr-1"></i>From Hollow, Rising</button>
+      </div>
+    </div>
+
+    <!-- Lifetime categories -->
+    <div class="mb-2">
+      <div class="cat-section-label mb-1.5">Lifetime</div>
+      <div class="flex flex-wrap gap-1.5">
+        <button class="cat-btn" data-cat="tarnished_legend"   onclick="setCat(this)"><i class="fas fa-crown mr-1"></i>Tarnished Legend</button>
+        <button class="cat-btn" data-cat="undying"            onclick="setCat(this)"><i class="fas fa-heart mr-1"></i>Undying</button>
+        <button class="cat-btn" data-cat="veteran"            onclick="setCat(this)"><i class="fas fa-star mr-1"></i>Veteran</button>
+        <button class="cat-btn" data-cat="the_grind"          onclick="setCat(this)"><i class="fas fa-clock mr-1"></i>The Grind</button>
+        <button class="cat-btn" data-cat="sisyphus"           onclick="setCat(this)"><i class="fas fa-redo mr-1"></i>Sisyphus</button>
+      </div>
+    </div>
+
+    <!-- Hardcore categories -->
+    <div class="mb-4">
+      <div class="cat-section-label mb-1.5 text-red-700">Hardcore</div>
+      <div class="flex flex-wrap gap-1.5">
+        <button class="cat-btn border-red-900/40" data-cat="hc_score"       onclick="setCat(this)"><i class="fas fa-fire text-red-500 mr-1"></i>HC Score</button>
+        <button class="cat-btn border-red-900/40" data-cat="hc_completions" onclick="setCat(this)"><i class="fas fa-trophy text-red-500 mr-1"></i>HC Completions</button>
+        <button class="cat-btn border-red-900/40" data-cat="hc_perma"       onclick="setCat(this)"><i class="fas fa-skull text-red-500 mr-1"></i>Perma Deaths</button>
+      </div>
+    </div>
+
+    <!-- Description -->
+    <p class="text-xs text-gray-500 mb-3" id="cat-desc">Longest single life before dying - who can survive the longest?</p>
+
+    <!-- Table -->
+    <div class="bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800">
+      <div class="grid px-4 py-2 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-gray-600"
+           id="table-header" style="grid-template-columns: 2rem 1fr 7rem 6rem 6rem 5rem">
+        <span>#</span><span>Player</span>
+        <span class="text-right" id="col1">Longest Life</span>
+        <span class="text-right" id="col2">Deaths</span>
+        <span class="text-right" id="col3">Death/HR</span>
+        <span class="text-right" id="col4">Bosses</span>
+      </div>
+      <div id="lb-list">
+        <div class="text-gray-600 text-xs text-center py-8">Loading...</div>
+      </div>
+    </div>
+
+    <p class="text-[10px] text-gray-600 mt-3 text-center">
+      Entries are recorded when you end a run. Community tab shows only opted-in public sessions.
+    </p>
+  </div>
+
+  <!-- TOURNAMENTS VIEW -->
+  <div id="view-tournaments" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex gap-2">
+        <button class="cat-btn active" data-tstatus="active"   onclick="setTournStatus(this)">Active</button>
+        <button class="cat-btn"        data-tstatus="upcoming" onclick="setTournStatus(this)">Upcoming</button>
+        <button class="cat-btn"        data-tstatus="past"     onclick="setTournStatus(this)">Past</button>
+      </div>
+    </div>
+    <div id="tourn-list">
+      <div class="text-gray-600 text-xs text-center py-8">Loading tournaments...</div>
+    </div>
+    <p class="text-[10px] text-gray-600 mt-3 text-center">
+      Join a tournament before starting your run. Your best qualifying run counts automatically when you end it.
+    </p>
+  </div>
+
+</div>
+
+<!-- Tournament detail modal -->
+<div id="tourn-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-4 border-b border-neutral-800">
+      <h2 class="text-white font-bold" id="tourn-modal-title">Tournament</h2>
+      <button onclick="closeTournModal()" class="text-gray-600 hover:text-white text-lg">&times;</button>
+    </div>
+    <div id="tourn-modal-body" class="p-4">
+      <div class="text-gray-600 text-xs text-center py-8">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+var currentCat    = 'longest_life';
+var currentGame   = 'elden_ring';
+var currentScope  = '{% if web_user %}personal{% else %}community{% endif %}';
+var currentTStatus = 'active';
+var _tournCache = {};
+
+var CAT_META = {
+  // Per-session
+  'longest_life':       { desc:'Longest single life before dying - who can survive the longest?', type:'session',
+                           cols:['Longest Life','Deaths','Death/HR','Bosses'],
+                           val:function(e){ return e.longest_life_fmt || e.value_fmt; } },
+  'true_grit':          { desc:'Lowest Deaths/HR with at least 5 deaths - most efficient survival.',type:'session',
+                           cols:['Death/HR','Deaths','Longest Life','Bosses'],
+                           val:function(e){ return (e.true_death_rate||e.value)+'/hr'; } },
+  'death_machine':      { desc:'Most deaths in a single session - pure chaos metric.',type:'session',
+                           cols:['Deaths','Death/HR','Session Time','Bosses'],
+                           val:function(e){ return e.session_deaths||e.value; } },
+  'hollow_lord':        { desc:'Most cumulative time spent in HOLLOW state.',type:'session',
+                           cols:['Hollow Time','Hollow ×','Deaths','Bosses'],
+                           val:function(e){ return e.hollow_time_fmt||e.value_fmt; } },
+  'hollow_depth':       { desc:'Most times gone hollow in a single session.',type:'session',
+                           cols:['Hollow ×','Hollow Time','Deaths','Bosses'],
+                           val:function(e){ return '×'+(e.hollow_streak||e.value); } },
+  'boss_slayer':        { desc:'Most bosses defeated in a single session.',type:'session',
+                           cols:['Bosses','Deaths','Longest Life','Session Time'],
+                           val:function(e){ return e.bosses_defeated||e.value; } },
+  'glass_cannon':       { desc:'Highest Deaths/HR with 5+ bosses killed - chaos meets skill.',type:'session',
+                           cols:['Death/HR','Bosses','Deaths','Longest Life'],
+                           val:function(e){ return e.value_fmt; } },
+  'from_hollow_rising': { desc:'Most boss kills while in HOLLOW state - come back from the brink.',type:'session',
+                           cols:['Hollow Boss Kills','Hollow ×','Bosses','Deaths'],
+                           val:function(e){ return e.value_fmt; } },
+  // Lifetime
+  'tarnished_legend':   { desc:'Most bosses killed across ALL runs combined - lifetime total.',type:'lifetime',
+                           cols:['Total Bosses','Runs','',''],
+                           val:function(e){ return e.value_fmt; } },
+  'undying':            { desc:'Most completed runs with 0 deaths - deathless mastery.',type:'lifetime',
+                           cols:['Deathless Runs','','',''],
+                           val:function(e){ return e.value_fmt; } },
+  'veteran':            { desc:'Most completed runs total - experience above all.',type:'lifetime',
+                           cols:['Completed Runs','Total Deaths','',''],
+                           val:function(e){ return e.value_fmt; } },
+  'the_grind':          { desc:'Most total hours played across all runs combined.',type:'lifetime',
+                           cols:['Total Time','Runs','',''],
+                           val:function(e){ return e.value_fmt; } },
+  'sisyphus':           { desc:'Most resets in a single session - rock, meet hill.',type:'lifetime',
+                           cols:['Max Resets','Total Resets','',''],
+                           val:function(e){ return e.value_fmt; } },
+  // Hardcore
+  'hc_score':           { desc:'Highest HC point total in a single Hardcore run. Boss kills score points by tier (Enemy=10, Great Enemy=25, Legend=50, Demigod=100, God=250). Each item collected = 5pts. Deathless full clear = 2x multiplier.',type:'session',
+                           cols:['HC Score','Bosses','Deaths',''],
+                           val:function(e){ return (e.hc_score||e.value||0)+' pts'; } },
+  'hc_completions':     { desc:'Fastest deathless full clear in Hardcore mode - most clears and best time wins.',type:'lifetime',
+                           cols:['Best Time','Total Clears','Best Score',''],
+                           val:function(e){ return e.session_dur_fmt||e.value_fmt||'--'; } },
+  'hc_perma':           { desc:'Most Hardcore Perma-Deaths across all time - for the brave and reckless.',type:'lifetime',
+                           cols:['Perma-Deaths','','',''],
+                           val:function(e){ return (e.value||0)+' deaths'; } },
+};
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Leaderboard ──────────────────────────────────────────────────────────────
+function load() {
+  var list = document.getElementById('lb-list');
+  list.innerHTML = '<div class="text-gray-600 text-xs text-center py-8">Loading...</div>';
+  fetch('/api/soulslike/leaderboards/?category='+currentCat+'&game='+currentGame+'&scope='+currentScope)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      var entries = d.entries || [];
+      var meta = CAT_META[currentCat] || CAT_META['longest_life'];
+      var isLifetime = meta.type === 'lifetime';
+
+      // Update column headers
+      var hdr = document.getElementById('table-header');
+      var cols = meta.cols;
+      hdr.children[2].textContent = cols[0] || '';
+      hdr.children[3].textContent = cols[1] || '';
+      hdr.children[4].textContent = cols[2] || '';
+      hdr.children[5].textContent = cols[3] || '';
+
+      if (!entries.length) {
+        list.innerHTML = '<div class="text-gray-600 text-xs text-center py-8">No entries yet. Complete a run to appear here!</div>';
+        return;
+      }
+
+      list.innerHTML = entries.map(function(e) {
+        var rankCls = e.rank===1?' gold':e.rank===2?' silver':e.rank===3?' bronze':'';
+        var badge = '';
+        if (!isLifetime) {
+          badge = (e.game_mode==='err')
+            ? '<span class="tier-badge err-badge ml-1">ERR</span>'
+            : '<span class="tier-badge game-badge ml-1">ER</span>';
+        }
+        var mainVal = meta.val(e);
+        var c1 = isLifetime ? (e.run_count!=null?e.run_count:'') : (e.session_deaths!=null?e.session_deaths:'');
+        var c2 = isLifetime ? (e.total_deaths!=null?e.total_deaths:'') : (e.true_death_rate!=null?e.true_death_rate+'/hr':'');
+        var c3 = isLifetime ? '' : (e.bosses_defeated!=null?e.bosses_defeated:'');
+        return '<div class="lb-row" style="grid-template-columns:2rem 1fr 7rem 6rem 6rem 5rem">' +
+          '<span class="rank'+rankCls+'">'+e.rank+'</span>' +
+          '<div><span class="text-sm font-bold text-white">'+esc(e.username)+'</span>'+badge+'</div>' +
+          '<span class="text-right text-sm font-bold text-amber-400">'+esc(String(mainVal))+'</span>' +
+          '<span class="text-right text-xs text-gray-400">'+esc(String(c1))+'</span>' +
+          '<span class="text-right text-xs text-gray-400">'+esc(String(c2))+'</span>' +
+          '<span class="text-right text-xs text-gray-400">'+esc(String(c3))+'</span>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      list.innerHTML = '<div class="text-red-500 text-xs text-center py-8">Failed to load</div>';
+    });
+}
+
+function setCat(btn) {
+  document.querySelectorAll('[data-cat]').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  currentCat = btn.dataset.cat;
+  var meta = CAT_META[currentCat];
+  document.getElementById('cat-desc').textContent = meta ? meta.desc : '';
+  load();
+}
+
+function setGame(btn) {
+  document.querySelectorAll('[data-game]').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  currentGame = btn.dataset.game;
+  if (currentScope === 'tournaments') loadTournaments();
+  else load();
+}
+
+function setScope(btn) {
+  document.querySelectorAll('[data-scope]').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  currentScope = btn.dataset.scope;
+  if (currentScope === 'tournaments') {
+    document.getElementById('view-leaderboard').classList.add('hidden');
+    document.getElementById('view-tournaments').classList.remove('hidden');
+    loadTournaments();
+  } else {
+    document.getElementById('view-tournaments').classList.add('hidden');
+    document.getElementById('view-leaderboard').classList.remove('hidden');
+    load();
+  }
+}
+
+// ── Tournaments ───────────────────────────────────────────────────────────────
+function setTournStatus(btn) {
+  document.querySelectorAll('[data-tstatus]').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  currentTStatus = btn.dataset.tstatus;
+  loadTournaments();
+}
+
+function loadTournaments() {
+  var list = document.getElementById('tourn-list');
+  list.innerHTML = '<div class="text-gray-600 text-xs text-center py-8">Loading...</div>';
+  fetch('/api/soulslike/tournaments/?game='+currentGame+'&status='+currentTStatus)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      var ts = d.tournaments || [];
+      if (!ts.length) {
+        list.innerHTML = '<div class="text-gray-600 text-xs text-center py-10">No '+currentTStatus+' tournaments.</div>';
+        return;
+      }
+      list.innerHTML = ts.map(function(t) {
+        var isActive = t.is_active;
+        var joined = t.is_joined;
+        var catName = getCatName(t.category);
+        var borderCls = isActive ? ' tourn-active' : '';
+        return '<div class="tourn-card'+borderCls+' mb-3">' +
+          '<div class="flex items-center gap-0 h-1.5" style="background:'+esc(t.banner_color||'#d97706')+'"></div>' +
+          '<div class="p-4">' +
+            '<div class="flex items-start justify-between gap-3">' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="flex items-center gap-2 flex-wrap mb-1">' +
+                  (isActive ? '<span class="text-[10px] font-bold bg-green-900/40 text-green-400 border border-green-800/40 px-1.5 py-0.5 rounded-full">ACTIVE</span>' : '') +
+                  (t.is_finalized ? '<span class="text-[10px] font-bold bg-neutral-700 text-gray-400 px-1.5 py-0.5 rounded-full">ENDED</span>' : '') +
+                  '<span class="text-[10px] text-gray-600">'+esc(t.game_mode==='err'?'ERR':'ER')+'</span>' +
+                '</div>' +
+                '<h3 class="text-white font-bold text-sm mb-0.5">'+esc(t.name)+'</h3>' +
+                '<div class="flex items-center gap-3 text-[10px] text-gray-500">' +
+                  '<span><i class="fas fa-trophy mr-0.5" style="color:'+esc(t.banner_color||'#d97706')+'"></i>'+esc(catName)+'</span>' +
+                  '<span><i class="fas fa-users mr-0.5"></i>'+t.participant_count+' joined</span>' +
+                  '<span>'+esc(t.time_str)+'</span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="flex flex-col gap-1.5 flex-shrink-0">' +
+                '<button onclick="openTournament('+t.id+')" class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-300 text-xs font-bold rounded-lg transition">View</button>' +
+                {% if web_user %}
+                (isActive && !t.is_finalized ?
+                  '<button onclick="toggleJoin('+t.id+','+joined+')" id="join-btn-'+t.id+'" class="px-3 py-1.5 text-xs font-bold rounded-lg transition '+(joined?'bg-red-900/30 border border-red-800/50 text-red-400 hover:bg-red-900/50':'bg-amber-700 hover:bg-amber-600 text-white')+'">'+(joined?'Leave':'Join')+'</button>' :
+                  ''
+                ) +
+                {% endif %}
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    });
+}
+
+function getCatName(cat) {
+  if (cat && cat.startsWith('custom:')) return cat.slice(7);
+  var names = {
+    'longest_life':'Iron Tarnished','true_grit':'True Grit','death_machine':'Death Machine',
+    'hollow_lord':'Hollow Lord','hollow_depth':'Hollow Depth','boss_slayer':'Boss Slayer',
+    'glass_cannon':'Glass Cannon','from_hollow_rising':'From Hollow, Rising',
+    'tarnished_legend':'Tarnished Legend','undying':'Undying','veteran':'Veteran',
+    'the_grind':'The Grind','sisyphus':'Sisyphus',
+    'hc_score':'HC Score','hc_completions':'HC Completions','hc_perma':'Perma Deaths',
+  };
+  return names[cat] || cat;
+}
+
+function toggleJoin(id, currentlyJoined) {
+  var action = currentlyJoined ? 'leave' : 'join';
+  var btn = document.getElementById('join-btn-'+id);
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  fetch('/api/soulslike/tournaments/'+id+'/'+action+'/', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) loadTournaments();
+  }).catch(function() {
+    if (btn) { btn.disabled = false; btn.textContent = currentlyJoined ? 'Leave' : 'Join'; }
+  });
+}
+
+function openTournament(id) {
+  document.getElementById('tourn-modal').classList.remove('hidden');
+  document.getElementById('tourn-modal-body').innerHTML = '<div class="text-gray-600 text-xs text-center py-8">Loading...</div>';
+  fetch('/api/soulslike/tournaments/'+id+'/').then(function(r){ return r.json(); }).then(function(t) {
+    document.getElementById('tourn-modal-title').textContent = t.name;
+    var lb = t.leaderboard || [];
+    var lbHtml = lb.length ? lb.slice(0,20).map(function(e,i) {
+      var rc = e.rank===1?' gold':e.rank===2?' silver':e.rank===3?' bronze':'';
+      var me = e.is_me ? ' bg-amber-900/10' : '';
+      return '<div class="flex items-center gap-3 px-3 py-2 border-b border-white/5'+me+'">' +
+        '<span class="rank'+rc+' text-sm font-black w-6">'+e.rank+'</span>' +
+        '<span class="flex-1 text-sm font-bold '+(e.is_me?'text-amber-400':'text-white')+'">'+esc(e.username)+'</span>' +
+        '<span class="text-xs text-gray-400">'+esc(e.score_fmt)+'</span>' +
+        (e.run_count ? '<span class="text-[10px] text-gray-600">'+e.run_count+' run'+(e.run_count!==1?'s':'')+'</span>' : '') +
+      '</div>';
+    }).join('') : '<div class="text-gray-600 text-xs text-center py-6">No entries yet.</div>';
+
+    var personal = t.personal ? '<div class="mt-3 p-3 bg-amber-900/10 border border-amber-800/30 rounded-xl text-xs"><i class="fas fa-user mr-1 text-amber-400"></i>Your rank: <strong class="text-amber-400">#'+t.personal.rank+'</strong> &nbsp;|&nbsp; '+esc(t.personal.score_fmt)+'</div>' : '';
+
+    document.getElementById('tourn-modal-body').innerHTML =
+      '<div class="flex items-center gap-3 mb-3 text-xs text-gray-500">' +
+        '<span><i class="fas fa-trophy mr-0.5" style="color:'+esc(t.banner_color)+'"></i>'+esc(getCatName(t.category))+'</span>' +
+        '<span><i class="fas fa-users mr-0.5"></i>'+t.participant_count+' participants</span>' +
+        '<span class="text-amber-400">'+esc(t.time_str)+'</span>' +
+      '</div>' +
+      (t.description ? '<p class="text-gray-400 text-xs mb-3">'+esc(t.description)+'</p>' : '') +
+      '<div class="bg-neutral-800 rounded-xl overflow-hidden">' + lbHtml + '</div>' +
+      personal;
+  });
+}
+
+function closeTournModal() {
+  document.getElementById('tourn-modal').classList.add('hidden');
+}
+
+function getCsrf() {
+  var c = document.cookie.split(';');
+  for (var i=0;i<c.length;i++){ var p=c[i].trim(); if(p.startsWith('csrftoken=')) return p.slice(10); }
+  return '';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Set initial description
+  var meta = CAT_META[currentCat];
+  if (meta) document.getElementById('cat-desc').textContent = meta.desc;
+  load();
+});
+</script>
+{% endblock %}

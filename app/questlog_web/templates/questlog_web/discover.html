@@ -5,6 +5,10 @@
 {% block og_title %}Discover QuestLog | Casual Heroes{% endblock %}
 {% block og_description %}A community for working adults, parents, and gamers who grew up but never quite left Neverland.{% endblock %}
 
+{% block lcp_preload %}
+{% if server_indie_spotlight %}<link rel="preload" as="image" href="{{ server_indie_spotlight.cover_url }}" fetchpriority="high">{% endif %}
+{% endblock %}
+
 {% block web_content %}
 <style>
 .discover-card {
@@ -179,13 +183,13 @@
   </div>
 </div>
 
-<!-- Activity Ticker -->
-<div id="ticker-bar" class="hidden bg-neutral-950 border-b border-neutral-800 overflow-hidden relative" style="height: 32px;">
+<!-- Activity Ticker - height reserved so reveal doesn't shift the LCP element -->
+<div id="ticker-bar" class="bg-neutral-950 border-b border-neutral-800 overflow-hidden relative" style="height: 32px; visibility: hidden;">
   <div id="ticker-content" class="flex items-center gap-8 whitespace-nowrap animate-ticker absolute" style="animation: tickerScroll 22s linear infinite;"></div>
 </div>
 
-<!-- Game Server Strip - loaded async after page render -->
-<div id="game-server-strip" class="hidden bg-neutral-900/60 border-b border-neutral-800 px-4 py-2">
+<!-- Game Server Strip - height reserved to prevent layout shift -->
+<div id="game-server-strip" class="bg-neutral-900/60 border-b border-neutral-800 px-4 py-2" style="min-height: 40px; visibility: hidden;">
   <div class="max-w-5xl mx-auto flex items-center gap-2 overflow-x-auto" style="scrollbar-width:none;">
     <span class="text-xs text-gray-600 font-medium whitespace-nowrap flex-shrink-0 mr-1">
       <i class="fas fa-server text-gray-700 mr-1"></i>Servers:
@@ -195,14 +199,26 @@
   </div>
 </div>
 
-<!-- Spotlight Bar - shown when active spotlights exist -->
-<div id="discover-spotlight-section" class="hidden border-b border-neutral-800/60 bg-neutral-950/50 px-4 py-4">
+<!-- Spotlight Bar - server-rendered indie card + JS-filled community/creator slots -->
+<div id="discover-spotlight-section" class="{% if not server_indie_spotlight %}hidden {% endif %}border-b border-neutral-800/60 bg-neutral-950/50 px-4 py-4">
   <div class="max-w-6xl mx-auto">
     <div class="flex items-center gap-3 mb-3">
       <i class="fas fa-star text-amber-400 text-xs"></i>
       <span class="text-xs font-bold text-amber-500 uppercase tracking-widest">Community Spotlights</span>
     </div>
-    <div id="discover-spotlight-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+    <div id="discover-spotlight-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {% if server_indie_spotlight %}
+      <a href="/indie-heroes/{{ server_indie_spotlight.slug }}/" id="server-indie-spotlight-card" class="block bg-neutral-900 border border-neutral-800 hover:border-emerald-500/40 rounded-xl overflow-hidden transition group relative">
+        <img src="{{ server_indie_spotlight.cover_url }}" class="w-full h-44 object-cover object-top" alt="{{ server_indie_spotlight.name }}" fetchpriority="high" width="264" height="352" decoding="async">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
+        <div class="absolute top-2 left-2"><span class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-black/60 backdrop-blur-sm border border-emerald-500/30 px-2 py-0.5 rounded-full">{{ server_indie_spotlight_label }}</span></div>
+        <div class="absolute bottom-0 left-0 right-0 p-3">
+          <p class="text-white font-bold text-sm group-hover:text-emerald-300 transition leading-tight">{{ server_indie_spotlight.name }}</p>
+          {% if server_indie_spotlight.spotlight_quote %}<p class="text-gray-400 text-xs italic mt-0.5 line-clamp-1">"{{ server_indie_spotlight.spotlight_quote }}"</p>{% endif %}
+        </div>
+      </a>
+      {% endif %}
+    </div>
   </div>
 </div>
 
@@ -719,36 +735,13 @@
         </div>
       </div>
 
-      <!-- Most Played by Community -->
-      {% if top_owned_games %}
-      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+      <!-- Most Played by Community - JS loaded -->
+      <div id="steam-most-played-section" class="hidden bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
         <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
           <i class="fas fa-clock text-yellow-400"></i>Most Played by Community
         </h3>
-        <div class="space-y-1.5">
-          {% for g in top_owned_games %}
-          <div class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
-            <a href="{{ g.steam_url }}" target="_blank" rel="noopener" class="flex-shrink-0">
-              <img src="{{ g.cover_url }}" alt="{{ g.name }}"
-                   class="w-12 h-9 rounded object-cover bg-neutral-800"
-                   onerror="this.style.display='none'">
-            </a>
-            <div class="flex-1 min-w-0">
-              <a href="{{ g.steam_url }}" target="_blank" rel="noopener">
-                <p class="text-gray-200 text-xs font-medium truncate group-hover:text-white transition">{{ g.name }}</p>
-              </a>
-              <p class="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5">
-                <span>{{ g.count }} played recently</span>
-                <span>&middot;</span>
-                <span class="text-yellow-400 font-semibold">{{ g.hours }}h</span>
-                {% if g.is_mp %}<span>&middot;</span><a href="/lfg/create/?game={{ g.name|urlencode }}" class="text-green-400 hover:text-green-300 transition font-medium">+ LFG</a>{% endif %}
-              </p>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
+        <div id="steam-most-played-list" class="space-y-1.5"></div>
       </div>
-      {% endif %}
 
       <!-- Top Players -->
       <div class="bg-neutral-900/50 rounded-xl border border-yellow-700/30 p-4">
@@ -763,37 +756,16 @@
         </div>
       </div>
 
-      <!-- Community Picks -->
-      {% if community_picks %}
-      <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
+      <!-- Community Picks - JS loaded -->
+      <div id="steam-community-picks-section" class="hidden bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-sm font-semibold text-white flex items-center gap-2">
             <i class="fas fa-dice text-purple-400"></i>Community Picks
           </h3>
           <span class="text-xs text-gray-600">Refreshes each visit</span>
         </div>
-        <div class="space-y-1.5">
-          {% for g in community_picks %}
-          <div class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
-            <a href="{{ g.steam_url }}" target="_blank" rel="noopener" class="flex-shrink-0">
-              <img src="{{ g.cover_url }}" alt="{{ g.name }}"
-                   class="w-12 h-9 rounded object-cover bg-neutral-800"
-                   onerror="this.style.display='none'">
-            </a>
-            <div class="flex-1 min-w-0">
-              <a href="{{ g.steam_url }}" target="_blank" rel="noopener">
-                <p class="text-gray-200 text-xs font-medium truncate group-hover:text-white transition">{{ g.name }}</p>
-              </a>
-              <p class="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5">
-                <span>{{ g.owners }} own this</span>
-                {% if g.is_mp %}<span>&middot;</span><a href="/lfg/create/?game={{ g.name|urlencode }}" class="text-green-400 hover:text-green-300 transition font-medium">+ LFG</a>{% endif %}
-              </p>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
+        <div id="steam-community-picks-list" class="space-y-1.5"></div>
       </div>
-      {% endif %}
 
       <!-- Top Posts -->
       <div class="bg-neutral-900/50 rounded-xl border border-neutral-800 p-4">
@@ -1306,24 +1278,37 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-  loadActivity();
-  setInterval(refreshTicker, 30000);
-  loadSidebarContent();
-  loadNudgeCards();
-  loadDiscoverIndieHeroes();
-  loadGameServerStrip();
+  // Critical: spotlight JS fills community+creator slots (indie already server-rendered)
   loadDiscoverSpotlights();
-  loadDiscoverBlogPost();
-  initFindPlayers();
-  // Preload custom emoji so the tab icon can update
-  fetch('/api/emoji/').then(r => r.json()).then(data => {
-    _discoverCustomEmojiCache = data.emoji || [];
-    const lolUrl = (_discoverCustomEmojiCache.find(e => e.shortcode === 'lol') || {}).image_url;
-    const iconEl = document.getElementById('discover-custom-emoji-tab-icon');
-    if (lolUrl && iconEl) {
-      iconEl.innerHTML = `<img src="${lolUrl}" class="w-4 h-4 object-contain inline-block" alt=":lol:" style="vertical-align:-2px">`;
-    }
-  }).catch(() => {});
+
+  // Slightly deferred: visible above fold but not LCP
+  setTimeout(function() {
+    loadActivity();
+    setInterval(refreshTicker, 30000);
+    loadSidebarContent();
+    loadDiscoverBlogPost();
+    initFindPlayers();
+  }, 200);
+
+  // Non-critical: below fold or peripheral - stagger to avoid network congestion during LCP window
+  setTimeout(function() {
+    loadDiscoverIndieHeroes();
+    loadGameServerStrip();
+    loadNudgeCards();
+    loadSteamWidgets();
+  }, 600);
+
+  // Low priority: emoji cache
+  setTimeout(function() {
+    fetch('/api/emoji/').then(r => r.json()).then(data => {
+      _discoverCustomEmojiCache = data.emoji || [];
+      const lolUrl = (_discoverCustomEmojiCache.find(e => e.shortcode === 'lol') || {}).image_url;
+      const iconEl = document.getElementById('discover-custom-emoji-tab-icon');
+      if (lolUrl && iconEl) {
+        iconEl.innerHTML = `<img src="${lolUrl}" class="w-4 h-4 object-contain inline-block" alt=":lol:" style="vertical-align:-2px">`;
+      }
+    }).catch(() => {});
+  }, 1000);
 });
 
 async function loadActivity() {
@@ -1457,7 +1442,7 @@ async function loadActivity() {
       tickerContent.innerHTML = items;
       const duration = Math.max(22, dedupedTicker.length * 5);
       tickerContent.style.animationDuration = duration + 's';
-      tickerBar.classList.remove('hidden');
+      tickerBar.style.visibility = 'visible';
     }
   } catch(e) {
     console.error('Activity error:', e);
@@ -1493,7 +1478,7 @@ async function refreshTicker() {
     const duration = Math.max(20, data.ticker.length * 5);
     tickerContent.style.animationDuration = duration + 's';
     tickerContent.style.animationPlayState = 'running';
-    tickerBar.classList.remove('hidden');
+    tickerBar.style.visibility = 'visible';
   } catch(e) {}
 }
 
@@ -1604,7 +1589,7 @@ async function loadDiscoverBlogPost() {
     const catColor = post.category === 'guide' ? 'text-green-400' : post.category === 'news' ? 'text-blue-400' : post.category === 'opinion' ? 'text-orange-400' : 'text-violet-400';
     card.innerHTML = `
       <a href="/blog/${esc(post.slug)}/" class="flex gap-4 bg-neutral-900 border border-neutral-800 hover:border-violet-700/50 rounded-xl overflow-hidden transition group">
-        ${post.cover_url ? `<div class="w-32 sm:w-44 h-full flex-shrink-0 overflow-hidden"><img src="${esc(post.cover_url)}" class="w-full h-full object-cover" style="min-height:100px" loading="lazy"></div>` : ''}
+        ${post.cover_url ? `<div class="w-32 sm:w-44 h-full flex-shrink-0 overflow-hidden"><img src="${esc(post.cover_url)}" class="w-full h-full object-cover" style="min-height:100px"></div>` : ''}
         <div class="flex-1 p-4 min-w-0">
           <span class="text-[10px] font-bold uppercase tracking-wider ${catColor} mb-1 block">${esc(post.category)}</span>
           <p class="text-white font-bold text-sm group-hover:text-violet-300 transition line-clamp-2 leading-snug mb-1">${esc(post.title)}</p>
@@ -1689,7 +1674,9 @@ async function loadDiscoverSpotlights() {
     }
 
     // Show month if set, fall back to week
-    const indie = (data.indie && (data.indie.month || data.indie.week));
+    // Skip indie card if server already rendered it (avoids duplicate + preserves LCP timing)
+    const serverIndieRendered = !!document.getElementById('server-indie-spotlight-card');
+    const indie = !serverIndieRendered && (data.indie && (data.indie.month || data.indie.week));
     const comm  = (data.community && (data.community.month || data.community.week));
     const creator = (data.creator && (data.creator.month || data.creator.week));
 
@@ -1697,10 +1684,64 @@ async function loadDiscoverSpotlights() {
     if (comm)     cards.push(commCard(comm,        data.community.month ? 'Community of the Month' : 'Community of the Week'));
     if (creator)  cards.push(creatorCard(creator,  data.creator.month   ? 'Creator of the Month'   : 'Creator of the Week'));
 
-    if (!cards.length) return;
-
-    document.getElementById('discover-spotlight-grid').innerHTML = cards.join('');
+    const grid = document.getElementById('discover-spotlight-grid');
+    if (cards.length) {
+      grid.insertAdjacentHTML('beforeend', cards.join(''));
+    }
+    if (!serverIndieRendered && !cards.length) return;
     document.getElementById('discover-spotlight-section').classList.remove('hidden');
+  } catch(e) {}
+}
+
+async function loadSteamWidgets() {
+  try {
+    const res = await fetch('/api/discover/steam-widgets/');
+    const data = await res.json();
+
+    const mostPlayed = data.top_owned_games || [];
+    const picks = data.community_picks || [];
+
+    if (mostPlayed.length) {
+      const list = document.getElementById('steam-most-played-list');
+      list.innerHTML = mostPlayed.map(g => `
+        <div class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
+          <a href="${esc(g.steam_url)}" target="_blank" rel="noopener" class="flex-shrink-0">
+            <img src="${esc(g.cover_url)}" alt="${esc(g.name)}" class="w-12 h-9 rounded object-cover bg-neutral-800" loading="lazy" onerror="this.style.display='none'">
+          </a>
+          <div class="flex-1 min-w-0">
+            <a href="${esc(g.steam_url)}" target="_blank" rel="noopener">
+              <p class="text-gray-200 text-xs font-medium truncate group-hover:text-white transition">${esc(g.name)}</p>
+            </a>
+            <p class="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5">
+              <span>${g.count} played recently</span>
+              <span>&middot;</span>
+              <span class="text-yellow-400 font-semibold">${g.hours}h</span>
+              ${g.is_mp ? `<span>&middot;</span><a href="/lfg/create/?game=${encodeURIComponent(g.name)}" class="text-green-400 hover:text-green-300 transition font-medium">+ LFG</a>` : ''}
+            </p>
+          </div>
+        </div>`).join('');
+      document.getElementById('steam-most-played-section').classList.remove('hidden');
+    }
+
+    if (picks.length) {
+      const list = document.getElementById('steam-community-picks-list');
+      list.innerHTML = picks.map(g => `
+        <div class="flex items-center gap-2 hover:bg-neutral-800/50 rounded-lg px-2 py-1.5 transition group">
+          <a href="${esc(g.steam_url)}" target="_blank" rel="noopener" class="flex-shrink-0">
+            <img src="${esc(g.cover_url)}" alt="${esc(g.name)}" class="w-12 h-9 rounded object-cover bg-neutral-800" loading="lazy" onerror="this.style.display='none'">
+          </a>
+          <div class="flex-1 min-w-0">
+            <a href="${esc(g.steam_url)}" target="_blank" rel="noopener">
+              <p class="text-gray-200 text-xs font-medium truncate group-hover:text-white transition">${esc(g.name)}</p>
+            </a>
+            <p class="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5">
+              <span>${g.owners} own this</span>
+              ${g.is_mp ? `<span>&middot;</span><a href="/lfg/create/?game=${encodeURIComponent(g.name)}" class="text-green-400 hover:text-green-300 transition font-medium">+ LFG</a>` : ''}
+            </p>
+          </div>
+        </div>`).join('');
+      document.getElementById('steam-community-picks-section').classList.remove('hidden');
+    }
   } catch(e) {}
 }
 
@@ -1726,7 +1767,7 @@ async function loadGameServerStrip() {
       const count = live ? `<span class="text-green-400 font-semibold ml-1">${s.online}/${s.max}</span>` : '';
       return `<a href="/ql/gameservers/" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs whitespace-nowrap flex-shrink-0 transition ${cls}"><span class="w-1.5 h-1.5 rounded-full ${dot}"></span>${escapeHtml(name)}${count}</a>`;
     }).join('');
-    strip.classList.remove('hidden');
+    strip.style.visibility = 'visible';
   } catch(e) {}
 }
 

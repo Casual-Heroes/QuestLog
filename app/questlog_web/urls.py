@@ -33,7 +33,16 @@ from .views_pages import (
     communities, community_register, community_detail, community_detail_slug, community_guidelines,
     profile, profile_edit, creator_register, settings, getting_started, hero_shop, public_legacy,
     game_servers_ql, api_gameservers_status, api_gameservers_discover_strip,
-    soulslike_hub, soulslike_tracker, api_tracker_download,
+    soulslike_hub, soulslike_tracker, soulslike_listener_download, api_tracker_download,
+    soulslike_builder, soulslike_builds_browse, sl_my_builds,
+    api_sl_classes, api_sl_stat_caps, api_sl_weapons, api_sl_spells,
+    api_sl_talismans, api_sl_aow, api_sl_armor, api_sl_builds,
+    api_sl_builds_browse, api_sl_build_detail, api_sl_build_delete,
+    api_sl_ar_data, api_sl_weapon_ar_variants, api_sl_derived_curves,
+    api_sl_spirit_ashes, api_sl_crystal_tears, api_sl_boss_registry,
+    api_sl_err_aow_skills, api_sl_err_curios, api_sl_err_runeforging,
+    api_sl_err_affinities, api_sl_err_crystal_tears, api_sl_err_consumables,
+    api_sl_err_armor_passives,
     api_active_poll, api_poll_vote,
     giveaways_page, legacy_page, legacy_nominate, api_legacy_nominate,
     api_internal_close_nominations,
@@ -47,6 +56,9 @@ from .views_pages import (
     fluxer_guild_member_rss,
     fluxer_guild_member_games,
     fluxer_guild_member_flairs,
+    api_listener_generate_key, api_listener_runs,
+    listener_auth_page, api_listener_auth_exchange,
+    api_sl_desktop_profile, api_sl_builds_desktop,
     api_public_testimonials,
     api_calendar_game_nights,
     api_calendar_lfg_events,
@@ -70,6 +82,7 @@ from .views_pages import (
     api_admin_feedback_detail,
     api_admin_feedback_settings,
     page_feedback,
+    api_discover_steam_widgets,
 )
 from .views_questchat import (
     qc_auth_token, qc_me,
@@ -290,12 +303,32 @@ from .views_profile import (
     api_me_now_playing, api_user_now_playing,
     api_flairs, api_flair_buy, api_flair_equip,
 )
+from .views_soulslike import (
+    api_sl_session_create, api_sl_collect, api_sl_uncollect,
+    api_sl_death, api_sl_session_status, api_sl_session_end, api_sl_reset_deaths, api_sl_heartbeat,
+    api_sl_boss_mark, api_sl_boss_unmark, api_sl_seed_bosses, api_sl_set_focus,
+    api_sl_manual_start, sl_run_manifest, api_sl_desktop_session_create,
+    api_sl_stream,
+    api_sl_subtract_death, api_sl_active_runs,
+    api_sl_tournaments, api_sl_tournament_detail,
+    api_sl_tournament_join,
+    api_sl_tournament_finalize, api_sl_admin_tournaments,
+    api_sl_hc_complete,
+    sl_runs, sl_run_detail, sl_leaderboards, api_sl_leaderboards,
+    sl_overlay_collection, sl_overlay_deaths,
+    sl_overlay_mortality, sl_overlay_hollow, sl_overlay_combined,
+)
+from .views_soulslike_guides import (
+    sl_guides, sl_guide_detail, sl_guide_editor,
+    api_sl_guide_create, api_sl_guide_edit, api_sl_guide_delete,
+    api_sl_guide_like, api_sl_guide_comment, api_sl_guide_comment_delete,
+)
 from .views_blog import (
     api_blog_recent,
     blog_list, blog_detail, blog_editor,
     api_blog_create, api_blog_edit, api_blog_delete,
     api_blog_comments, api_blog_comment_delete, api_blog_comment_like,
-    api_blog_preview,
+    api_blog_preview, api_article_react,
 )
 from .views_game_library import (
     game_library_page,
@@ -333,38 +366,38 @@ urlpatterns = [
     path('password-reset/',                          password_reset_request, name='questlog_web_password_reset'),
     path('password-reset/confirm/<str:token>/',      password_reset_confirm, name='questlog_web_password_reset_confirm'),
 
-    # Steam — optional connection (unlocks game-tracking features)
+    # Steam - optional connection (unlocks game-tracking features)
     path('auth/steam/link/',     steam_link,          name='questlog_web_steam_link'),
     path('auth/steam/callback/', steam_link_callback, name='questlog_web_steam_callback'),
     path('auth/steam/unlink/',   steam_unlink,        name='questlog_web_steam_unlink'),
 
-    # Discord — optional account linking
+    # Discord - optional account linking
     path('auth/discord/link/',          discord_link,          name='questlog_web_discord_link'),
     path('auth/discord/link/callback/', discord_link_callback, name='questlog_web_discord_link_callback'),
     path('auth/discord/unlink/',        discord_unlink,        name='questlog_web_discord_unlink'),
 
-    # Fluxer — optional account linking
+    # Fluxer - optional account linking
     path('auth/fluxer/link/',          fluxer_link,          name='questlog_web_fluxer_link'),
     path('auth/fluxer/link/callback/', fluxer_link_callback, name='questlog_web_fluxer_link_callback'),
     path('auth/fluxer/unlink/',        fluxer_unlink,        name='questlog_web_fluxer_unlink'),
 
-    # Fluxer / Discord — standalone dashboard OAuth (no QL account required)
+    # Fluxer / Discord - standalone dashboard OAuth (no QL account required)
     path('auth/fluxer/dashboard/login/',    fluxer_dashboard_login,    name='questlog_web_fluxer_dashboard_login'),
     path('auth/fluxer/dashboard/callback/', fluxer_dashboard_callback, name='questlog_web_fluxer_dashboard_callback'),
     path('auth/discord/dashboard/login/',    discord_dashboard_login,    name='questlog_web_discord_dashboard_login'),
     path('auth/discord/dashboard/callback/', discord_dashboard_callback, name='questlog_web_discord_dashboard_callback'),
 
-    # Twitch OAuth — creator profile integration
+    # Twitch OAuth - creator profile integration
     path('auth/twitch/link/',     twitch_oauth_initiate, name='questlog_web_twitch_link'),
     path('auth/twitch/callback/', twitch_oauth_callback, name='questlog_web_twitch_callback'),
     path('auth/twitch/unlink/',   twitch_disconnect,     name='questlog_web_twitch_unlink'),
 
-    # YouTube OAuth — creator profile integration
+    # YouTube OAuth - creator profile integration
     path('auth/youtube/link/',     youtube_oauth_initiate, name='questlog_web_youtube_link'),
     path('auth/youtube/callback/', youtube_oauth_callback, name='questlog_web_youtube_callback'),
     path('auth/youtube/unlink/',   youtube_disconnect,     name='questlog_web_youtube_unlink'),
 
-    # Kick OAuth — creator profile integration
+    # Kick OAuth - creator profile integration
     path('auth/kick/link/',     kick_oauth_initiate, name='questlog_web_kick_link'),
     path('auth/kick/callback/', kick_oauth_callback, name='questlog_web_kick_callback'),
     path('auth/kick/unlink/',   kick_disconnect,     name='questlog_web_kick_unlink'),
@@ -440,6 +473,7 @@ urlpatterns = [
     path('api/blog/',                            api_blog_create,         name='questlog_web_api_blog_create'),
     path('api/blog/recent/',                     api_blog_recent,         name='questlog_web_api_blog_recent'),
     path('api/blog/preview/',                    api_blog_preview,        name='questlog_web_api_blog_preview'),
+    path('api/blog/<int:article_id>/react/',     api_article_react,       name='questlog_web_api_article_react'),
     path('api/blog/<int:article_id>/',           api_blog_edit,           name='questlog_web_api_blog_edit'),
     path('api/blog/<int:article_id>/delete/',    api_blog_delete,         name='questlog_web_api_blog_delete'),
     path('api/blog/<int:article_id>/comments/',  api_blog_comments,       name='questlog_web_api_blog_comments'),
@@ -491,11 +525,86 @@ urlpatterns = [
     path('settings/', settings, name='questlog_web_settings'),
     path('getting-started/', getting_started, name='questlog_web_getting_started'),
     path('gameservers/', game_servers_ql, name='questlog_web_gameservers'),
-    path('soulslike/', soulslike_hub, name='questlog_web_soulslike'),
-    path('soulslike/tracker/', soulslike_tracker, name='questlog_web_soulslike_tracker'),
+    path('soulslike/',          soulslike_hub,      name='questlog_web_soulslike'),
+    path('soulslike/tracker/',  soulslike_tracker,  name='questlog_web_soulslike_tracker'),
+    path('soulslike/listener/', soulslike_listener_download, name='questlog_web_soulslike_listener'),
+    path('soulslike/builder/',  soulslike_builder,  name='questlog_web_soulslike_builder'),
+    path('api/soulslike/classes/',   api_sl_classes,    name='api_sl_classes'),
+    path('api/soulslike/stat-caps/', api_sl_stat_caps,  name='api_sl_stat_caps'),
+    path('api/soulslike/derived-curves/', api_sl_derived_curves, name='api_sl_derived_curves'),
+    path('api/soulslike/weapons/',   api_sl_weapons,    name='api_sl_weapons'),
+    path('api/soulslike/spells/',    api_sl_spells,     name='api_sl_spells'),
+    path('api/soulslike/talismans/', api_sl_talismans,  name='api_sl_talismans'),
+    path('api/soulslike/aow/',       api_sl_aow,        name='api_sl_aow'),
+    path('api/soulslike/armor/',                        api_sl_armor,           name='api_sl_armor'),
+    path('api/soulslike/spirit-ashes/',                 api_sl_spirit_ashes,    name='api_sl_spirit_ashes'),
+    path('api/soulslike/crystal-tears/',                api_sl_crystal_tears,   name='api_sl_crystal_tears'),
+    path('api/soulslike/bosses/',                       api_sl_boss_registry,   name='api_sl_boss_registry'),
+    path('api/soulslike/ar-data/',                       api_sl_ar_data,         name='api_sl_ar_data'),
+    path('api/soulslike/weapons/<str:weapon_name>/ar-variants/', api_sl_weapon_ar_variants, name='api_sl_weapon_ar_variants'),
+    path('api/soulslike/err/aow-skills/',     api_sl_err_aow_skills,     name='api_sl_err_aow_skills'),
+    path('api/soulslike/err/curios/',         api_sl_err_curios,         name='api_sl_err_curios'),
+    path('api/soulslike/err/runeforging/',    api_sl_err_runeforging,    name='api_sl_err_runeforging'),
+    path('api/soulslike/err/affinities/',     api_sl_err_affinities,     name='api_sl_err_affinities'),
+    path('api/soulslike/err/crystal-tears/',  api_sl_err_crystal_tears,  name='api_sl_err_crystal_tears'),
+    path('api/soulslike/err/consumables/',    api_sl_err_consumables,    name='api_sl_err_consumables'),
+    path('api/soulslike/err/armor-passives/', api_sl_err_armor_passives, name='api_sl_err_armor_passives'),
+    path('api/soulslike/session/create/',               api_sl_session_create,  name='api_sl_session_create'),
+    path('api/soulslike/session/<str:token>/collect/',  api_sl_collect,         name='api_sl_collect'),
+    path('api/soulslike/session/<str:token>/uncollect/',api_sl_uncollect,       name='api_sl_uncollect'),
+    path('api/soulslike/session/<str:token>/death/',    api_sl_death,           name='api_sl_death'),
+    path('api/soulslike/session/<str:token>/status/',   api_sl_session_status,  name='api_sl_session_status'),
+    path('api/soulslike/session/<str:token>/end/',          api_sl_session_end,    name='api_sl_session_end'),
+    path('api/soulslike/session/<str:token>/reset-deaths/', api_sl_reset_deaths,   name='api_sl_reset_deaths'),
+    path('api/soulslike/session/<str:token>/heartbeat/',   api_sl_heartbeat,      name='api_sl_heartbeat'),
+    path('api/soulslike/session/<str:token>/boss/mark/',     api_sl_boss_mark,      name='api_sl_boss_mark'),
+    path('api/soulslike/session/<str:token>/boss/unmark/',   api_sl_boss_unmark,    name='api_sl_boss_unmark'),
+    path('api/soulslike/session/<str:token>/seed-bosses/',   api_sl_seed_bosses,    name='api_sl_seed_bosses'),
+    path('api/soulslike/session/<str:token>/set-focus/',     api_sl_set_focus,      name='api_sl_set_focus'),
+    path('api/soulslike/session/<str:token>/stream/',        api_sl_stream,         name='api_sl_stream'),
+    path('api/soulslike/session/<str:token>/manual-start/',    api_sl_manual_start,    name='api_sl_manual_start'),
+    path('api/soulslike/session/<str:token>/subtract-death/', api_sl_subtract_death, name='api_sl_subtract_death'),
+    path('api/soulslike/session/<str:token>/hc-complete/',    api_sl_hc_complete,     name='api_sl_hc_complete'),
+    path('api/soulslike/runs/active/',                        api_sl_active_runs,     name='api_sl_active_runs'),
+    path('soulslike/runs/<str:token>/manifest.json',        sl_run_manifest,       name='sl_run_manifest'),
+    path('soulslike/runs/',                             sl_runs,                name='questlog_web_sl_runs'),
+    path('soulslike/runs/<str:token>/',                 sl_run_detail,          name='questlog_web_sl_run_detail'),
+    path('soulslike/overlay/<str:token>/collection/',   sl_overlay_collection,  name='questlog_web_sl_overlay_collection'),
+    path('soulslike/overlay/<str:token>/deaths/',       sl_overlay_deaths,      name='questlog_web_sl_overlay_deaths'),
+    path('soulslike/overlay/<str:token>/mortality/',    sl_overlay_mortality,   name='questlog_web_sl_overlay_mortality'),
+    path('soulslike/overlay/<str:token>/hollow/',       sl_overlay_hollow,      name='questlog_web_sl_overlay_hollow'),
+    path('soulslike/overlay/<str:token>/combined/',     sl_overlay_combined,    name='questlog_web_sl_overlay_combined'),
+    path('soulslike/leaderboards/',                     sl_leaderboards,        name='questlog_web_sl_leaderboards'),
+    path('soulslike/guides/',                           sl_guides,              name='questlog_web_sl_guides'),
+    path('soulslike/guides/new/',                       sl_guide_editor,        name='questlog_web_sl_guide_new'),
+    path('soulslike/guides/<slug:slug>/',               sl_guide_detail,        name='questlog_web_sl_guide_detail'),
+    path('soulslike/guides/<slug:slug>/edit/',          sl_guide_editor,        name='questlog_web_sl_guide_edit'),
+    path('api/soulslike/guides/create/',                api_sl_guide_create,    name='api_sl_guide_create'),
+    path('api/soulslike/guides/<int:guide_id>/edit/',   api_sl_guide_edit,      name='api_sl_guide_edit'),
+    path('api/soulslike/guides/<int:guide_id>/delete/', api_sl_guide_delete,    name='api_sl_guide_delete'),
+    path('api/soulslike/guides/<int:guide_id>/like/',   api_sl_guide_like,      name='api_sl_guide_like'),
+    path('api/soulslike/guides/<int:guide_id>/comments/', api_sl_guide_comment, name='api_sl_guide_comment'),
+    path('api/soulslike/guides/comments/<int:comment_id>/delete/', api_sl_guide_comment_delete, name='api_sl_guide_comment_delete'),
+    path('api/soulslike/leaderboards/',                 api_sl_leaderboards,    name='api_sl_leaderboards'),
+
+    # Tournaments
+    path('api/soulslike/tournaments/',                           api_sl_tournaments,          name='api_sl_tournaments'),
+    path('api/soulslike/tournaments/<int:tournament_id>/',       api_sl_tournament_detail,    name='api_sl_tournament_detail'),
+    path('api/soulslike/tournaments/<int:tournament_id>/join/',  api_sl_tournament_join,      name='api_sl_tournament_join'),
+    path('api/soulslike/tournaments/<int:tournament_id>/leave/', api_sl_tournament_join,      name='api_sl_tournament_leave'),
+    path('api/soulslike/tournaments/<int:tournament_id>/finalize/', api_sl_tournament_finalize, name='api_sl_tournament_finalize'),
+    path('api/soulslike/admin/tournaments/',                       api_sl_admin_tournaments,       name='api_sl_admin_tournaments'),
+    path('api/soulslike/admin/tournaments/<int:tournament_id>/',   api_sl_admin_tournaments,       name='api_sl_admin_tournament_detail'),
+    path('api/soulslike/builds/',                 api_sl_builds,         name='api_sl_builds'),
+    path('api/soulslike/builds/browse/',          api_sl_builds_browse,  name='api_sl_builds_browse'),
+    path('api/soulslike/builds/<int:build_id>/delete/', api_sl_build_delete, name='api_sl_build_delete'),
+    path('api/soulslike/builds/<str:share_token>/', api_sl_build_detail, name='api_sl_build_detail'),
+    path('soulslike/builds/',                     soulslike_builds_browse, name='questlog_web_sl_builds_browse'),
+    path('soulslike/my-builds/',                  sl_my_builds,            name='questlog_web_sl_my_builds'),
     path('api/tracker/download/', api_tracker_download, name='questlog_web_api_tracker_download'),
     path('api/gameservers/status/', api_gameservers_status, name='api_gameservers_status'),
     path('api/gameservers/discover-strip/', api_gameservers_discover_strip, name='api_gameservers_discover_strip'),
+    path('api/discover/steam-widgets/',    api_discover_steam_widgets,     name='api_discover_steam_widgets'),
 
     # Game Library
     path('library/',                              game_library_page,          name='questlog_web_library'),
@@ -719,6 +828,17 @@ urlpatterns = [
     path('api/u/<str:username>/now-playing/', api_user_now_playing, name='questlog_web_api_user_now_playing'),
     path('api/profile/user-prefs/', api_save_user_prefs, name='questlog_web_api_user_prefs'),
     path('api/invite/',             api_invite_link,    name='questlog_web_api_invite'),
+
+    # Listener SSO + API
+    path('listener/auth/',                   listener_auth_page,          name='listener_auth_page'),
+    path('api/listener/auth/exchange/',      api_listener_auth_exchange,  name='api_listener_auth_exchange'),
+    path('api/listener/generate-key/',       api_listener_generate_key,   name='api_listener_generate_key'),
+    path('api/listener/runs/',               api_listener_runs,           name='api_listener_runs'),
+
+    # Desktop app profile + builds (API key auth)
+    path('api/soulslike/desktop/profile/',          api_sl_desktop_profile,         name='api_sl_desktop_profile'),
+    path('api/soulslike/desktop/builds/',           api_sl_builds_desktop,          name='api_sl_builds_desktop'),
+    path('api/soulslike/desktop/session/create/',   api_sl_desktop_session_create,  name='api_sl_desktop_session_create'),
 
     # Embed Validation API
     path('api/embed/validate/', api_validate_embed, name='questlog_web_api_validate_embed'),

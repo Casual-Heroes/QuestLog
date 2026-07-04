@@ -1,0 +1,1047 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}{{ build_name }} | QuestLog{% endblock %}
+
+{% block web_content %}
+<style>
+.stat-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:0.875rem 0.75rem; text-align:center; }
+.stat-value { font-size:1.6rem; font-weight:900; color:#fff; line-height:1.1; }
+.stat-label { font-size:0.58rem; font-weight:700; letter-spacing:0.13em; text-transform:uppercase; color:#4b5563; margin-top:0.2rem; }
+.section-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; overflow:hidden; margin-bottom:0.875rem; }
+.section-header { padding:0.6rem 1rem; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; }
+.section-title { font-size:0.65rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#6b7280; }
+/* Items */
+.item-row { display:flex; align-items:center; gap:0.75rem; padding:0.6rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; }
+.item-row:last-child { border-bottom:none; }
+.item-row.collected { opacity:0.4; }
+.item-check { width:1.5rem; height:1.5rem; border-radius:50%; border:2px solid rgba(255,255,255,0.2); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+.item-check.checked { background:#166534; border-color:#4ade80; }
+.item-type-badge { font-size:0.58rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; padding:0.1rem 0.35rem; border-radius:3px; flex-shrink:0; }
+.type-weapon   { background:rgba(251,146,60,0.15); color:#fb923c; }
+.type-talisman { background:rgba(167,139,250,0.15); color:#a78bfa; }
+.type-spell    { background:rgba(96,165,250,0.15); color:#60a5fa; }
+.type-armor    { background:rgba(156,163,175,0.15); color:#9ca3af; }
+.type-spirit_ash { background:rgba(52,211,153,0.15); color:#34d399; }
+.type-crystal_tear { background:rgba(14,165,233,0.15); color:#38bdf8; }
+.filter-btn { font-size:0.65rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:4px; border:1px solid rgba(255,255,255,0.1); color:#6b7280; cursor:pointer; background:transparent; transition:all 0.15s; }
+.filter-btn:hover,.filter-btn.active { border-color:#d97706; color:#d97706; }
+/* Rage */
+.rage-bar-wrap { height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; }
+.rage-bar-fill { height:100%; border-radius:4px; transition:width 0.5s ease, background 0.4s; }
+.rage-calm    { background:linear-gradient(90deg,#92400e,#c9a84c); }
+.rage-stagger { background:linear-gradient(90deg,#92400e,#f59e0b); }
+.rage-frenzy  { background:linear-gradient(90deg,#c2410c,#f97316); }
+.rage-cursed  { background:linear-gradient(90deg,#991b1b,#ef4444); }
+.rage-hollow  { background:linear-gradient(90deg,#7f1d1d,#dc2626); animation:pulse-rage 0.8s ease-in-out infinite; }
+@keyframes pulse-rage { 0%,100%{opacity:1}50%{opacity:0.6} }
+/* Boss tabs */
+.boss-tab-bar { display:flex; overflow-x:auto; scrollbar-width:none; }
+.boss-tab-bar::-webkit-scrollbar { display:none; }
+.boss-tab { flex-shrink:0; padding:0.55rem 0.9rem; font-size:0.62rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#6b7280; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; transition:all 0.15s; background:none; border-top:none; border-left:none; border-right:none; }
+.boss-tab:hover { color:#d97706; }
+.boss-tab.active { color:#d97706; border-bottom-color:#d97706; }
+.boss-region-header { font-size:0.58rem; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#374151; padding:0.4rem 1rem 0.2rem; background:rgba(0,0,0,0.2); }
+.boss-row { display:flex; align-items:center; gap:0.75rem; padding:0.65rem 1rem; border-bottom:1px solid rgba(255,255,255,0.04); transition:background 0.1s; cursor:pointer; }
+.boss-row:last-child { border-bottom:none; }
+.boss-row.defeated { opacity:0.35; }
+.boss-check { width:1.5rem; height:1.5rem; border-radius:50%; border:2px solid rgba(255,255,255,0.15); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+.boss-check.done { background:#166534; border-color:#4ade80; }
+.boss-check.focusing { background:rgba(153,27,27,0.4); border-color:#ef4444; }
+.boss-row.boss-focusing { background:rgba(153,27,27,0.08); border-left:2px solid #ef4444; }
+.boss-name { flex:1; font-size:0.82rem; font-weight:500; color:#d1d5db; }
+.boss-row.defeated .boss-name { text-decoration:line-through; color:#4b5563; }
+.boss-tier-badge { font-size:0.55rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; padding:0.1rem 0.3rem; border-radius:3px; flex-shrink:0; }
+.tier-enemy        { background:rgba(107,114,128,0.15); color:#6b7280; }
+.tier-great_enemy  { background:rgba(59,130,246,0.15); color:#60a5fa; }
+.tier-legend       { background:rgba(139,92,246,0.15); color:#a78bfa; }
+.tier-demigod      { background:rgba(245,158,11,0.15); color:#f59e0b; }
+.tier-god          { background:rgba(239,68,68,0.15); color:#f87171; }
+.progress-bar-wrap { height:5px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden; }
+.progress-bar-fill { height:100%; background:linear-gradient(90deg,#92400e,#d97706); border-radius:3px; transition:width 0.4s ease; }
+/* Action buttons */
+.btn-die  { flex:1; padding:0.7rem 0.5rem; background:rgba(127,29,29,0.4); border:1px solid #b91c1c; border-radius:10px; color:#fca5a5; font-size:0.9rem; font-weight:900; letter-spacing:0.04em; text-transform:uppercase; cursor:pointer; transition:all 0.1s; touch-action:manipulation; -webkit-tap-highlight-color:transparent; display:flex; align-items:center; justify-content:center; gap:0.4rem; }
+.btn-die:active { background:rgba(153,27,27,0.6); transform:scale(0.98); }
+.btn-sm   { padding:0.7rem 0.75rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#6b7280; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.15s; touch-action:manipulation; display:flex; align-items:center; justify-content:center; gap:0.3rem; }
+.btn-sm:hover { color:#d1d5db; background:rgba(255,255,255,0.07); }
+.btn-sm:active { transform:scale(0.97); }
+.btn-start { width:100%; padding:0.9rem; background:linear-gradient(135deg,#14532d,#166534); border:1.5px solid #22c55e; border-radius:12px; color:#fff; font-size:1rem; font-weight:900; letter-spacing:0.04em; text-transform:uppercase; cursor:pointer; transition:all 0.1s; touch-action:manipulation; display:flex; align-items:center; justify-content:center; gap:0.5rem; }
+.btn-start:active { transform:scale(0.98); }
+</style>
+
+<div class="max-w-2xl mx-auto px-3 py-4">
+
+  <!-- Header -->
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <a href="/soulslike/runs/" class="hover:text-gray-400 transition">My Runs</a>
+    <span>/</span>
+    <span class="text-gray-500 truncate max-w-48">{{ build_name }}</span>
+  </div>
+  <div class="flex items-start justify-between mb-3">
+    <div>
+      <h1 class="text-base font-black text-white flex items-center gap-2">
+        <i class="fas fa-skull text-amber-500"></i>{{ build_name }}
+      </h1>
+      <p class="text-xs text-gray-500 mt-0.5">
+        {% if game == 'err' or game_mode == 'err' %}Elden Ring Reforged{% elif game == 'elden_ring' %}Elden Ring{% else %}{{ game|title }}{% endif %}
+        {% if is_active %}<span class="ml-2 text-green-400 font-semibold"><span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse mr-1"></span>Active</span>{% else %}<span class="ml-2 text-gray-600">Completed</span>{% endif %}
+      </p>
+    </div>
+    {% if is_owner and is_active %}
+    <button onclick="endRun()" class="px-3 py-1.5 text-xs border border-red-800 text-red-500 hover:bg-red-900/30 rounded transition flex-shrink-0">
+      <i class="fas fa-stop mr-1"></i>End Run
+    </button>
+    {% endif %}
+  </div>
+
+  {% if not is_active and summary %}
+  <!-- ── COMPLETED RUN SUMMARY ── -->
+  <div class="space-y-3">
+
+    <!-- HC result banner (completed runs) -->
+    {% if is_hardcore %}
+    <div class="flex items-center gap-3 px-4 py-3 rounded-lg border {% if summary.hc_completed %}bg-green-950/40 border-green-700/50{% else %}bg-red-950/40 border-red-700/50{% endif %}">
+      <i class="fas {% if summary.hc_completed %}fa-trophy text-yellow-400{% else %}fa-skull text-red-500{% endif %} text-xl"></i>
+      <div class="flex-1">
+        <p class="font-black uppercase tracking-wider {% if summary.hc_completed %}text-green-400{% else %}text-red-400{% endif %}">
+          {% if summary.hc_completed %}Hardcore - DEATHLESS CLEAR{% else %}Hardcore - Permadeath{% endif %}
+        </p>
+        <p class="text-[11px] text-gray-500">Final HC Score</p>
+      </div>
+      <div class="text-2xl font-black {% if summary.hc_completed %}text-yellow-400{% else %}text-red-400{% endif %}">{{ summary.hc_score }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Key stats grid -->
+    <div class="grid grid-cols-3 gap-2">
+      <div class="stat-card">
+        <div class="stat-value text-amber-400">{{ summary.deaths }}</div>
+        <div class="stat-label">Deaths</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-sm">{{ summary.session_time }}</div>
+        <div class="stat-label">Session Time</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ summary.deaths_hr }}</div>
+        <div class="stat-label">Deaths / HR</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <div class="stat-card">
+        <div class="stat-value text-sm text-gray-300">{{ summary.longest_life }}</div>
+        <div class="stat-label">Longest Life</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-amber-400">{{ summary.bosses_killed }}<span class="text-gray-600 text-sm font-normal">/{{ summary.bosses_total }}</span></div>
+        <div class="stat-label">Bosses Killed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-red-400">{{ summary.hollow_streak }}</div>
+        <div class="stat-label">Times Hollow</div>
+      </div>
+    </div>
+    {% if summary.items_total > 0 %}
+    <div class="grid grid-cols-2 gap-2">
+      <div class="stat-card">
+        <div class="stat-value text-green-400">{{ summary.items_found }}<span class="text-gray-600 text-sm font-normal">/{{ summary.items_total }}</span></div>
+        <div class="stat-label">Items Collected</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value text-sm">{{ summary.survival_time }}</div>
+        <div class="stat-label">Survival Time</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Death log -->
+    {% if summary.death_log %}
+    <div class="section-card">
+      <div class="section-header">
+        <span class="section-title">Death Log</span>
+        <span class="text-xs text-gray-600">{{ summary.deaths }} total</span>
+      </div>
+      <div style="max-height:280px;overflow-y:auto">
+        {% for d in summary.death_log %}
+        <div class="flex items-center gap-2 px-3 py-2 border-b border-white/5 last:border-0">
+          <i class="fas fa-skull text-red-800 text-[10px] flex-shrink-0"></i>
+          <span class="text-gray-300 text-xs flex-1">{{ d.boss }}</span>
+          <span class="text-gray-600 text-[10px]">survived {{ d.life }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="section-card p-4 text-center text-gray-600 text-xs">No deaths recorded this run.</div>
+    {% endif %}
+
+    <!-- Archive note -->
+    <p class="text-center text-[10px] text-gray-700">
+      Completed runs are archived after 30 days.
+      <a href="/soulslike/runs/" class="text-gray-600 hover:text-gray-400 underline">View all runs</a>
+    </p>
+  </div>
+  {% else %}
+
+  <!-- HC Mode Banner -->
+  {% if is_hardcore %}
+  <div id="hc-banner" class="mb-3 flex items-center gap-3 px-3 py-2.5 bg-red-950/40 border border-red-700/50 rounded-lg">
+    <i class="fas fa-fire text-red-500 text-base animate-pulse"></i>
+    <div class="flex-1">
+      <p class="text-red-400 font-bold text-sm uppercase tracking-wider">Hardcore Mode - One Life</p>
+      <p class="text-[10px] text-red-600">Death ends this run permanently. No resets.</p>
+    </div>
+    <div class="text-right">
+      <div class="text-xl font-black text-red-400" id="hc-score-display">{{ hc_score }}</div>
+      <div class="text-[10px] text-gray-600 uppercase">HC Points</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Status bar: Start Session shown by default, listener poll overrides -->
+  {% if is_owner and is_active %}
+  <div class="mb-3">
+    <!-- Start Session - shown until listener connects OR user taps it -->
+    <button id="start-session-btn" onclick="startManualSession()" class="btn-start">
+      <i class="fas fa-play"></i>
+      Start Session
+      <span class="text-xs font-normal text-green-300 ml-1">- tap when your game starts</span>
+    </button>
+    <!-- Listener / manual status - shown after listener connects or session starts -->
+    <div id="listener-status-bar" class="hidden flex items-center gap-2 text-xs px-3 py-2 rounded-lg border bg-neutral-800/60 border-neutral-700">
+      <span id="listener-dot" class="inline-block w-2 h-2 rounded-full bg-gray-600 flex-shrink-0"></span>
+      <span id="listener-label" class="text-gray-500 flex-1">Checking...</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Hotkey hint -->
+  {% if is_owner and is_active %}
+  <div class="mb-2 text-center text-[10px] text-gray-700">
+    <kbd class="bg-neutral-800 border border-neutral-700 rounded px-1.5 text-amber-600">F9</kbd> Log Death
+    <span class="mx-1.5">-</span>
+    <kbd class="bg-neutral-800 border border-neutral-700 rounded px-1.5 text-amber-600">F10</kbd> Undo
+    <span class="mx-1.5">-</span>
+    <kbd class="bg-neutral-800 border border-neutral-700 rounded px-1.5 text-amber-600">F8</kbd> Reset
+  </div>
+  {% endif %}
+
+  <!-- Currently Fighting -->
+  {% if is_owner and is_active %}
+  <div id="currently-fighting" class="hidden mb-3 flex items-center gap-2 px-3 py-2 bg-red-900/20 border border-red-800/40 rounded-lg">
+    <i class="fas fa-crosshairs text-red-400 text-xs animate-pulse flex-shrink-0"></i>
+    <span class="text-white text-xs font-bold flex-1" id="fighting-boss-name"></span>
+    <button onclick="clearFocus()" class="text-gray-600 hover:text-gray-400 text-xs"><i class="fas fa-times"></i></button>
+  </div>
+  {% endif %}
+
+  <!-- ── Stats: same for everyone ── -->
+  <div class="grid grid-cols-3 gap-2 mb-2">
+    <div class="stat-card">
+      <div class="stat-value text-amber-400" id="stat-deaths">0</div>
+      <div class="stat-label">Deaths</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-sm" id="stat-surv-time">00:00:00</div>
+      <div class="stat-label">Current Streak</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-death-rate">0.0</div>
+      <div class="stat-label">Deaths / HR</div>
+    </div>
+  </div>
+  <div class="grid grid-cols-3 gap-2 mb-3">
+    <div class="stat-card">
+      <div class="stat-value text-sm" id="stat-session-time">00:00:00</div>
+      <div class="stat-label">Session Time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-sm text-gray-400" id="stat-longest">00:00:00</div>
+      <div class="stat-label">Longest Life</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-green-400 text-sm" id="stat-collected">-</div>
+      <div class="stat-label">Items Found</div>
+    </div>
+  </div>
+
+  <!-- ── Action buttons: same for everyone ── -->
+  {% if is_owner and is_active %}
+  <div class="flex gap-2 mb-3 flex-wrap" id="action-btns" style="display:none">
+    {% if not is_hardcore %}
+    <button onclick="showDeathPicker()" class="btn-die">
+      <i class="fas fa-skull"></i> Log Death
+    </button>
+    <button onclick="undoLastDeath()" class="btn-sm" title="Undo last death (F10)">
+      <i class="fas fa-undo"></i> Undo
+    </button>
+    <button onclick="resetDeaths()" class="btn-sm" title="Reset session">
+      <i class="fas fa-rotate-right"></i> Reset
+    </button>
+    {% else %}
+    <button onclick="logHcDeath()" class="btn-die bg-red-900 hover:bg-red-800">
+      <i class="fas fa-skull"></i> PERMADEATH
+    </button>
+    <button onclick="completeHcRun()" id="hc-complete-btn" class="btn-sm bg-green-800 hover:bg-green-700 text-green-200" title="Mark run as completed (all bosses defeated, 0 deaths)">
+      <i class="fas fa-trophy"></i> HC Complete
+    </button>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ── Rage bar ── -->
+  <div class="section-card p-3 mb-3">
+    <div class="flex items-center justify-between mb-2">
+      <span class="section-title">Tarnished Fury</span>
+      <div class="flex items-center gap-2">
+        <span id="hollow-banner" class="hidden text-[10px] font-bold text-red-400 animate-pulse uppercase tracking-widest">Gone Hollow <span id="hollow-streak-badge"></span></span>
+        <span class="text-sm font-black" id="rage-name-display">Maiden's Grace</span>
+      </div>
+    </div>
+    <div class="rage-bar-wrap">
+      <div class="rage-bar-fill rage-calm" id="rage-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- ── Boss progress ── -->
+  <div class="section-card p-3 mb-3">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="section-title">Boss Progress</span>
+      <span class="text-amber-400 text-xs font-bold" id="boss-progress-label">0 / 0</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="boss-progress-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- ── Boss tracker ── -->
+  <div class="section-card mb-3">
+    <div class="flex items-center border-b border-white/6">
+      <button onclick="scrollTabs(-1)" class="flex-shrink-0 px-2 py-2.5 text-gray-600 hover:text-gray-300 transition text-xs"><i class="fas fa-chevron-left"></i></button>
+      <div class="boss-tab-bar flex-1" id="boss-tab-bar"></div>
+      <button onclick="scrollTabs(1)" class="flex-shrink-0 px-2 py-2.5 text-gray-600 hover:text-gray-300 transition text-xs"><i class="fas fa-chevron-right"></i></button>
+    </div>
+    <div class="px-3 pt-2 pb-1.5">
+      <input type="text" id="boss-search" placeholder="Search bosses..."
+             class="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-xs text-white placeholder-neutral-600 focus:border-amber-600 focus:outline-none"
+             oninput="filterBosses(this.value)">
+    </div>
+    <div id="boss-list" style="max-height:300px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#374151 transparent"></div>
+  </div>
+
+  <!-- ── Items to collect ── -->
+  <div class="section-card mb-3" id="items-section" style="display:none">
+    <div class="section-header">
+      <span class="section-title">Items to Collect</span>
+      <div class="flex gap-1.5">
+        <button class="filter-btn active" data-filter="all" onclick="filterItems('all')">All</button>
+        <button class="filter-btn" data-filter="pending" onclick="filterItems('pending')">Remaining</button>
+        <button class="filter-btn" data-filter="collected" onclick="filterItems('collected')">Collected</button>
+      </div>
+    </div>
+    <div id="item-list"></div>
+  </div>
+
+  <!-- ── Death log ── -->
+  <div class="section-card mb-3">
+    <div class="section-header">
+      <span class="section-title">Death Log</span>
+      <span class="text-xs text-gray-600" id="last-death-text"></span>
+    </div>
+    <div id="death-log" class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>
+  </div>
+
+  <!-- ── Streaming Overlays ── -->
+  <details class="section-card mb-3">
+    <summary class="section-header cursor-pointer list-none">
+      <div class="flex items-center justify-between w-full">
+        <span class="section-title"><i class="fas fa-tv mr-1.5"></i>Streaming Overlays (OBS / Meld)</span>
+        <i class="fas fa-chevron-down text-gray-600 text-xs"></i>
+      </div>
+    </summary>
+    <div class="p-3 space-y-1.5">
+      <p class="text-[10px] text-gray-600 mb-2">Copy URL - add as Browser Source in OBS or Meld. Base: <span class="text-gray-500">questlog.casual-heroes.com</span></p>
+      <div class="flex items-center gap-2 bg-amber-900/10 border border-amber-700/20 rounded px-3 py-2">
+        <i class="fas fa-star text-amber-500 text-[10px] flex-shrink-0"></i>
+        <span class="text-[10px] text-amber-400 font-bold w-20 flex-shrink-0">Combined</span>
+        <code class="text-amber-300 text-[10px] flex-1 truncate">/soulslike/overlay/{{ token }}/combined/</code>
+        <button onclick="copyUrl('/soulslike/overlay/{{ token }}/combined/')" class="text-gray-600 hover:text-white text-xs flex-shrink-0"><i class="fas fa-copy"></i></button>
+      </div>
+      <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+        <span class="text-[10px] text-gray-500 w-20 flex-shrink-0">Hollow Alert</span>
+        <code class="text-red-300 text-[10px] flex-1 truncate">/soulslike/overlay/{{ token }}/hollow/</code>
+        <button onclick="copyUrl('/soulslike/overlay/{{ token }}/hollow/')" class="text-gray-600 hover:text-white text-xs flex-shrink-0"><i class="fas fa-copy"></i></button>
+      </div>
+      <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+        <span class="text-[10px] text-gray-500 w-20 flex-shrink-0">Deaths Only</span>
+        <code class="text-red-300 text-[10px] flex-1 truncate">/soulslike/overlay/{{ token }}/deaths/</code>
+        <button onclick="copyUrl('/soulslike/overlay/{{ token }}/deaths/')" class="text-gray-600 hover:text-white text-xs flex-shrink-0"><i class="fas fa-copy"></i></button>
+      </div>
+      <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+        <span class="text-[10px] text-gray-500 w-20 flex-shrink-0">Mortality</span>
+        <code class="text-amber-300 text-[10px] flex-1 truncate">/soulslike/overlay/{{ token }}/mortality/</code>
+        <button onclick="copyUrl('/soulslike/overlay/{{ token }}/mortality/')" class="text-gray-600 hover:text-white text-xs flex-shrink-0"><i class="fas fa-copy"></i></button>
+      </div>
+      <div class="flex items-center gap-2 bg-neutral-900 rounded px-3 py-1.5">
+        <span class="text-[10px] text-gray-500 w-20 flex-shrink-0">Items</span>
+        <code class="text-green-300 text-[10px] flex-1 truncate">/soulslike/overlay/{{ token }}/collection/</code>
+        <button onclick="copyUrl('/soulslike/overlay/{{ token }}/collection/')" class="text-gray-600 hover:text-white text-xs flex-shrink-0"><i class="fas fa-copy"></i></button>
+      </div>
+    </div>
+  </details>
+
+</div><!-- /max-w -->
+
+<!-- ── Death picker modal ── -->
+<div id="death-picker-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center bg-black/60 pb-2">
+  <div class="bg-neutral-900 border border-red-900/50 rounded-2xl w-full max-w-lg mx-3 p-4 pb-6">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm font-bold text-red-400"><i class="fas fa-skull mr-2"></i>Where did you die?</span>
+      <button onclick="closeDeathPicker()" class="text-gray-600 hover:text-white text-lg leading-none">&times;</button>
+    </div>
+    <div id="death-picker-focused" class="hidden mb-2 p-3 bg-red-900/20 border border-red-800/30 rounded-xl flex items-center justify-between gap-3">
+      <span class="text-sm text-red-300 font-bold flex-1" id="death-picker-focused-name"></span>
+      <button onclick="submitDeath(document.getElementById('death-picker-focused-name').textContent)"
+              class="px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition flex-shrink-0">
+        <i class="fas fa-skull mr-1"></i>Died here
+      </button>
+    </div>
+    <input type="text" id="death-boss-search" placeholder="Search boss name..."
+           class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-3 text-sm text-white placeholder-neutral-600 focus:border-red-600 focus:outline-none mb-2"
+           oninput="filterDeathBosses(this.value)">
+    <div id="death-boss-list" class="max-h-52 overflow-y-auto space-y-0.5 mb-3"></div>
+    <button onclick="submitDeath('')"
+            class="w-full py-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-400 text-sm font-bold rounded-xl transition">
+      <i class="fas fa-question mr-1"></i>Unknown / No specific boss
+    </button>
+  </div>
+</div>
+
+<link rel="manifest" href="/soulslike/runs/{{ token }}/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="{{ build_name|truncatechars:20 }}">
+<meta name="theme-color" content="#d97706">
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw-soulslike.js', {scope: '/'})
+    .catch(function(e) { console.log('SW reg failed:', e); });
+}
+</script>
+
+<script>
+var TOKEN       = '{{ token|escapejs }}';
+var IS_ACTIVE   = {% if is_active %}true{% else %}false{% endif %};
+var IS_OWNER    = {% if is_owner %}true{% else %}false{% endif %};
+var GAME        = '{{ game|escapejs }}' || 'elden_ring';
+var GAME_MODE   = '{{ game_mode|escapejs }}' || 'vanilla';
+var TIMING_MODE = '{{ timing_mode|escapejs }}';
+var IS_HARDCORE = {% if is_hardcore %}true{% else %}false{% endif %};
+
+var allItems         = [];
+var allBosses        = {};
+var bossData         = {};
+var activeBossTab    = '';
+var bossSearch       = '';
+var currentFilter    = 'all';
+var currentFocusBoss = '';
+
+// Manual timing state
+var manualTimerStart    = null;
+var manualSessionRunning = false;
+var manualSessionSec    = 0;
+var manualStreakSec     = 0;
+var lastDeathTime       = null;
+
+var RAGE_CLASSES = {
+  "Maiden's Grace":'rage-calm','Staggered':'rage-stagger',
+  'Frenzied':'rage-frenzy','Cursed':'rage-cursed','HOLLOW':'rage-hollow'
+};
+
+function getCsrf() {
+  var c = document.cookie.split(';');
+  for (var i=0;i<c.length;i++){ var p=c[i].trim(); if(p.startsWith('csrftoken=')) return p.slice(10); }
+  return '';
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtSecs(s) {
+  s=parseInt(s)||0; var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  if(h>0) return h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
+  return (m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
+}
+
+// ── Manual timing ────────────────────────────────────────────────────────────
+function startManualSession() {
+  manualTimerStart     = Date.now();
+  lastDeathTime        = Date.now();
+  manualSessionRunning = true;
+
+  // Swap Start button for status bar, show action buttons
+  var startBtn = document.getElementById('start-session-btn');
+  var statusBar = document.getElementById('listener-status-bar');
+  var actionBtns = document.getElementById('action-btns');
+  if (startBtn)    startBtn.style.display    = 'none';
+  if (statusBar)   statusBar.classList.remove('hidden');
+  if (actionBtns)  actionBtns.style.display  = '';
+
+  // Tell server
+  fetch('/api/soulslike/session/'+TOKEN+'/manual-start/', {
+    method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({started_at: Math.floor(Date.now()/1000)}),
+  }).catch(function(){});
+
+  // Start local tick
+  setInterval(function() {
+    if (!manualSessionRunning) return;
+    var now = Date.now();
+    manualSessionSec = Math.floor((now - manualTimerStart) / 1000);
+    manualStreakSec  = lastDeathTime ? Math.floor((now - lastDeathTime) / 1000) : manualSessionSec;
+    var ss = document.getElementById('stat-session-time');
+    var sk = document.getElementById('stat-surv-time');
+    if (ss) ss.textContent = fmtSecs(manualSessionSec);
+    if (sk) sk.textContent = fmtSecs(manualStreakSec);
+  }, 1000);
+}
+
+// ── Status polling ────────────────────────────────────────────────────────────
+function loadStatus() {
+  fetch('/api/soulslike/session/'+TOKEN+'/status/')
+    .then(function(r){return r.json();})
+    .then(function(d) {
+      if (!d || d.error) return;
+      var deaths = d.deaths || 0;
+
+      document.getElementById('stat-deaths').textContent     = deaths;
+      document.getElementById('stat-death-rate').textContent = (d.true_death_rate||0).toFixed(1);
+      document.getElementById('stat-longest').textContent    = d.longest_life_fmt || '00:00:00';
+
+      // HC score update
+      if (IS_HARDCORE) {
+        var hcEl = document.getElementById('hc-score-display');
+        if (hcEl) hcEl.textContent = d.hc_score || 0;
+        // If HC run ended via permadeath, reload to show summary
+        if (!d.is_active && IS_ACTIVE) { IS_ACTIVE = false; location.reload(); }
+      }
+
+      // Timing - listener mode updates from server; manual mode uses local JS timer
+      if (TIMING_MODE !== 'manual') {
+        document.getElementById('stat-session-time').textContent = d.session_time_fmt  || '00:00:00';
+        document.getElementById('stat-surv-time').textContent    = d.survival_time_fmt || '00:00:00';
+      }
+
+      // Items
+      if ((d.total||0) > 0) {
+        var sec = document.getElementById('items-section');
+        if (sec) sec.style.display = '';
+        allItems = d.items || [];
+        renderItems();
+        var cel = document.getElementById('stat-collected');
+        if (cel) cel.textContent = (d.collected||0)+'/'+d.total;
+      }
+
+      // Rage
+      var ragePct  = d.rage_pct || 0;
+      var rageName = d.rage_name || "Maiden's Grace";
+      var bar = document.getElementById('rage-bar');
+      var rnd = document.getElementById('rage-name-display');
+      if (bar) { bar.className = 'rage-bar-fill '+(RAGE_CLASSES[rageName]||'rage-calm'); bar.style.width = Math.min(100,ragePct)+'%'; }
+      var rColor = ragePct>=100?'#dc2626':ragePct>=75?'#ef4444':ragePct>=50?'#f97316':ragePct>=25?'#f59e0b':'#c9a84c';
+      if (rnd) { rnd.textContent = rageName; rnd.style.color = rColor; }
+
+      // Hollow
+      var hb = document.getElementById('hollow-banner');
+      if (d.is_hollow) {
+        if (hb) hb.classList.remove('hidden');
+        var sb = document.getElementById('hollow-streak-badge');
+        if (sb) sb.textContent = d.hollow_streak>0?'x'+(d.hollow_streak+1):'';
+      } else {
+        if (hb) hb.classList.add('hidden');
+      }
+
+      // Boss progress
+      if (d.bosses_total > 0) {
+        var bPct = Math.round(d.bosses_defeated/d.bosses_total*100);
+        var bpl = document.getElementById('boss-progress-label');
+        var bpb = document.getElementById('boss-progress-bar');
+        if (bpl) bpl.textContent = d.bosses_defeated+' / '+d.bosses_total;
+        if (bpb) bpb.style.width = bPct+'%';
+        (d.bosses||[]).forEach(function(b){ bossData[b.key]=b.defeated; });
+        renderBossTab(activeBossTab);
+      }
+
+      // Death log
+      var dl = d.recent_deaths || [];
+      var logEl = document.getElementById('death-log');
+      if (logEl) {
+        if (dl.length) {
+          logEl.innerHTML = dl.map(function(dd){
+            var boss = dd.boss || (d.last_attempted_boss || null);
+            return '<div class="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 last:border-0">'+
+              '<i class="fas fa-skull text-red-500 text-[10px]"></i>'+
+              (boss?'<span class="text-gray-300 text-xs font-medium">'+esc(boss)+'</span>':'<span class="text-gray-600 text-xs italic">No boss tracked</span>')+
+              (dd.life?'<span class="text-gray-700 text-[10px] ml-auto">survived '+fmtSecs(dd.life)+'</span>':'')+
+              '</div>';
+          }).join('');
+        } else {
+          logEl.innerHTML = '<div class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>';
+        }
+      }
+      var ldt = document.getElementById('last-death-text');
+      if (ldt && d.last_death) ldt.textContent = 'Last: '+d.last_death;
+
+      // Listener status + Start Session visibility
+      updateListenerBar(d);
+
+      // Restore/sync focus from server (handles page refresh + SSE reconnect)
+      if (d.last_attempted_boss !== undefined) {
+        if (d.last_attempted_boss && d.last_attempted_boss !== currentFocusBoss) {
+          applyFocus(d.last_attempted_boss, true);
+        } else if (!d.last_attempted_boss && currentFocusBoss) {
+          applyFocus('', false);
+        }
+        _focusRestored = true;
+      }
+    }).catch(function(){});
+}
+var _focusRestored = false;
+
+function updateListenerBar(d) {
+  var dot       = document.getElementById('listener-dot');
+  var label     = document.getElementById('listener-label');
+  var bar       = document.getElementById('listener-status-bar');
+  var startBtn  = document.getElementById('start-session-btn');
+  var actionBtns= document.getElementById('action-btns');
+  if (!bar) return;
+
+  if (d.listener_connected) {
+    // Listener is connected - hide Start Session, show action buttons
+    if (startBtn)   startBtn.style.display  = 'none';
+    if (actionBtns) actionBtns.style.display = '';
+    bar.classList.remove('hidden');
+
+    if (d.listener_game_running) {
+      bar.className = 'flex items-center gap-2 text-xs px-3 py-2 rounded-lg border bg-green-900/20 border-green-800/40';
+      if (dot)   dot.className = 'inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0';
+      if (label) { label.textContent = 'Listener connected - game running - timers active'; label.className = 'text-green-400 flex-1'; }
+    } else if (d.listener_in_grace) {
+      var mins = Math.ceil(d.grace_remaining_sec/60);
+      bar.className = 'flex items-center gap-2 text-xs px-3 py-2 rounded-lg border bg-orange-900/20 border-orange-800/40';
+      if (dot)   dot.className = 'inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse flex-shrink-0';
+      if (label) { label.textContent = 'Game closed - timers paused. Resets in '+mins+' min.'; label.className = 'text-orange-400 flex-1'; }
+    } else {
+      bar.className = 'flex items-center gap-2 text-xs px-3 py-2 rounded-lg border bg-amber-900/20 border-amber-800/40';
+      if (dot)   dot.className = 'inline-block w-2 h-2 rounded-full bg-amber-400 flex-shrink-0';
+      if (label) { label.textContent = 'Listener connected - waiting for game to launch...'; label.className = 'text-amber-400 flex-1'; }
+    }
+  } else {
+    // No listener - show Start Session (if not already started manually)
+    if (startBtn && !manualSessionRunning) startBtn.style.display = '';
+    if (actionBtns && !manualSessionRunning) actionBtns.style.display = 'none';
+    // If manual session already running, keep action buttons visible
+    if (manualSessionRunning) {
+      if (startBtn)   startBtn.style.display  = 'none';
+      if (actionBtns) actionBtns.style.display = '';
+      bar.classList.remove('hidden');
+      bar.className = 'flex items-center gap-2 text-xs px-3 py-2 rounded-lg border bg-blue-900/20 border-blue-800/40';
+      if (dot)   dot.className = 'inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0';
+      if (label) { label.textContent = 'Session running - manual mode'; label.className = 'text-blue-400 flex-1'; }
+    } else {
+      bar.classList.add('hidden');
+    }
+  }
+}
+
+// ── Boss registry ─────────────────────────────────────────────────────────────
+function loadBossRegistry() {
+  var bossGame = 'elden_ring';
+  var bossMode = (GAME === 'err') ? 'err' : (GAME_MODE || 'vanilla');
+  fetch('/api/soulslike/bosses/?game='+bossGame+'&mode='+bossMode)
+    .then(function(r){return r.json();})
+    .then(function(d) {
+      allBosses = {};
+      (d.bosses||[]).forEach(function(b){
+        if(!allBosses[b.region]) allBosses[b.region]=[];
+        allBosses[b.region].push(b);
+      });
+      renderBossTabs();
+      // Re-render now that bosses are loaded - focus state may already be set
+      if (currentFocusBoss) renderBossTab(activeBossTab);
+      if (IS_ACTIVE && d.bosses && d.bosses.length > 0) {
+        fetch('/api/soulslike/session/'+TOKEN+'/seed-bosses/',{
+          method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+        }).catch(function(){});
+      }
+    }).catch(function(){});
+}
+
+function scrollTabs(dir) {
+  var bar = document.getElementById('boss-tab-bar');
+  if (bar) bar.scrollBy({left:dir*160,behavior:'smooth'});
+}
+
+function renderBossTabs() {
+  var regions = Object.keys(allBosses);
+  if (!regions.length) return;
+  var tabBar = document.getElementById('boss-tab-bar');
+  tabBar.innerHTML = regions.map(function(r){
+    return '<button class="boss-tab" data-region="'+esc(r)+'" onclick="switchBossTab(this)">'+esc(r)+'</button>';
+  }).join('');
+  var first = tabBar.querySelector('.boss-tab');
+  if (first) { first.classList.add('active'); activeBossTab = first.dataset.region; }
+  renderBossTab(activeBossTab);
+}
+
+function switchBossTab(btn) {
+  document.querySelectorAll('.boss-tab').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  activeBossTab = btn.dataset.region;
+  bossSearch = '';
+  var bs = document.getElementById('boss-search');
+  if (bs) bs.value = '';
+  renderBossTab(activeBossTab);
+}
+
+function filterBosses(q) {
+  bossSearch = q;
+  if (q) {
+    document.querySelectorAll('.boss-tab').forEach(function(b){b.classList.remove('active');});
+    renderBossTab('__all__');
+  } else {
+    document.querySelectorAll('.boss-tab[data-region="'+activeBossTab+'"]').forEach(function(b){b.classList.add('active');});
+    renderBossTab(activeBossTab);
+  }
+}
+
+function renderBossTab(region) {
+  var list = document.getElementById('boss-list');
+  if (!list) return;
+  var bosses = [];
+  if (!region || region === '__all__' || bossSearch) {
+    Object.values(allBosses).forEach(function(arr){ bosses = bosses.concat(arr); });
+  } else {
+    bosses = allBosses[region] || [];
+  }
+  var q = bossSearch.toLowerCase();
+  if (q) bosses = bosses.filter(function(b){ return b.name.toLowerCase().includes(q)||b.region.toLowerCase().includes(q); });
+  if (!bosses.length) { list.innerHTML='<div class="text-gray-600 text-xs text-center py-6">No bosses found</div>'; return; }
+  var groupKey = (region === '__all__' || bossSearch) ? 'region' : 'location';
+  var byGroup={};
+  bosses.forEach(function(b){ if(!byGroup[b[groupKey]])byGroup[b[groupKey]]=[]; byGroup[b[groupKey]].push(b); });
+  var html='';
+  Object.keys(byGroup).forEach(function(grp){
+    html+='<div class="boss-region-header">'+esc(grp)+'</div>';
+    byGroup[grp].forEach(function(b){
+      var defeated=bossData[b.key]||false;
+      var focused=!defeated&&currentFocusBoss===b.name;
+      var state=defeated?'defeated':(focused?'focusing':'');
+      var rowCls='boss-row'+(defeated?' defeated':'')+(focused?' boss-focusing':'');
+      var chkCls='boss-check'+(defeated?' done':(focused?' focusing':''));
+      var icon=defeated?'<i class="fas fa-check text-green-400" style="font-size:9px"></i>'
+        :(focused?'<i class="fas fa-skull text-red-400" style="font-size:9px"></i>':'');
+      html+='<div class="'+rowCls+'" onclick="tapBoss(\''+esc(b.key)+'\',\''+esc(b.name)+'\',\''+state+'\')">'+
+        '<div class="'+chkCls+'">'+icon+'</div>'+
+        '<div class="boss-name">'+esc(b.name)+'</div>'+
+        '<span class="boss-tier-badge tier-'+b.tier+'">'+esc(b.tier.replace('_',' '))+'</span>'+
+        '</div>';
+    });
+  });
+  list.innerHTML = html;
+}
+
+// ── Boss focus ────────────────────────────────────────────────────────────────
+function applyFocus(bossName, fighting) {
+  // Update currentFocusBoss and banner
+  if (fighting && bossName) {
+    currentFocusBoss = bossName;
+    var cf = document.getElementById('currently-fighting');
+    var fn = document.getElementById('fighting-boss-name');
+    if (cf) cf.classList.remove('hidden');
+    if (fn) fn.textContent = bossName;
+  } else if (!bossName) {
+    currentFocusBoss = '';
+    var cf = document.getElementById('currently-fighting');
+    if (cf) cf.classList.add('hidden');
+  }
+  // Re-render boss list so the red highlight appears on the right row
+  // Only renders if allBosses is loaded - if not, loadBossRegistry() will re-render on complete
+  if (Object.keys(allBosses).length > 0) renderBossTab(activeBossTab);
+}
+
+function setFocus(bossName) {
+  if (!IS_ACTIVE||!IS_OWNER) return;
+  applyFocus(bossName, true);
+  fetch('/api/soulslike/session/'+TOKEN+'/set-focus/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({boss_name:bossName}),
+  }).catch(function(){});
+}
+function clearFocus() {
+  applyFocus('', false);
+  fetch('/api/soulslike/session/'+TOKEN+'/set-focus/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({boss_name:''}),
+  }).catch(function(){});
+}
+function tapBoss(key,name,state) {
+  if (!IS_ACTIVE||!IS_OWNER) return;
+  if (state==='') { setFocus(name); }
+  else if (state==='focusing') {
+    fetch('/api/soulslike/session/'+TOKEN+'/boss/mark/',{
+      method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({boss_key:key}),
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.ok){ bossData[key]=true; clearFocus(); renderBossTab(activeBossTab); }
+    }).catch(function(){});
+  } else if (state==='defeated') {
+    fetch('/api/soulslike/session/'+TOKEN+'/boss/unmark/',{
+      method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+      body:JSON.stringify({boss_key:key}),
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.ok){ bossData[key]=false; renderBossTab(activeBossTab); }
+    }).catch(function(){});
+  }
+}
+
+// ── Items ─────────────────────────────────────────────────────────────────────
+function renderItems() {
+  var list=document.getElementById('item-list');
+  if(!list) return;
+  var items=allItems;
+  if(currentFilter==='pending')   items=items.filter(function(i){return !i.collected;});
+  if(currentFilter==='collected') items=items.filter(function(i){return i.collected;});
+  if(!items.length){list.innerHTML='<div class="text-gray-600 text-xs text-center py-6">'+(currentFilter==='collected'?'Nothing collected yet.':'All done!')+'</div>';return;}
+  list.innerHTML=items.map(function(item){
+    var cls=item.collected?' collected':'';
+    var chk=item.collected?' checked':'';
+    return '<div class="item-row'+cls+'">'+
+      '<div class="item-check'+chk+'" data-name="'+esc(item.name)+'" data-collected="'+(item.collected?'1':'0')+'" onclick="toggleItemEl(this)">'+
+      (item.collected?'<i class="fas fa-check text-green-400" style="font-size:10px"></i>':'')+
+      '</div>'+
+      '<span class="item-type-badge type-'+item.type+'">'+esc(item.type)+'</span>'+
+      '<div class="flex-1 min-w-0">'+
+        '<div class="text-sm '+(item.collected?'line-through text-gray-600':'text-white')+'">'+esc(item.name)+'</div>'+
+        (item.hint?'<div class="text-xs text-gray-600 mt-0.5">'+esc(item.hint)+'</div>':'')+
+      '</div></div>';
+  }).join('');
+}
+function filterItems(f){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.toggle('active',b.dataset.filter===f);});
+  renderItems();
+}
+function toggleItemEl(el){
+  if(!IS_ACTIVE) return;
+  var name=el.getAttribute('data-name');
+  var col=el.getAttribute('data-collected')==='1';
+  fetch('/api/soulslike/session/'+TOKEN+'/'+(col?'uncollect':'collect')+'/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({item_name:name}),
+  }).then(function(){loadStatus();}).catch(function(){});
+}
+
+// ── Death picker ──────────────────────────────────────────────────────────────
+function showDeathPicker() {
+  var focusedEl=document.getElementById('death-picker-focused');
+  var focusedName=document.getElementById('death-picker-focused-name');
+  if(currentFocusBoss){ focusedEl.classList.remove('hidden'); focusedName.textContent=currentFocusBoss; }
+  else { focusedEl.classList.add('hidden'); }
+  filterDeathBosses('');
+  document.getElementById('death-boss-search').value='';
+  document.getElementById('death-picker-modal').classList.remove('hidden');
+  setTimeout(function(){ document.getElementById('death-boss-search').focus(); },100);
+}
+function closeDeathPicker(){ document.getElementById('death-picker-modal').classList.add('hidden'); }
+function filterDeathBosses(q){
+  var list=document.getElementById('death-boss-list');
+  var allB=Object.values(allBosses).flat();
+  var source=q?allB.filter(function(b){return b.name.toLowerCase().includes(q.toLowerCase());})
+              :(allBosses[activeBossTab]||allB).slice(0,12);
+  source=source.filter(function(b){return !bossData[b.key];}).slice(0,15);
+  if(!source.length){list.innerHTML='<div class="text-gray-600 text-xs text-center py-3">No bosses found</div>';return;}
+  list.innerHTML=source.map(function(b){
+    return '<button onclick="submitDeath(\''+esc(b.name)+'\')" class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-left hover:bg-red-900/20 hover:text-red-300 text-gray-400 transition">'+
+      '<i class="fas fa-skull text-red-800 text-[10px] w-3"></i>'+
+      '<span class="flex-1">'+esc(b.name)+'</span>'+
+      '<span class="boss-tier-badge tier-'+b.tier+'">'+esc(b.tier.replace('_',' '))+'</span>'+
+      '</button>';
+  }).join('');
+}
+function submitDeath(boss){
+  closeDeathPicker();
+  if (TIMING_MODE==='manual' && manualSessionRunning) lastDeathTime = Date.now();
+  fetch('/api/soulslike/session/'+TOKEN+'/death/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({boss:boss,source:'manual'}),
+  }).then(function(){loadStatus();}).catch(function(){});
+}
+function undoLastDeath(){
+  fetch('/api/soulslike/session/'+TOKEN+'/subtract-death/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({}),
+  }).then(function(){loadStatus();}).catch(function(){});
+}
+function resetDeaths(){
+  if(!confirm('Reset deaths and session stats to 0?')) return;
+  if(TIMING_MODE==='manual'){
+    manualSessionRunning=false; manualTimerStart=null; lastDeathTime=null;
+    manualSessionSec=0; manualStreakSec=0;
+    // Show Start Session again
+    var sb=document.getElementById('start-session-btn');
+    var sl=document.getElementById('listener-status-bar');
+    var ab=document.getElementById('action-btns');
+    if(sb){ sb.style.display=''; }
+    if(sl){ sl.classList.add('hidden'); }
+    if(ab){ ab.style.display='none'; }
+    document.getElementById('stat-session-time').textContent='00:00:00';
+    document.getElementById('stat-surv-time').textContent='00:00:00';
+  }
+  fetch('/api/soulslike/session/'+TOKEN+'/reset-deaths/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+  }).then(function(){
+    ['stat-deaths','stat-death-rate','stat-longest'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.textContent=id.includes('rate')?'0.0':'0';
+    });
+    document.getElementById('death-log').innerHTML='<div class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>';
+    loadStatus();
+  }).catch(function(){});
+}
+function endRun(){
+  if(!confirm('End this run?')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/end/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+  }).then(function(){window.location.reload();}).catch(function(){});
+}
+function copyUrl(path){
+  navigator.clipboard.writeText('https://questlog.casual-heroes.com'+path).catch(function(){});
+}
+
+// ── Hardcore Mode ────────────────────────────────────────────────────────────
+function logHcDeath(){
+  if(!confirm('PERMADEATH - This will end your hardcore run permanently. Are you sure?')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/death/',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body: JSON.stringify({boss:'', area:''})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.hc_death){
+      var banner = document.getElementById('hc-banner');
+      if(banner){
+        banner.innerHTML = '<i class="fas fa-skull text-red-500 text-xl"></i><div class="flex-1"><p class="text-red-400 font-black text-base uppercase tracking-wider">Run Ended - Permadeath</p><p class="text-[11px] text-red-600">Final HC Score: '+(d.hc_score||0)+' pts</p></div>';
+      }
+      setTimeout(function(){ location.reload(); }, 2000);
+    }
+  }).catch(function(){});
+}
+function completeHcRun(){
+  if(!confirm('Mark this Hardcore run as COMPLETE? This confirms you defeated all bosses with 0 deaths and applies the 2x score multiplier.')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/hc-complete/',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      alert('Hardcore Completed! Final Score: '+(d.hc_score||0)+' pts (2x multiplier applied)');
+      location.reload();
+    } else {
+      alert(d.error || 'Could not mark as complete');
+    }
+  }).catch(function(){});
+}
+
+// ── Keyboard hotkeys (PC) ────────────────────────────────────────────────────
+{% if is_owner and is_active %}
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  if(e.key==='F9'){ e.preventDefault(); IS_HARDCORE ? logHcDeath() : showDeathPicker(); }
+  if(!IS_HARDCORE && e.key==='F10'){ e.preventDefault(); undoLastDeath(); }
+  if(!IS_HARDCORE && e.key==='F8'){ e.preventDefault(); resetDeaths(); }
+});
+{% endif %}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// SSE removed - gunicorn sync workers don't support persistent connections
+// 1s polling is used instead - adequate for tournament use
+function connectSSE() {} // no-op kept so other code doesn't break
+
+function handleSSEEvent(d) {
+  if (!d || !d.event) return;
+
+  if (d.event === 'death') {
+    document.getElementById('stat-deaths').textContent = d.deaths || 0;
+    updateRage(d.rage_pct || 0, d.rage_name || "Maiden's Grace", d.is_hollow, d.hollow_streak);
+    // Reset streak display immediately on death
+    document.getElementById('stat-surv-time').textContent = '00:00:00';
+    // Full status refresh to get death log etc
+    loadStatus();
+  }
+
+  if (d.event === 'timers') {
+    // App pushed real-time timer values - update immediately
+    if (TIMING_MODE !== 'manual') {
+      document.getElementById('stat-session-time').textContent = fmtSecs(d.session_sec || 0);
+      document.getElementById('stat-surv-time').textContent    = fmtSecs(d.streak_sec  || 0);
+      document.getElementById('stat-longest').textContent      = fmtSecs(d.longest_sec || 0);
+    }
+    // Update listener status bar
+    if (d.listener_connected) updateListenerBar({
+      listener_connected: true,
+      listener_game_running: d.game_running,
+      listener_in_grace: false,
+      grace_remaining_sec: 0,
+    });
+  }
+
+  if (d.event === 'reset') {
+    document.getElementById('stat-deaths').textContent      = '0';
+    document.getElementById('stat-death-rate').textContent  = '0.0';
+    document.getElementById('stat-surv-time').textContent   = '00:00:00';
+    document.getElementById('stat-session-time').textContent = '00:00:00';
+    document.getElementById('stat-longest').textContent     = '00:00:00';
+    updateRage(0, "Maiden's Grace", false, 0);
+    document.getElementById('death-log').innerHTML =
+      '<div class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>';
+  }
+
+  if (d.event === 'focus') {
+    applyFocus(d.boss_name || '', d.fighting);
+  }
+
+  if (d.event === 'boss') {
+    // Boss marked/unmarked - update instantly
+    if (d.boss_key) bossData[d.boss_key] = d.defeated;
+    // Clear fighting banner if boss just defeated
+    if (d.defeated && d.focus === '') {
+      currentFocusBoss = '';
+      var cf = document.getElementById('currently-fighting');
+      if (cf) cf.classList.add('hidden');
+    }
+    // Update rage from boss kill
+    if (d.rage_pct !== undefined) {
+      updateRage(d.rage_pct, d.rage_name, d.is_hollow, 0);
+    }
+    renderBossTab(activeBossTab);
+    loadStatus();  // refresh boss progress count
+  }
+}
+
+function updateRage(ragePct, rageName, isHollow, hollowStreak) {
+  var bar = document.getElementById('rage-bar');
+  var rnd = document.getElementById('rage-name-display');
+  var hb  = document.getElementById('hollow-banner');
+  var rColor = ragePct>=100?'#dc2626':ragePct>=75?'#ef4444':ragePct>=50?'#f97316':ragePct>=25?'#f59e0b':'#c9a84c';
+  if (bar) { bar.className='rage-bar-fill '+(RAGE_CLASSES[rageName]||'rage-calm'); bar.style.width=Math.min(100,ragePct)+'%'; }
+  if (rnd) { rnd.textContent=rageName; rnd.style.color=rColor; }
+  if (hb)  { isHollow ? hb.classList.remove('hidden') : hb.classList.add('hidden'); }
+  var sb = document.getElementById('hollow-streak-badge');
+  if (sb && hollowStreak > 0) sb.textContent = 'x'+(hollowStreak+1);
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  loadStatus();
+  loadBossRegistry();
+  setInterval(loadStatus, 1000);  // 1s polling
+});
+</script>
+{% endif %}{# end is_active else #}
+{% endblock %}

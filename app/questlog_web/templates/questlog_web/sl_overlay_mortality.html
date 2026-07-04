@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  background: transparent;
+  width: 1920px; height: 1080px;
+  overflow: hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Panel ── */
+.panel {
+  position: absolute;
+  top: 24px; left: 24px;
+  width: 300px;
+  background: rgba(9,9,15,0.92);
+  border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #c9a84c;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.title::before { content: '✦'; font-size: 10px; }
+.status-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+.status-pill.live  { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.status-pill.offline { background: rgba(75,85,99,0.2); color: #6b7280; border: 1px solid rgba(75,85,99,0.3); }
+
+/* ── Death count hero ── */
+.death-hero {
+  text-align: center;
+  padding: 14px 0 10px;
+}
+.death-number {
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+  color: #c9a84c;
+  text-shadow: 0 0 40px rgba(201,168,76,0.4);
+  transition: all 0.3s;
+}
+.death-number.zero { color: rgba(201,168,76,0.4); }
+.death-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #4b5563;
+  margin-top: 2px;
+}
+
+/* ── Stats row ── */
+.stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.stat-cell {
+  padding: 8px 6px;
+  text-align: center;
+  border-right: 1px solid rgba(255,255,255,0.05);
+}
+.stat-cell:last-child { border-right: none; }
+.stat-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: #e5e7eb;
+  white-space: nowrap;
+}
+.stat-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #4b5563;
+  margin-top: 2px;
+}
+
+/* ── Rage bar ── */
+.rage-section {
+  padding: 10px 14px 6px;
+}
+.rage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.rage-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+.rage-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  transition: color 0.4s;
+}
+.rage-track {
+  height: 5px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.rage-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease, background 0.4s;
+}
+
+/* ── Hollow banner ── */
+.hollow-banner {
+  display: none;
+  margin: 0 14px 8px;
+  background: rgba(220,38,38,0.15);
+  border: 1px solid rgba(220,38,38,0.4);
+  border-radius: 6px;
+  padding: 6px 10px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #f87171;
+  text-transform: uppercase;
+  animation: pulse-hollow 1.5s ease-in-out infinite;
+}
+@keyframes pulse-hollow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ── Boss progress ── */
+.boss-section {
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.boss-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.boss-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+.boss-count {
+  font-size: 12px;
+  font-weight: 800;
+  color: #c9a84c;
+}
+.boss-track {
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin-bottom: 6px;
+}
+.boss-fill {
+  height: 100%;
+  background: rgba(201,168,76,0.6);
+  border-radius: 2px;
+  transition: width 0.5s;
+}
+.boss-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.boss-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+.boss-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+.boss-show-btn {
+  display: block;
+  width: 100%;
+  padding: 5px;
+  margin-top: 6px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  color: #6b7280;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.boss-show-btn:hover { border-color: rgba(201,168,76,0.4); color: #c9a84c; }
+
+/* ── Footer ── */
+.footer {
+  border-top: 1px solid rgba(255,255,255,0.04);
+  padding: 5px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.footer-label { font-size: 8px; color: #374151; letter-spacing: 0.06em; }
+.footer-deaths { font-size: 11px; font-weight: 700; color: #4b5563; }
+
+/* ── Full boss list mode ── */
+.boss-full { display: none; }
+.boss-full .boss-region {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6b7280;
+  padding: 4px 0 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  margin-bottom: 3px;
+}
+.boss-full .boss-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.boss-full .boss-row.dead { opacity: 0.3; }
+.boss-full .boss-row .bdot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid #4b5563;
+  flex-shrink: 0;
+}
+.boss-full .boss-row.dead .bdot { background: #22c55e; border-color: #22c55e; }
+.boss-full .bname { font-size: 11px; color: #d1d5db; flex: 1; }
+.boss-full .boss-row.dead .bname { text-decoration: line-through; color: #6b7280; }
+.boss-full .btier { font-size: 8px; color: #6b7280; text-transform: uppercase; }
+
+/* Rage colors */
+.rage-calm    { color: #c9a84c; }
+.rage-stagger { color: #f59e0b; }
+.rage-frenzy  { color: #f97316; }
+.rage-cursed  { color: #ef4444; }
+.rage-hollow  { color: #dc2626; animation: flicker 0.8s ease-in-out infinite; }
+@keyframes flicker { 0%,100%{opacity:1} 50%{opacity:0.7} }
+.fill-calm    { background: linear-gradient(90deg, #92400e, #c9a84c); }
+.fill-stagger { background: linear-gradient(90deg, #92400e, #f59e0b); }
+.fill-frenzy  { background: linear-gradient(90deg, #c2410c, #f97316); }
+.fill-cursed  { background: linear-gradient(90deg, #991b1b, #ef4444); }
+.fill-hollow  { background: linear-gradient(90deg, #7f1d1d, #dc2626); animation: pulse-bar 0.8s ease-in-out infinite; }
+@keyframes pulse-bar { 0%,100%{opacity:1} 50%{opacity:0.6} }
+</style>
+</head>
+<body>
+<div class="panel" id="panel">
+  <div class="header">
+    <span class="title">Mortality Monitor</span>
+    <span class="status-pill offline" id="status-pill">● Offline</span>
+  </div>
+
+  <div class="death-hero">
+    <div class="death-number zero" id="death-num">0</div>
+    <div class="death-label">Session Deaths</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-cell">
+      <div class="stat-value" id="death-rate">0.0</div>
+      <div class="stat-label">Deaths / HR</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-value" id="session-time">00:00:00</div>
+      <div class="stat-label">Session Time</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-value" id="rage-pct-val">0%</div>
+      <div class="stat-label">Rage Index</div>
+    </div>
+  </div>
+
+  <div class="rage-section">
+    <div class="rage-header">
+      <span class="rage-label">Tarnished Fury</span>
+      <span class="rage-name rage-calm" id="rage-name">Maiden's Grace</span>
+    </div>
+    <div class="rage-track">
+      <div class="rage-fill fill-calm" id="rage-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="hollow-banner" id="hollow-banner">Gone Hollow <span id="hollow-x"></span></div>
+
+  <div class="boss-section" id="boss-section" style="display:none">
+    <div class="boss-header">
+      <span class="boss-label">Boss Progress</span>
+      <span class="boss-count" id="boss-count">0 / 0</span>
+    </div>
+    <div class="boss-track">
+      <div class="boss-fill" id="boss-fill" style="width:0%"></div>
+    </div>
+    <div class="boss-recent" id="boss-recent"></div>
+    <button class="boss-show-btn" onclick="toggleBossList()" id="boss-btn">Show Full List</button>
+    <div class="boss-full" id="boss-full"></div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-label">questlog.casual-heroes.com</span>
+    <span class="footer-deaths">Total: <span id="total-deaths-footer">0</span></span>
+  </div>
+</div>
+
+<script>
+var POLL_URL = '{{ poll_url }}';
+var showFull = false;
+var lastHollow = false;
+var lastStreak = 0;
+
+var RAGE_CLASSES = {
+  "Maiden's Grace": ['rage-calm',    'fill-calm'],
+  'Staggered':      ['rage-stagger', 'fill-stagger'],
+  'Frenzied':       ['rage-frenzy',  'fill-frenzy'],
+  'Cursed':         ['rage-cursed',  'fill-cursed'],
+  'HOLLOW':         ['rage-hollow',  'fill-hollow'],
+};
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function load() {
+  fetch(POLL_URL)
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      if (!d || d.error) return;
+
+      var deaths  = d.deaths || 0;
+      var ragePct = d.rage_pct || 0;
+      var rageName = d.rage_name || "Maiden's Grace";
+      var isHollow = d.is_hollow || false;
+      var streak   = d.hollow_streak || 0;
+
+      // Status pill
+      var pill = document.getElementById('status-pill');
+      if (d.is_active) {
+        pill.textContent = '● Live';
+        pill.className = 'status-pill live';
+      } else {
+        pill.textContent = '● Offline';
+        pill.className = 'status-pill offline';
+      }
+
+      // Death number
+      var dn = document.getElementById('death-num');
+      dn.textContent = deaths;
+      dn.className = 'death-number' + (deaths === 0 ? ' zero' : '');
+
+      // Stats
+      document.getElementById('death-rate').textContent   = (d.true_death_rate || 0).toFixed(1);
+      document.getElementById('session-time').textContent = d.session_time_fmt || '00:00:00';
+      document.getElementById('rage-pct-val').textContent = ragePct + '%';
+
+      // Rage bar
+      var rn = document.getElementById('rage-name');
+      var rf = document.getElementById('rage-fill');
+      rn.className = 'rage-name ' + (RAGE_CLASSES[rageName] ? RAGE_CLASSES[rageName][0] : 'rage-calm');
+      rf.className = 'rage-fill '  + (RAGE_CLASSES[rageName] ? RAGE_CLASSES[rageName][1] : 'fill-calm');
+      rn.textContent = rageName;
+      rf.style.width = Math.min(100, ragePct) + '%';
+
+      // Hollow banner
+      var banner = document.getElementById('hollow-banner');
+      if (isHollow) {
+        banner.style.display = 'block';
+        document.getElementById('hollow-x').textContent = streak > 0 ? '×' + (streak + 1) : '';
+      } else {
+        banner.style.display = 'none';
+      }
+
+      // Boss progress
+      var bossSection = document.getElementById('boss-section');
+      if (d.bosses_total > 0) {
+        bossSection.style.display = 'block';
+        var bPct = Math.round((d.bosses_defeated / d.bosses_total) * 100);
+        document.getElementById('boss-count').textContent = d.bosses_defeated + ' / ' + d.bosses_total;
+        document.getElementById('boss-fill').style.width = bPct + '%';
+
+        // Recent kills (last 3 defeated)
+        var defeated = (d.bosses || []).filter(function(b){ return b.defeated; }).slice(-3).reverse();
+        var recentHtml = defeated.map(function(b) {
+          return '<div class="boss-item"><div class="boss-dot"></div>' + esc(b.name) + '</div>';
+        }).join('');
+        if (!recentHtml) recentHtml = '<div class="boss-item" style="color:#374151">No bosses defeated yet</div>';
+        document.getElementById('boss-recent').innerHTML = recentHtml;
+
+        // Full list
+        if (showFull && d.bosses) {
+          renderFullList(d.bosses);
+        }
+      }
+
+      // Footer total
+      document.getElementById('total-deaths-footer').textContent = deaths;
+
+      lastHollow = isHollow;
+      lastStreak = streak;
+    })
+    .catch(function(){});
+}
+
+function renderFullList(bosses) {
+  var el = document.getElementById('boss-full');
+  var regions = {};
+  bosses.forEach(function(b) {
+    if (!regions[b.region]) regions[b.region] = [];
+    regions[b.region].push(b);
+  });
+  var html = '';
+  Object.keys(regions).forEach(function(r) {
+    html += '<div class="boss-region">' + esc(r) + '</div>';
+    regions[r].forEach(function(b) {
+      html += '<div class="boss-row' + (b.defeated ? ' dead' : '') + '">' +
+        '<div class="bdot"></div>' +
+        '<span class="bname">' + esc(b.name) + '</span>' +
+        '<span class="btier">' + esc(b.tier.replace('_',' ')) + '</span>' +
+        '</div>';
+    });
+  });
+  el.innerHTML = html;
+}
+
+function toggleBossList() {
+  showFull = !showFull;
+  var full = document.getElementById('boss-full');
+  var recent = document.getElementById('boss-recent');
+  var btn = document.getElementById('boss-btn');
+  full.style.display   = showFull ? 'block' : 'none';
+  recent.style.display = showFull ? 'none'  : 'flex';
+  btn.textContent = showFull ? 'Show Recent' : 'Show Full List';
+}
+
+}
+load();
+setInterval(load, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,259 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}My Runs | QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-2xl mx-auto px-3 py-4">
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <span class="text-gray-500">My Runs</span>
+  </div>
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-black text-white flex items-center gap-2">
+      <i class="fas fa-skull text-red-400 text-base"></i> My Collection Runs
+    </h1>
+    <a href="/soulslike/builder/" class="px-4 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded transition">
+      <i class="fas fa-plus mr-1"></i>New Run
+    </a>
+  </div>
+
+  {% if runs %}
+  <div class="space-y-3 mb-8">
+    {% for run in runs %}
+    <a href="/soulslike/runs/{{ run.token }}/" class="block bg-neutral-900 border border-neutral-800 hover:border-neutral-600 rounded-xl p-4 transition group">
+      <div class="flex items-start justify-between">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            {% if run.is_active %}
+            <span class="flex items-center gap-1 text-[10px] text-green-400 font-bold">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>ACTIVE
+            </span>
+            {% else %}
+            <span class="text-[10px] text-gray-600 font-semibold">COMPLETED</span>
+            {% endif %}
+            <span class="text-[10px] text-gray-600">{{ run.game|title }}{% if run.game_mode == 'err' %} - ERR{% endif %}</span>
+          </div>
+          <div class="text-white font-bold group-hover:text-amber-300 transition truncate">{{ run.build_name }}</div>
+          {% if run.total %}
+          <div class="mt-2 h-1.5 bg-neutral-800 rounded-full overflow-hidden w-48">
+            <div class="h-full bg-green-600 rounded-full" style="width:{% widthratio run.collected run.total 100 %}%"></div>
+          </div>
+          <div class="text-[11px] text-gray-500 mt-1">{{ run.collected }}/{{ run.total }} collected</div>
+          {% endif %}
+        </div>
+        <div class="text-right flex-shrink-0 ml-4">
+          <div class="text-lg font-black text-red-400">{{ run.deaths }}</div>
+          <div class="text-[10px] text-gray-600">deaths</div>
+          {% if run.last_death %}
+          <div class="text-[10px] text-gray-600 mt-0.5">Last: {{ run.last_death }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-10 text-gray-600 mb-8">
+    <i class="fas fa-scroll text-4xl mb-4 block"></i>
+    <p class="text-lg font-semibold mb-2">No runs yet</p>
+    <p class="text-sm mb-6">Start a run from one of your builds below, or plan a new one in the builder.</p>
+  </div>
+  {% endif %}
+
+  <!-- Idle Builds - builds ready to run -->
+  {% if idle_builds %}
+  <div class="mb-2">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+      <i class="fas fa-shield-halved mr-1"></i>Your Builds - Ready to Run
+    </h2>
+    <div class="space-y-2">
+      {% for b in idle_builds %}
+      <div class="flex items-center gap-3 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-700 text-gray-400 font-bold">{{ b.game_label }}</span>
+            {% if b.playstyle %}<span class="text-[10px] text-gray-600">{{ b.playstyle }}</span>{% endif %}
+            {% if b.is_public %}<span class="text-[10px] text-green-700 font-semibold">Public</span>{% else %}<span class="text-[10px] text-gray-700">Private</span>{% endif %}
+          </div>
+          <p class="text-white text-sm font-semibold truncate">{{ b.name }}</p>
+          <p class="text-gray-600 text-[11px]">Lv. {{ b.level }}</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <a href="/soulslike/builder/?load={{ b.share_token }}" class="text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1.5 rounded-lg hover:bg-neutral-800">
+            <i class="fas fa-pen"></i>
+          </a>
+          <button onclick="quickStartRun('{{ b.id }}', '{{ b.name|escapejs }}', '{{ b.game }}', '{{ b.game_mode }}')"
+                  class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition">
+            <i class="fas fa-play mr-1"></i>Start Run
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not runs and not idle_builds %}
+  <div class="text-center py-6">
+    <a href="/soulslike/builder/" class="px-6 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm font-bold rounded-lg transition">
+      <i class="fas fa-shield-halved mr-1"></i>Open Build Planner
+    </a>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Quick Start Run Modal -->
+<div id="quick-run-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-5">
+    <h2 class="text-white font-bold mb-1 flex items-center gap-2">
+      <i class="fas fa-skull text-amber-500 text-sm"></i>
+      Start Run
+    </h2>
+    <p class="text-gray-500 text-xs mb-4" id="qr-build-name"></p>
+
+    <div class="space-y-3">
+      <!-- Spoiler mode -->
+      <div>
+        <label class="text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Spoiler Mode</label>
+        <div class="flex gap-2">
+          <button class="qr-spoiler-btn flex-1 py-1.5 text-xs rounded-lg border border-neutral-700 text-gray-400 hover:border-amber-600 hover:text-white transition active-spoiler" data-mode="blind">
+            <i class="fas fa-eye-slash mr-1"></i>Blind
+          </button>
+          <button class="qr-spoiler-btn flex-1 py-1.5 text-xs rounded-lg border border-neutral-700 text-gray-400 hover:border-amber-600 hover:text-white transition" data-mode="region">
+            <i class="fas fa-map-marker-alt mr-1"></i>Region
+          </button>
+          <button class="qr-spoiler-btn flex-1 py-1.5 text-xs rounded-lg border border-neutral-700 text-gray-400 hover:border-amber-600 hover:text-white transition" data-mode="full">
+            <i class="fas fa-map mr-1"></i>Full
+          </button>
+        </div>
+      </div>
+
+      <!-- Hardcore toggle -->
+      <div>
+        <label class="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg border border-neutral-700 hover:border-red-800/50 transition" onclick="toggleQrHc()">
+          <div class="flex-1">
+            <p class="text-white text-xs font-semibold">Hardcore Mode</p>
+            <p class="text-gray-600 text-[10px]">First death ends the run permanently</p>
+          </div>
+          <div id="qr-hc-indicator" class="w-9 h-5 rounded-full bg-neutral-700 relative transition-colors duration-200 flex-shrink-0">
+            <div id="qr-hc-knob" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-neutral-500 transition-transform duration-200"></div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="flex gap-2 justify-end mt-5">
+      <button onclick="closeQrModal()" class="px-4 py-2 text-xs text-gray-400 hover:text-white transition">Cancel</button>
+      <button id="qr-confirm-btn" onclick="confirmQuickRun()"
+              class="px-5 py-2 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition">
+        <i class="fas fa-play mr-1"></i>Start Run
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+.active-spoiler { border-color: #92400e; color: #fbbf24; background: rgba(180,83,9,0.15); }
+</style>
+
+<script>
+var _qrBuildId = null;
+var _qrGame = null;
+var _qrGameMode = null;
+var _qrSpoiler = 'blind';
+var _qrHc = false;
+
+function quickStartRun(buildId, buildName, game, gameMode) {
+  _qrBuildId = buildId;
+  _qrGame = game;
+  _qrGameMode = gameMode;
+  _qrSpoiler = 'blind';
+  _qrHc = false;
+  document.getElementById('qr-build-name').textContent = buildName;
+  // Reset spoiler buttons
+  document.querySelectorAll('.qr-spoiler-btn').forEach(function(b) {
+    b.classList.toggle('active-spoiler', b.dataset.mode === 'blind');
+  });
+  // Reset HC toggle
+  var ind = document.getElementById('qr-hc-indicator');
+  var knob = document.getElementById('qr-hc-knob');
+  ind.className = 'w-9 h-5 rounded-full bg-neutral-700 relative transition-colors duration-200 flex-shrink-0';
+  knob.style.transform = 'translateX(0)';
+  knob.className = 'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-neutral-500 transition-transform duration-200';
+  var btn = document.getElementById('qr-confirm-btn');
+  btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start Run';
+  btn.className = 'px-5 py-2 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition';
+  document.getElementById('quick-run-modal').classList.remove('hidden');
+}
+
+document.querySelectorAll('.qr-spoiler-btn').forEach(function(b) {
+  b.addEventListener('click', function() {
+    _qrSpoiler = this.dataset.mode;
+    document.querySelectorAll('.qr-spoiler-btn').forEach(function(x) {
+      x.classList.toggle('active-spoiler', x.dataset.mode === _qrSpoiler);
+    });
+  });
+});
+
+function toggleQrHc() {
+  _qrHc = !_qrHc;
+  var ind = document.getElementById('qr-hc-indicator');
+  var knob = document.getElementById('qr-hc-knob');
+  var btn = document.getElementById('qr-confirm-btn');
+  if (_qrHc) {
+    ind.classList.replace('bg-neutral-700', 'bg-red-700');
+    knob.classList.replace('bg-neutral-500', 'bg-white');
+    knob.style.transform = 'translateX(16px)';
+    btn.innerHTML = '<i class="fas fa-fire mr-1"></i>Start Hardcore Run';
+    btn.className = 'px-5 py-2 bg-red-700 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition';
+  } else {
+    ind.classList.replace('bg-red-700', 'bg-neutral-700');
+    knob.classList.replace('bg-white', 'bg-neutral-500');
+    knob.style.transform = 'translateX(0)';
+    btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start Run';
+    btn.className = 'px-5 py-2 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition';
+  }
+}
+
+function closeQrModal() {
+  document.getElementById('quick-run-modal').classList.add('hidden');
+}
+
+function getCsrf() {
+  var c = document.cookie.split(';');
+  for (var i=0;i<c.length;i++){var p=c[i].trim();if(p.startsWith('csrftoken='))return p.slice(10);}
+  return '';
+}
+
+function confirmQuickRun() {
+  var btn = document.getElementById('qr-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Starting...';
+  csrfFetch('/api/soulslike/session/create/', {
+    method: 'POST',
+    body: JSON.stringify({
+      build_id:    parseInt(_qrBuildId),
+      build_name:  document.getElementById('qr-build-name').textContent,
+      game:        _qrGame,
+      game_mode:   _qrGameMode,
+      timing_mode: 'listener',
+      spoiler_mode: _qrSpoiler,
+      is_hardcore: _qrHc ? 1 : 0,
+      items: [],
+    }),
+  }).then(function(r){return r.json();}).then(function(d){
+    if (d.ok) {
+      window.location.href = d.manage_url || '/soulslike/runs/';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start Run';
+      alert(d.error || 'Failed to start run');
+    }
+  }).catch(function(){
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start Run';
+  });
+}
+</script>
+{% endblock %}
