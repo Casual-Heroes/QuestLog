@@ -5634,6 +5634,45 @@ def _safe_json_loads(value, default):
     except (ValueError, TypeError):
         return default
 
+
+def _sanitize_rune_inventory(raw_runes: list) -> list:
+    """
+    Validate rune inventory before saving. Caps copies to max_forge_level from DB
+    so clients cannot send copies: 999 to inflate stat bonuses.
+    Drops unknown rune names silently.
+    """
+    if not raw_runes:
+        return []
+    if len(raw_runes) > 200:
+        return []  # reject oversized payloads entirely
+    try:
+        with get_db_session() as db:
+            max_forge_map = {
+                r[0]: r[1]
+                for r in db.execute(text(
+                    "SELECT name, max_forge_level FROM sl_err_binding_runes"
+                )).fetchall()
+            }
+    except Exception:
+        logger.warning("_sanitize_rune_inventory: DB unavailable, rejecting payload")
+        return []  # fail closed - don't accept unsanitized data
+
+    sanitized = []
+    for entry in raw_runes:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get('name', ''))[:200]
+        copies = int(entry.get('copies', 0))
+        max_copies = max_forge_map.get(name)
+        if max_copies is None:
+            continue  # unknown rune name - drop it
+        sanitized.append({
+            **entry,
+            'name': name,
+            'copies': max(0, min(copies, max_copies)),  # clamp to [0, max_forge_level]
+        })
+    return sanitized
+
 @ensure_csrf_cookie
 @add_web_user_context
 def soulslike_hub(request):
@@ -5769,6 +5808,9 @@ def soulslike_builder(request):
             ('fp',     'FP'),
             ('stam',   'Stamina'),
             ('eqload', 'Equip Load'),
+            ('poise',  'Poise'),
+            ('weight', 'Weight'),
+            ('roll',   'Roll Type'),
         ],
         'weapon_slots': [
             ('rh1', 'Right Hand 1', 'fas fa-sword',      'right'),
@@ -6506,7 +6548,7 @@ def api_sl_armor(request):
 
 
 @web_login_required
-@ratelimit(key='user', rate='20/h', block=True)
+@ratelimit(key='user', rate='50/h', block=True)
 @require_http_methods(['GET', 'POST'])
 def api_sl_builds(request):
     """GET user builds, POST to save a new build."""
@@ -6579,8 +6621,8 @@ def api_sl_builds(request):
             if game == 'err':
                 raw_curio = data.get('curio_selections')
                 raw_runes = data.get('rune_inventory')
-                if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
-                if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+                if isinstance(raw_curio, dict) and len(raw_curio) <= 50: curio_sel = _json.dumps(raw_curio)
+                if isinstance(raw_runes, list): rune_inv = _json.dumps(_sanitize_rune_inventory(raw_runes))
                 fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
             minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
@@ -6660,8 +6702,8 @@ def api_sl_builds(request):
         if game == 'err':
             raw_curio = data.get('curio_selections')
             raw_runes = data.get('rune_inventory')
-            if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
-            if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+            if isinstance(raw_curio, dict) and len(raw_curio) <= 50: curio_sel = _json.dumps(raw_curio)
+            if isinstance(raw_runes, list): rune_inv = _json.dumps(_sanitize_rune_inventory(raw_runes))
             fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
             minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
@@ -6931,7 +6973,8 @@ def api_sl_build_detail(request, share_token):
             f"b.spells, b.playstyle_tag, b.is_public, b.upvotes, b.share_token, b.created_at, "
             f"u.username, u.avatar_url, "
             f"b.spirit_ash_name, b.spirit_ash_upgrade, b.tear_1_name, b.tear_2_name, b.scadutree_level, "
-            f"b.curio_selections, b.rune_inventory "
+            f"b.curio_selections, b.rune_inventory, "
+            f"{'b.fortune_name, b.minor_fortune_name' if table == 'sl_err_builds' else 'NULL as fortune_name, NULL as minor_fortune_name'} "
             f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
             f"WHERE b.share_token = :tok AND (b.is_public = 1 OR b.user_id = :uid)"
         ), {'tok': share_token, 'uid': request.session.get('web_user_id', -1)}).mappings().fetchone()
@@ -7246,11 +7289,12 @@ def api_sl_desktop_profile(request):
             "spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level"
         )
         er_builds = db.execute(text(
-            f"SELECT {_BUILD_COLS} FROM sl_er_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
+            f"SELECT {_BUILD_COLS}, NULL as fortune_name, NULL as minor_fortune_name, NULL as curio_selections, NULL as rune_inventory "
+            "FROM sl_er_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
         ), {'uid': uid}).fetchall()
 
         err_builds = db.execute(text(
-            f"SELECT {_BUILD_COLS}, curio_selections, rune_inventory "
+            f"SELECT {_BUILD_COLS}, fortune_name, minor_fortune_name, curio_selections, rune_inventory "
             "FROM sl_err_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
         ), {'uid': uid}).fetchall()
 
@@ -7290,8 +7334,10 @@ def api_sl_desktop_profile(request):
                 'tear_1_name':        r[45],
                 'tear_2_name':        r[46],
                 'scadutree_level':    r[47] or 0,
-                'curio_selections':   _safe_json_loads(r[48] if len(r) > 48 else None, {}),
-                'rune_inventory':     _safe_json_loads(r[49] if len(r) > 49 else None, []),
+                'fortune_name':       r[48] or '',
+                'minor_fortune_name': r[49] or '',
+                'curio_selections':   _safe_json_loads(r[50] if len(r) > 50 else None, {}),
+                'rune_inventory':     _safe_json_loads(r[51] if len(r) > 51 else None, []),
                 'class_id': r[41],
                 'updated_at': r[42],
             }
@@ -7480,8 +7526,8 @@ def api_sl_builds_desktop(request):
     if game == 'err':
         raw_curio = data.get('curio_selections')
         raw_runes = data.get('rune_inventory')
-        if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
-        if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+        if isinstance(raw_curio, dict) and len(raw_curio) <= 50: curio_sel = _json.dumps(raw_curio)
+        if isinstance(raw_runes, list): rune_inv = _json.dumps(_sanitize_rune_inventory(raw_runes))
         fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
         minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 

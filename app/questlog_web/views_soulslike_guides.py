@@ -157,10 +157,36 @@ def sl_guide_detail(request, slug):
         if not row:
             raise Http404
 
-        # Increment view count
-        db.execute(text(
-            "UPDATE sl_guides SET view_count=view_count+1 WHERE id=:id"
-        ), {'id': row[0]})
+        # Unique view tracking - 1 per user account (logged in) or 1 per IP (logged out)
+        # Stored permanently in sl_guide_views - cannot be gamed by clearing cookies/sessions
+        guide_id = row[0]
+        import hashlib
+        # Use REMOTE_ADDR (set by Nginx) not X-Forwarded-For which can be spoofed
+        ip = request.META.get('REMOTE_ADDR', '')
+        ip_hash = hashlib.sha256(ip.encode()).hexdigest()
+
+        if uid:
+            # Logged-in: unique per user_id, ignore IP
+            already_viewed = db.execute(text(
+                "SELECT 1 FROM sl_guide_views WHERE guide_id=:gid AND user_id=:uid"
+            ), {'gid': guide_id, 'uid': uid}).fetchone()
+        else:
+            # Logged-out: unique per IP hash
+            already_viewed = db.execute(text(
+                "SELECT 1 FROM sl_guide_views WHERE guide_id=:gid AND ip_hash=:ip AND user_id IS NULL"
+            ), {'gid': guide_id, 'ip': ip_hash}).fetchone()
+
+        if not already_viewed:
+            try:
+                db.execute(text(
+                    "INSERT INTO sl_guide_views (guide_id, user_id, ip_hash, viewed_at) "
+                    "VALUES (:gid, :uid, :ip, :now)"
+                ), {'gid': guide_id, 'uid': uid, 'ip': ip_hash, 'now': int(time.time())})
+                db.execute(text(
+                    "UPDATE sl_guides SET view_count=view_count+1 WHERE id=:id"
+                ), {'id': guide_id})
+            except Exception:
+                pass  # Race condition on duplicate insert - ignore
 
         liked = False
         if uid:

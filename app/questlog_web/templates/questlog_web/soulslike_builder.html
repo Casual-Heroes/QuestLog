@@ -384,6 +384,12 @@
           </div>
           {% endfor %}
         </div>
+        <div id="char-err-weight-note" class="hidden px-3 py-2 border-t border-white/5">
+          <p class="text-[10px] text-gray-600 leading-relaxed">
+            <i class="fas fa-info-circle mr-1"></i>
+            ERR modifies armor and weapon weights differently than ER. We use ER weight data as an approximation - equip load and roll type may be slightly off.
+          </p>
+        </div>
       </div>
 
     </div>
@@ -518,6 +524,13 @@
               <div class="text-xs font-bold" id="roll-type">-</div>
             </div>
           </div>
+          <!-- ERR weight disclaimer -->
+          <div id="err-weight-note" class="hidden px-3 pb-2">
+            <p class="text-[10px] text-gray-600 leading-relaxed">
+              <i class="fas fa-info-circle mr-1"></i>
+              ERR modifies armor and weapon weights differently than ER. We use ER weight data as an approximation - equip load and roll type may be slightly off.
+            </p>
+          </div>
         </div>
 
         <!-- Talismans tab -->
@@ -633,6 +646,7 @@
               </button>
             </div>
             <span id="fortune-selected-type" class="text-[10px] px-1.5 py-0.5 bg-neutral-800 text-gray-400 rounded capitalize"></span>
+            <div id="fortune-selected-effect" class="text-[10px] text-gray-400 mt-1.5 leading-relaxed"></div>
           </div>
           <!-- Minor Fortune display -->
           <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 mt-3">
@@ -646,7 +660,7 @@
                 <i class="fas fa-times mr-0.5"></i>Clear
               </button>
             </div>
-            <span class="text-[10px] text-gray-500">Weaker effect, no downsides. Cannot match main fortune.</span>
+            <span class="text-[10px] text-gray-400" id="minor-fortune-selected-effect"></span>
           </div>
           <!-- Fortune list - switches between main and minor mode -->
           <div class="flex gap-1.5 mb-2">
@@ -1228,9 +1242,14 @@ function selectFortune(fortune) {
   const disp = document.getElementById('fortune-selected-display');
   const nameEl = document.getElementById('fortune-selected-name');
   const typeEl = document.getElementById('fortune-selected-type');
+  const effectEl = document.getElementById('fortune-selected-effect');
   if (disp && nameEl && typeEl) {
     nameEl.textContent = fortune.name;
     typeEl.textContent = fortune.fortune_type;
+    if (effectEl) {
+      const lines = [...(fortune.buffs || []), ...(fortune.drawbacks || [])];
+      effectEl.textContent = lines.join(' | ') || '';
+    }
     disp.classList.remove('hidden');
   }
   renderFortunePanel();
@@ -1252,8 +1271,10 @@ function selectMinorFortune(fortune) {
   BUILD.minor_fortune = fortune;
   const disp = document.getElementById('minor-fortune-selected-display');
   const nameEl = document.getElementById('minor-fortune-selected-name');
+  const effectEl = document.getElementById('minor-fortune-selected-effect');
   if (disp && nameEl) {
     nameEl.textContent = fortune.name;
+    if (effectEl) effectEl.textContent = fortune.minor_effects || '';
     disp.classList.remove('hidden');
   }
   renderFortunePanel();
@@ -1757,6 +1778,9 @@ function loadBuildData(d) {
       const affinity = d.weapons?.[slot + '_affinity'];
       if (affinity && BUILD.slots[slot]) {
         BUILD.slots[slot].equippedAffinity = affinity;
+        // Update the affinity label in the weapon slot UI
+        const affinityNameEl = document.getElementById('affinity-' + slot + '-name');
+        if (affinityNameEl) affinityNameEl.textContent = affinity;
       }
       // Restore AoW
       const aowName = d.weapons?.[slot + '_aow'];
@@ -1777,19 +1801,53 @@ function loadBuildData(d) {
   });
 
   // Restore ERR-only fields: curios, rune inventory, spirit ash, tears, scadutree
+  // Restore spirit ash - look up full object and call equipSpiritAsh for full UI update
   if (d.spirit_ash_name) {
-    const ash = ALL_SPIRIT_ASHES.find(a => a.name === d.spirit_ash_name);
-    if (ash) { BUILD.spirit_ash = ash; BUILD.spirit_ash_upgrade = d.spirit_ash_upgrade || 0; renderSpiritAshSlot?.(); }
+    const applyAsh = () => {
+      const ash = ALL_SPIRIT_ASHES.find(a => a.name === d.spirit_ash_name);
+      if (ash) {
+        equipSpiritAsh(ash);
+        BUILD.spirit_ash_upgrade = d.spirit_ash_upgrade || 0;
+        const upgEl = document.getElementById('spirit-ash-upgrade');
+        if (upgEl) upgEl.value = BUILD.spirit_ash_upgrade;
+      }
+    };
+    if (ALL_SPIRIT_ASHES.length) {
+      applyAsh();
+    } else {
+      fetch('/api/soulslike/spirit-ashes/?game=' + BUILD.game)
+        .then(r => r.json()).then(sd => {
+          ALL_SPIRIT_ASHES = sd.ashes || [];
+          applyAsh();
+        }).catch(() => {});
+    }
   }
+  // Restore tears - look up full tear object from ALL_CRYSTAL_TEARS
   if (d.tear_1_name || d.tear_2_name) {
-    // Tears restored via existing curio panel logic - set on BUILD for now
-    if (d.tear_1_name) BUILD.tears[0] = { name: d.tear_1_name };
-    if (d.tear_2_name) BUILD.tears[1] = { name: d.tear_2_name };
+    const applyTears = () => {
+      if (d.tear_1_name) {
+        const t = ALL_CRYSTAL_TEARS.find(x => x.name === d.tear_1_name);
+        if (t) equipTear(1, t); else BUILD.tears[0] = { name: d.tear_1_name };
+      }
+      if (d.tear_2_name) {
+        const t = ALL_CRYSTAL_TEARS.find(x => x.name === d.tear_2_name);
+        if (t) equipTear(2, t); else BUILD.tears[1] = { name: d.tear_2_name };
+      }
+    };
+    if (ALL_CRYSTAL_TEARS.length) {
+      applyTears();
+    } else {
+      fetch('/api/soulslike/crystal-tears/?game=' + BUILD.game)
+        .then(r => r.json()).then(td => {
+          ALL_CRYSTAL_TEARS = td.tears || [];
+          applyTears();
+        }).catch(() => {});
+    }
   }
   if (d.scadutree_level) {
     BUILD.scadutree = d.scadutree_level || 0;
     const scaduEl = document.getElementById('scadu-slider');
-    if (scaduEl) { scaduEl.value = BUILD.scadutree; updateScadutree?.(); }
+    if (scaduEl) { scaduEl.value = BUILD.scadutree; onScaduChange(BUILD.scadutree); }
   }
   if (BUILD.game === 'err') {
     // Restore curio selections
@@ -1800,8 +1858,8 @@ function loadBuildData(d) {
     }
     // Restore rune inventory
     if (d.rune_inventory && Array.isArray(d.rune_inventory)) {
-      BUILD.rune_inventory = d.rune_inventory;
-      if (typeof renderRunePanel === 'function') renderRunePanel();
+      BUILD.runeInventory = d.rune_inventory;
+      renderRuneInventory();
     }
   }
 
@@ -2287,6 +2345,30 @@ function calcFortuneDerivedMults() {
   return { hp: m.hp || 1, fp: m.fp || 1, stamina: m.stamina || 1 };
 }
 
+// Rune multiplicative effects on HP/FP/Stamina/EquipLoad
+// Per-copy multiplier compounds: N copies of x1.007 = x(1.007^N)
+const RUNE_DERIVED_MULTS = {
+  'Cursed Health':   { hp:      1.006 },  // x1.006 Max HP per copy
+  'Cradled Focus':   { fp:      1.007 },  // x1.007 Max FP per copy
+  'Leonine Stamina': { stamina: 1.008 },  // x1.008 Max Stamina per copy
+  'Leonine Weight':  { eqload:  1.004 },  // x1.004 Equip Load per copy
+};
+
+function calcRuneDerivedMults() {
+  const result = { hp: 1, fp: 1, stamina: 1, eqload: 1 };
+  if (BUILD.game !== 'err') return result;
+  for (const r of BUILD.runeInventory) {
+    const m = RUNE_DERIVED_MULTS[r.name];
+    if (!m || !r.copies) continue;
+    // Compound: N copies = base^N
+    if (m.hp)      result.hp      *= Math.pow(m.hp,      r.copies);
+    if (m.fp)      result.fp      *= Math.pow(m.fp,      r.copies);
+    if (m.stamina) result.stamina *= Math.pow(m.stamina, r.copies);
+    if (m.eqload)  result.eqload  *= Math.pow(m.eqload,  r.copies);
+  }
+  return result;
+}
+
 function updateDerivedStats() {
   const s = BUILD.stats;
   const runeBonuses     = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
@@ -2304,12 +2386,16 @@ function updateDerivedStats() {
   const totalLevel = Math.min(levelCap, classLevel + pointsSpent);
   document.getElementById('total-level').textContent = Math.max(1, totalLevel);
 
-  // HP/FP/Stamina use effective (rune+fortune-boosted) stats, then apply fortune multipliers
+  // HP/FP/Stamina: apply fortune multipliers then rune multipliers (both compound)
   const fm = calcFortuneDerivedMults();
-  const hp   = Math.floor(calcHP(eff.vigor)       * fm.hp);
-  const fp   = Math.floor(calcFP(eff.mind)        * fm.fp);
-  const stam = Math.floor(calcStamina(eff.endurance) * fm.stamina);
-  const eqLoad = calcEquipLoad(eff.endurance);
+  const rm = calcRuneDerivedMults();
+  const hp   = Math.floor(calcHP(eff.vigor)          * fm.hp      * rm.hp);
+  const fp   = Math.floor(calcFP(eff.mind)           * fm.fp      * rm.fp);
+  const stam = Math.floor(calcStamina(eff.endurance) * fm.stamina * rm.stamina);
+  // ERR: base equip load = 100 (Endurance has no effect). ER: use formula.
+  const eqLoad = BUILD.game === 'err'
+    ? Math.round(100 * rm.eqload * 10) / 10
+    : Math.floor(calcEquipLoad(eff.endurance) * rm.eqload * 10) / 10;
 
   const el = id => document.getElementById('derived-' + id);
   if (el('hp'))     el('hp').textContent    = hp;
@@ -2363,31 +2449,83 @@ function calcEquipLoad(end) {
 }
 
 function updateEquipLoad() {
-  const eqLoad = calcEquipLoad(BUILD.stats.endurance);
-  const el_eq = document.getElementById('derived-eqload');
-  if (el_eq) el_eq.textContent = eqLoad.toFixed(1);
+  let eqLoad;
 
-  // Sum equipped armor weight
-  let totalWeight = 0;
-  ['helm','chest','gauntlet','leg'].forEach(slot => {
-    const item = BUILD.slots[slot];
-    if (item) totalWeight += item.weight || 0;
-  });
-  ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
-    const item = BUILD.slots[slot];
-    if (item) totalWeight += item.weight || 0;
-  });
+  if (BUILD.game === 'err') {
+    // ERR: Base equip load = 100. Endurance does NOT affect it.
+    // Only Leonine Weight rune, Fortune of Sentinel (x1.08), Barbarian (x0.84),
+    // Dynasts (x0.85), Bulwark (always Massive) and talismans affect it.
+    const rm = calcRuneDerivedMults();
+    // Fortune equip load modifiers
+    const FORTUNE_EQ_MULTS = {
+      'Sentinel':  1.08,
+      'Barbarian': 0.84,
+      'Dynasts':   0.85,
+    };
+    const fortuneMult = BUILD.fortune ? (FORTUNE_EQ_MULTS[BUILD.fortune.name] || 1.0) : 1.0;
+    eqLoad = Math.round(100 * fortuneMult * rm.eqload * 10) / 10;
 
-  const weightEl = document.getElementById('total-weight');
-  if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
+    // ERR weapon weight: only heaviest RH + heaviest LH (not all 6 slots)
+    const rhWeights = ['rh1','rh2','rh3'].map(s => BUILD.slots[s]?.weight || 0);
+    const lhWeights = ['lh1','lh2','lh3'].map(s => BUILD.slots[s]?.weight || 0);
+    const weaponWeight = Math.max(...rhWeights) + Math.max(...lhWeights);
+    let armorWeight = 0;
+    ['helm','chest','gauntlet','leg'].forEach(s => { armorWeight += BUILD.slots[s]?.weight || 0; });
+    const totalWeight = weaponWeight + armorWeight;
 
-  const ratio = totalWeight / eqLoad;
-  const rollEl = document.getElementById('roll-type');
-  if (rollEl) {
-    if (ratio <= 0.299)     { rollEl.textContent = 'Light'; rollEl.className = 'text-xs font-bold text-blue-400'; }
-    else if (ratio <= 0.699){ rollEl.textContent = 'Medium'; rollEl.className = 'text-xs font-bold text-green-400'; }
-    else if (ratio <= 0.999){ rollEl.textContent = 'Heavy'; rollEl.className = 'text-xs font-bold text-yellow-400'; }
-    else                    { rollEl.textContent = 'Overloaded'; rollEl.className = 'text-xs font-bold text-red-400'; }
+    const weightEl = document.getElementById('total-weight');
+    if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
+
+    const el_eq = document.getElementById('derived-eqload');
+    if (el_eq) el_eq.textContent = eqLoad.toFixed(1);
+
+    // ERR thresholds and frame names
+    const ratio = totalWeight / eqLoad;
+    const rollEl = document.getElementById('roll-type');
+    let rollText = '', rollClass = '';
+    if (BUILD.fortune && BUILD.fortune.name === 'Bulwark') {
+      rollText = 'Massive Frame'; rollClass = 'text-xs font-bold text-red-400';
+    } else if (ratio < 0.333)  { rollText = 'Nimble Frame';   rollClass = 'text-xs font-bold text-blue-400'; }
+    else if (ratio < 0.666)    { rollText = 'Balanced Frame'; rollClass = 'text-xs font-bold text-green-400'; }
+    else if (ratio < 1.0)      { rollText = 'Solid Frame';    rollClass = 'text-xs font-bold text-yellow-400'; }
+    else                       { rollText = 'Massive Frame';  rollClass = 'text-xs font-bold text-red-400'; }
+    if (rollEl) { rollEl.textContent = rollText; rollEl.className = rollClass; }
+    // Mirror to CHARACTER panel
+    const charWeight = document.getElementById('derived-weight');
+    const charRoll   = document.getElementById('derived-roll');
+    if (charWeight) charWeight.textContent = totalWeight.toFixed(1) + ' / ' + eqLoad.toFixed(1);
+    if (charRoll)   { charRoll.textContent = rollText; charRoll.className = 'text-sm font-bold ' + rollClass.replace('text-xs ',''); }
+  } else {
+    // ER vanilla: Endurance scales equip load
+    const runeBonuses = calcRuneStatBonuses();
+    const fortuneBonuses = calcFortuneStatBonuses();
+    const effEnd = Math.min(99, (BUILD.stats.endurance || 10) + (runeBonuses.endurance || 0) + (fortuneBonuses.endurance || 0));
+    eqLoad = Math.round(calcEquipLoad(effEnd) * 10) / 10;
+
+    let totalWeight = 0;
+    ['helm','chest','gauntlet','leg','rh1','rh2','rh3','lh1','lh2','lh3'].forEach(s => {
+      totalWeight += BUILD.slots[s]?.weight || 0;
+    });
+
+    const weightEl = document.getElementById('total-weight');
+    if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
+
+    const el_eq = document.getElementById('derived-eqload');
+    if (el_eq) el_eq.textContent = eqLoad.toFixed(1);
+
+    const ratio = totalWeight / eqLoad;
+    const rollEl = document.getElementById('roll-type');
+    let rollText = '', rollClass = '';
+    if (ratio <= 0.299)     { rollText = 'Light';      rollClass = 'text-xs font-bold text-blue-400'; }
+    else if (ratio <= 0.699){ rollText = 'Medium';     rollClass = 'text-xs font-bold text-green-400'; }
+    else if (ratio <= 0.999){ rollText = 'Heavy';      rollClass = 'text-xs font-bold text-yellow-400'; }
+    else                    { rollText = 'Overloaded'; rollClass = 'text-xs font-bold text-red-400'; }
+    if (rollEl) { rollEl.textContent = rollText; rollEl.className = rollClass; }
+    // Mirror to CHARACTER panel
+    const charWeight = document.getElementById('derived-weight');
+    const charRoll   = document.getElementById('derived-roll');
+    if (charWeight) charWeight.textContent = totalWeight.toFixed(1) + ' / ' + eqLoad.toFixed(1);
+    if (charRoll)   { charRoll.textContent = rollText; charRoll.className = 'text-sm font-bold ' + rollClass.replace('text-xs ',''); }
   }
 }
 
@@ -3773,6 +3911,9 @@ function toggleErrPanels(isErr) {
     _fortunesLoaded = false;
     _fortuneMode = 'main';
   }
+  // Show ERR weight approximation note in armor tab and character panel
+  document.getElementById('err-weight-note')?.classList.toggle('hidden', !isErr);
+  document.getElementById('char-err-weight-note')?.classList.toggle('hidden', !isErr);
   // Show affinity rows on all weapon slots if ERR and weapon is equipped
   ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
     const row = document.getElementById('affinity-row-' + slot);
@@ -3905,6 +4046,9 @@ function updatePoise() {
   });
   const el = document.getElementById('total-poise');
   if (el) el.textContent = poise.toFixed(1);
+  // Mirror to CHARACTER panel
+  const charPoise = document.getElementById('derived-poise');
+  if (charPoise) charPoise.textContent = poise.toFixed(1);
 }
 
 function equipSpell(spell) {
@@ -3993,7 +4137,7 @@ function saveBuild() {
     fortune_name:       BUILD.fortune?.name || null,
     minor_fortune_name: BUILD.minor_fortune?.name || null,
     curio_selections:   BUILD.curioSelections || null,
-    rune_inventory:     BUILD.rune_inventory || null,
+    rune_inventory:     BUILD.runeInventory || null,
   };
   csrfFetch('/api/soulslike/builds/?game=' + BUILD.game, {
     method: 'POST',

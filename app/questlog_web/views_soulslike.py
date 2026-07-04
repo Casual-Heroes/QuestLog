@@ -154,9 +154,9 @@ def api_sl_session_create(request):
             })
 
         # Always seed build items checklist (weapons, armor, spells, etc.)
-        for item in items[:100]:
+        for item in items[:200]:
             itype = str(item.get('item_type', 'weapon'))[:16]
-            iid   = safe_int(item.get('item_id'), None)
+            iid   = safe_int(item.get('item_id'), 0) or 0  # 0 for items without DB ids
             iname = sanitize_text(str(item.get('item_name', ''))[:200])
             hint  = sanitize_text(str(item.get('location_hint', ''))[:300])
             if not iname:
@@ -1103,8 +1103,56 @@ def api_sl_manual_start(request, token):
 
 
 @csrf_exempt
-@ratelimit(key='ip', rate='60/m', block=True)
+@ratelimit(key='user_or_ip', rate='20/m', block=True)
 @require_http_methods(['POST'])
+def api_sl_test_hollow(request, token):
+    """
+    POST /api/soulslike/session/<token>/test-hollow/
+    Owner only. Temporarily sets rage to 100 (HOLLOW) in DB so the polling
+    overlay picks it up. Auto-reverts after 5 seconds.
+    """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    with get_db_session() as db:
+        session = db.execute(text(
+            "SELECT id, rage_pct, rage_name, hollow_streak FROM sl_collection_sessions "
+            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
+        if not session:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        sid              = session[0]
+        orig_rage_pct    = session[1] or 0
+        orig_rage_name   = session[2] or "Maiden's Grace"
+        hollow_streak    = session[3] or 0
+
+        # Set to HOLLOW so next poll picks it up
+        db.execute(text(
+            "UPDATE sl_collection_sessions SET rage_pct=100, rage_name='HOLLOW', "
+            "hollow_entered_at=COALESCE(hollow_entered_at, :now) WHERE id=:sid"
+        ), {'sid': sid, 'now': int(time.time())})
+        db.commit()
+
+    # Revert after 5 seconds in background thread
+    import threading
+    def revert():
+        import time as _t
+        _t.sleep(5)
+        try:
+            with get_db_session() as _db:
+                _db.execute(text(
+                    "UPDATE sl_collection_sessions SET rage_pct=:pct, rage_name=:name, "
+                    "hollow_entered_at=NULL WHERE id=:sid"
+                ), {'pct': orig_rage_pct, 'name': orig_rage_name, 'sid': sid})
+                _db.commit()
+        except Exception as e:
+            logger.error("test_hollow revert failed sid=%s: %s", sid, e)
+    threading.Thread(target=revert, daemon=True).start()
+
+    return JsonResponse({'ok': True, 'message': 'Test hollow active for 5 seconds - check your overlay'})
+
+
 def api_sl_set_focus(request, token):
     """
     POST /api/soulslike/session/<token>/set-focus/
@@ -1653,6 +1701,7 @@ def sl_runs(request):
                    (SELECT SUM(is_collected) FROM sl_collection_item_status WHERE session_id=s.id) as done,
                    longest_life_sec, listener_session_sec,
                    (SELECT COUNT(*) FROM sl_session_bosses WHERE session_id=s.id AND is_defeated=1) as bosses_killed,
+                   (SELECT COUNT(*) FROM sl_session_bosses WHERE session_id=s.id) as bosses_total,
                    game_mode
             FROM sl_collection_sessions s
             WHERE user_id=:uid AND (is_archived = 0 OR is_archived IS NULL)
@@ -1703,7 +1752,8 @@ def sl_runs(request):
             'longest_life': _fmt_time(r[9] or 0),
             'session_time': _fmt_time(r[10] or 0),
             'bosses_killed': r[11] or 0,
-            'game_mode':    r[12] or 'vanilla',
+            'bosses_total':  r[12] or 0,
+            'game_mode':    r[13] or 'vanilla',
         }
         for r in rows
     ]
@@ -1741,9 +1791,20 @@ def sl_community_runs(request):
     with get_db_session() as db:
         filters = "WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
         params  = {}
-        if game:
+        ALLOWED_GAME_FILTERS = {'elden_ring', 'err'}  # extend as new games added
+        if game == 'err':
+            filters += " AND s.game_mode='err'"
+        elif game == 'elden_ring':
+            filters += " AND s.game='elden_ring' AND (s.game_mode IS NULL OR s.game_mode != 'err')"
+        elif game and game in ALLOWED_GAME_FILTERS:
             filters += " AND s.game=:game"
             params['game'] = game
+        elif game:
+            # Unknown game filter - return empty result rather than query with arbitrary value
+            return render(request, 'questlog_web/sl_community_runs.html', {
+                'web_user': request.web_user, 'active_page': 'sl_community_runs',
+                'runs': [], 'active_count': 0, 'game_filter': game,
+            })
 
         rows = db.execute(text(f"""
             SELECT s.session_token, s.build_name, s.game, s.game_mode,
@@ -1752,6 +1813,8 @@ def sl_community_runs(request):
                    s.listener_session_sec, s.total_survival_sec,
                    (SELECT COUNT(*) FROM sl_session_bosses b WHERE b.session_id=s.id AND b.is_defeated=1) as bosses_killed,
                    (SELECT COUNT(*) FROM sl_session_bosses b WHERE b.session_id=s.id) as bosses_total,
+                   (SELECT SUM(is_collected) FROM sl_collection_item_status WHERE session_id=s.id) as items_collected,
+                   (SELECT COUNT(*) FROM sl_collection_item_status WHERE session_id=s.id) as items_total,
                    u.username, u.avatar_url, u.is_live, u.live_platform,
                    u.twitch_username, u.live_url
             FROM sl_collection_sessions s
@@ -1765,9 +1828,9 @@ def sl_community_runs(request):
         """), {**params, 'cutoff': cutoff}).fetchall()
 
     def stream_url(row):
-        if not row[15]: return None  # not live
-        if row[16] == 'twitch' and row[17]: return f'https://twitch.tv/{row[17]}'
-        if row[18]: return row[18]  # live_url - Kick or any other platform
+        if not row[17]: return None  # not live
+        if row[18] == 'twitch' and row[19]: return f'https://twitch.tv/{row[19]}'
+        if row[20]: return row[20]  # live_url
         return None
 
     runs = [
@@ -1784,12 +1847,14 @@ def sl_community_runs(request):
             'hc_score':    r[8] or 0,
             'session_sec': r[9] or 0,
             'session_fmt': _fmt_time(r[9] or 0),
-            'bosses_killed': r[11] or 0,
-            'bosses_total':  r[12] or 0,
-            'boss_pct':    round((r[11] or 0) / r[12] * 100) if r[12] else 0,
-            'username':    r[13],
-            'avatar':      r[14] or '',
-            'is_live':     bool(r[15]),
+            'bosses_killed':    r[11] or 0,
+            'bosses_total':     r[12] or 0,
+            'boss_pct':         round((r[11] or 0) / r[12] * 100) if r[12] else 0,
+            'items_collected':  int(r[13] or 0),
+            'items_total':      r[14] or 0,
+            'username':    r[15],
+            'avatar':      r[16] or '',
+            'is_live':     bool(r[17]),
             'stream_url':  stream_url(r),
         }
         for r in rows
@@ -2497,9 +2562,9 @@ def _sl_session_create_inner(request):
                    'loc': b[2], 'region': b[3], 'tier': b[4],
                    'g': game, 'gm': game_mode})
 
-        for item in items[:100]:
+        for item in items[:200]:
             itype = str(item.get('item_type', 'weapon'))[:16]
-            iid   = safe_int(item.get('item_id'), None)
+            iid   = safe_int(item.get('item_id'), 0) or 0  # 0 for non-DB items
             iname = sanitize_text(str(item.get('item_name', ''))[:200])
             hint  = sanitize_text(str(item.get('location_hint', ''))[:300])
             if not iname:

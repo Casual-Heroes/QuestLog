@@ -99,8 +99,13 @@
           <!-- Stats row -->
           <div class="flex items-center gap-3 mt-1.5 flex-wrap">
             <span class="text-[11px] text-red-400 font-bold">
-              <i class="fas fa-skull mr-0.5 text-[9px]"></i>{{ r.deaths }}
+              <i class="fas fa-skull mr-0.5 text-[9px]"></i>{{ r.deaths }} deaths
             </span>
+            {% if r.items_total > 0 %}
+            <span class="text-[11px] text-green-600">
+              <i class="fas fa-check-circle mr-0.5 text-[9px]"></i>{{ r.items_collected }}/{{ r.items_total }} items
+            </span>
+            {% endif %}
             {% if r.bosses_total > 0 %}
             <span class="text-[11px] text-gray-500">
               <i class="fas fa-dragon mr-0.5 text-[9px] text-amber-600"></i>{{ r.bosses_killed }}/{{ r.bosses_total }} bosses

@@ -626,6 +626,21 @@ function connectSSE() {
         // Schedule a single load() to update boss count - slight delay to avoid flash mid-animation
         setTimeout(load, 500);
       }
+
+      // Test hollow alert - fires from test-hollow endpoint, reverts after 5s
+      if (d.event === 'hollow_test' || d.event === 'hollow_test_end') {
+        var ragePct  = d.rage_pct || 0;
+        var rageName = d.rage_name || "Maiden's Grace";
+        var bar = document.getElementById('rage-bar');
+        if (bar) {
+          bar.style.width = Math.min(100, ragePct) + '%';
+          bar.style.background = RAGE_COLORS[rageName] || RAGE_COLORS["Maiden's Grace"];
+        }
+        var rn = document.getElementById('rage-name');
+        if (rn) { rn.textContent = rageName; rn.style.color = RAGE_TEXT_COLORS[rageName] || '#c9a84c'; }
+        var hollowEl = document.getElementById('hollow-alert');
+        if (hollowEl) hollowEl.style.display = d.is_hollow ? 'block' : 'none';
+      }
     } catch(err) {}
   };
   sse.onerror = function() { setTimeout(connectSSE, 3000); };

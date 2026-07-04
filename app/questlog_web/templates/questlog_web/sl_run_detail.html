@@ -21,8 +21,12 @@
 .type-talisman { background:rgba(167,139,250,0.15); color:#a78bfa; }
 .type-spell    { background:rgba(96,165,250,0.15); color:#60a5fa; }
 .type-armor    { background:rgba(156,163,175,0.15); color:#9ca3af; }
-.type-spirit_ash { background:rgba(52,211,153,0.15); color:#34d399; }
-.type-crystal_tear { background:rgba(14,165,233,0.15); color:#38bdf8; }
+.type-spirit_ash    { background:rgba(52,211,153,0.15);  color:#34d399; }
+.type-crystal_tear  { background:rgba(14,165,233,0.15);  color:#38bdf8; }
+.type-aow           { background:rgba(251,191,36,0.15);  color:#fbbf24; }
+.type-fortune       { background:rgba(245,158,11,0.15);  color:#f59e0b; }
+.type-minor_fortune { background:rgba(167,139,250,0.12); color:#c4b5fd; }
+.type-curio         { background:rgba(239,68,68,0.15);   color:#f87171; }
 .filter-btn { font-size:0.65rem; font-weight:700; padding:0.2rem 0.6rem; border-radius:4px; border:1px solid rgba(255,255,255,0.1); color:#6b7280; cursor:pointer; background:transparent; transition:all 0.15s; }
 .filter-btn:hover,.filter-btn.active { border-color:#d97706; color:#d97706; }
 /* Rage */
@@ -442,6 +446,15 @@
         <code class="text-green-300 text-[10px] flex-1 truncate">/soulslike/overlay/{{ token }}/collection/</code>
         <button onclick="copyUrl('/soulslike/overlay/{{ token }}/collection/')" class="text-gray-600 hover:text-white text-xs flex-shrink-0"><i class="fas fa-copy"></i></button>
       </div>
+      {% if is_owner and is_active %}
+      <div class="border-t border-neutral-800 pt-2 mt-1">
+        <p class="text-[10px] text-gray-600 mb-1.5">Test your overlays are working:</p>
+        <button onclick="testHollowAlert()" id="test-hollow-btn"
+                class="flex items-center gap-2 px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 border border-red-800/40 text-red-400 text-[11px] font-bold rounded-lg transition">
+          <i class="fas fa-fire"></i> Test Hollow Alert
+        </button>
+      </div>
+      {% endif %}
     </div>
   </details>
 
@@ -495,6 +508,18 @@ var TIMING_MODE = '{{ timing_mode|escapejs }}';
 var IS_HARDCORE = {% if is_hardcore %}true{% else %}false{% endif %};
 
 var allItems         = [];
+var TYPE_LABELS = {
+  weapon:        'Weapon',
+  armor:         'Armor',
+  talisman:      'Talisman',
+  spell:         'Spell',
+  aow:           'Ash of War',
+  spirit_ash:    'Spirit Ash',
+  crystal_tear:  'Crystal Tear',
+  fortune:       'Fortune',
+  minor_fortune: 'Minor Fortune',
+  curio:         'Curio',
+};
 var allBosses        = {};
 var bossData         = {};
 var activeBossTab    = '';
@@ -875,7 +900,7 @@ function renderItems() {
       '<div class="item-check'+chk+'" data-name="'+esc(item.name)+'" data-collected="'+(item.collected?'1':'0')+'" onclick="toggleItemEl(this)">'+
       (item.collected?'<i class="fas fa-check text-green-400" style="font-size:10px"></i>':'')+
       '</div>'+
-      '<span class="item-type-badge type-'+item.type+'">'+esc(item.type)+'</span>'+
+      '<span class="item-type-badge type-'+(/^[a-z_]{1,20}$/.test(item.type)?item.type:'unknown')+'">'+esc(TYPE_LABELS[item.type]||item.type)+'</span>'+
       '<div class="flex-1 min-w-0">'+
         '<div class="text-sm '+(item.collected?'line-through text-gray-600':'text-white')+'">'+esc(item.name)+'</div>'+
         (item.hint?'<div class="text-xs text-gray-600 mt-0.5">'+esc(item.hint)+'</div>':'')+
@@ -990,6 +1015,20 @@ function showSetDeaths() {
 
 function copyUrl(path){
   navigator.clipboard.writeText('https://questlog.casual-heroes.com'+path).catch(function(){});
+}
+
+function testHollowAlert(){
+  var btn = document.getElementById('test-hollow-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  csrfFetch('/api/soulslike/session/'+TOKEN+'/test-hollow/', {method:'POST'})
+    .then(function(r){return r.json();}).then(function(d){
+      if (btn) {
+        btn.textContent = 'Sent! Reverts in 5s';
+        setTimeout(function(){ btn.disabled=false; btn.innerHTML='<i class="fas fa-fire"></i> Test Hollow Alert'; }, 5500);
+      }
+    }).catch(function(){
+      if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-fire"></i> Test Hollow Alert'; }
+    });
 }
 
 // ── Hardcore Mode ────────────────────────────────────────────────────────────

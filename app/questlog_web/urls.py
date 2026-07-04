@@ -306,7 +306,7 @@ from .views_profile import (
 from .views_soulslike import (
     api_sl_session_create, api_sl_collect, api_sl_uncollect,
     api_sl_death, api_sl_session_status, api_sl_session_end, api_sl_reset_deaths, api_sl_heartbeat,
-    api_sl_set_deaths,
+    api_sl_set_deaths, api_sl_test_hollow,
     api_sl_boss_mark, api_sl_boss_unmark, api_sl_seed_bosses, api_sl_set_focus,
     api_sl_manual_start, sl_run_manifest, api_sl_desktop_session_create,
     api_sl_stream,
@@ -568,6 +568,7 @@ urlpatterns = [
     path('api/soulslike/session/<str:token>/manual-start/',    api_sl_manual_start,    name='api_sl_manual_start'),
     path('api/soulslike/session/<str:token>/subtract-death/', api_sl_subtract_death, name='api_sl_subtract_death'),
     path('api/soulslike/session/<str:token>/hc-complete/',    api_sl_hc_complete,     name='api_sl_hc_complete'),
+    path('api/soulslike/session/<str:token>/test-hollow/',    api_sl_test_hollow,     name='api_sl_test_hollow'),
     path('api/soulslike/runs/active/',                        api_sl_active_runs,     name='api_sl_active_runs'),
     path('soulslike/runs/<str:token>/manifest.json',        sl_run_manifest,       name='sl_run_manifest'),
     path('soulslike/runs/',                             sl_runs,                name='questlog_web_sl_runs'),
