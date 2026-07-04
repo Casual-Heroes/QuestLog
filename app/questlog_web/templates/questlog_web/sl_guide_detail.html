@@ -1,0 +1,244 @@
+{% extends "questlog_web/base_web.html" %}
+{% block title %}{{ guide.title }} - SoulsLike Guides{% endblock %}
+{% block og_title %}{{ guide.title }}{% endblock %}
+{% block og_description %}{{ guide.summary }}{% endblock %}
+
+{% block web_content %}
+<div class="max-w-3xl mx-auto px-4 py-6">
+
+  <!-- Breadcrumb -->
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-4">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <a href="/soulslike/guides/" class="hover:text-gray-400 transition">Guides</a>
+    <span>/</span>
+    <span class="text-gray-500 truncate max-w-48">{{ guide.title }}</span>
+  </div>
+
+  <!-- Guide header -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-4">
+    <div class="flex flex-wrap gap-1.5 mb-3">
+      <span class="text-[10px] px-2 py-0.5 rounded-full bg-neutral-800 text-gray-400 font-medium">{{ guide.type_label }}</span>
+      <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-950/60 text-purple-400 font-medium">{{ guide.game_label }}</span>
+      {% if guide.game_tag_name %}
+      {% if guide.game_tag_steam_id %}
+      <a href="https://store.steampowered.com/app/{{ guide.game_tag_steam_id }}/" target="_blank" rel="noopener"
+         class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950/60 text-blue-400 font-medium hover:text-blue-300 transition">
+        <i class="fab fa-steam mr-0.5 text-[9px]"></i>{{ guide.game_tag_name }}
+      </a>
+      {% else %}
+      <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-950/60 text-blue-400 font-medium">
+        <i class="fas fa-gamepad mr-0.5 text-[9px]"></i>{{ guide.game_tag_name }}
+      </span>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    <h1 class="text-xl font-black text-white mb-2">{{ guide.title }}</h1>
+    {% if guide.summary %}
+    <p class="text-gray-400 text-sm mb-4">{{ guide.summary }}</p>
+    {% endif %}
+
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full bg-neutral-700 overflow-hidden flex-shrink-0">
+          {% if guide.avatar %}
+          <img src="{{ guide.avatar }}" class="w-full h-full object-cover" alt="{{ guide.author }}">
+          {% else %}
+          <div class="w-full h-full flex items-center justify-center text-gray-500 text-sm font-bold">{{ guide.author|first|upper }}</div>
+          {% endif %}
+        </div>
+        <div>
+          <p class="text-white text-xs font-semibold">{{ guide.author }}</p>
+          <p class="text-gray-600 text-[10px]">{{ guide.date }}{% if guide.updated != guide.date %} - updated {{ guide.updated }}{% endif %}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="like-btn" onclick="toggleLike()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition
+          {% if guide.liked %}bg-red-900/30 border-red-700/50 text-red-400{% else %}bg-neutral-800 border-neutral-700 text-gray-400 hover:border-red-700/50 hover:text-red-400{% endif %}">
+          <i class="fas fa-heart"></i>
+          <span id="like-count">{{ guide.like_count }}</span>
+        </button>
+        <span class="text-gray-600 text-xs"><i class="fas fa-eye mr-1"></i>{{ guide.view_count }}</span>
+        {% if guide.is_owner or guide.is_admin %}
+        <a href="/soulslike/guides/{{ guide.slug }}/edit/" class="text-xs text-gray-500 hover:text-amber-400 transition"><i class="fas fa-pen"></i></a>
+        <button onclick="deleteGuide()" class="text-xs text-gray-500 hover:text-red-400 transition"><i class="fas fa-trash"></i></button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Guide body -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 mb-6 prose-sl">
+    <div class="guide-body text-gray-300 text-sm leading-relaxed space-y-4">
+      {{ guide.body|safe }}
+    </div>
+  </div>
+
+  <!-- Comments -->
+  <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+    <h2 class="text-white font-bold text-sm mb-4">
+      <i class="fas fa-comment text-gray-600 mr-2"></i>Comments
+      <span class="text-gray-600 font-normal ml-1">({{ comments|length }})</span>
+    </h2>
+
+    <!-- Comment list -->
+    <div id="comment-list" class="space-y-4 mb-5">
+      {% for c in comments %}
+      <div class="flex gap-3" id="comment-{{ c.id }}">
+        <div class="w-7 h-7 rounded-full bg-neutral-700 overflow-hidden flex-shrink-0 mt-0.5">
+          {% if c.avatar %}
+          <img src="{{ c.avatar }}" class="w-full h-full object-cover" alt="{{ c.author }}">
+          {% else %}
+          <div class="w-full h-full flex items-center justify-center text-gray-600 text-xs font-bold">{{ c.author|first|upper }}</div>
+          {% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="bg-neutral-800 rounded-xl px-3 py-2.5">
+            <p class="text-xs font-bold text-gray-300 mb-0.5">{{ c.author }} <span class="text-gray-600 font-normal">- {{ c.date }}</span></p>
+            <p class="text-gray-300 text-sm">{{ c.body }}</p>
+          </div>
+          {% if c.is_owner or guide.is_admin %}
+          <button onclick="deleteComment({{ c.id }})" class="text-[10px] text-gray-700 hover:text-red-400 transition mt-1 ml-3">delete</button>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-gray-600 text-xs text-center py-4" id="no-comments">No comments yet - be the first!</p>
+      {% endfor %}
+    </div>
+
+    <!-- Comment form -->
+    {% if web_user %}
+    <div class="flex gap-3">
+      <div class="w-7 h-7 rounded-full bg-neutral-700 overflow-hidden flex-shrink-0 mt-1">
+        {% if web_user.avatar_url %}
+        <img src="{{ web_user.avatar_url }}" class="w-full h-full object-cover">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center text-gray-500 text-xs font-bold">{{ web_user.username|first|upper }}</div>
+        {% endif %}
+      </div>
+      <div class="flex-1">
+        <textarea id="comment-input" rows="2" maxlength="2000"
+                  placeholder="Add a comment..."
+                  class="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 resize-none placeholder-gray-600"></textarea>
+        <div class="flex justify-end mt-2">
+          <button onclick="submitComment()" id="comment-btn"
+                  class="px-4 py-1.5 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition">
+            Post Comment
+          </button>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <p class="text-center text-gray-600 text-xs py-2">
+      <a href="/login/?next=/soulslike/guides/{{ guide.slug }}/" class="text-amber-500 hover:text-amber-400">Sign in</a> to leave a comment.
+    </p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+.guide-body h1,.guide-body h2,.guide-body h3 { color:#fff; font-weight:700; margin-top:1.5rem; margin-bottom:.5rem; }
+.guide-body h1 { font-size:1.25rem; }
+.guide-body h2 { font-size:1.1rem; }
+.guide-body h3 { font-size:1rem; }
+.guide-body ul,.guide-body ol { padding-left:1.5rem; margin:.5rem 0; }
+.guide-body ul li { list-style:disc; margin:.25rem 0; }
+.guide-body ol li { list-style:decimal; margin:.25rem 0; }
+.guide-body a { color:#f59e0b; text-decoration:underline; }
+.guide-body blockquote { border-left:3px solid #404040; padding-left:1rem; color:#9ca3af; margin:.75rem 0; }
+.guide-body code { background:#1f1f1f; padding:.1rem .35rem; border-radius:.25rem; font-size:.8em; color:#fbbf24; }
+.guide-body pre { background:#1f1f1f; padding:1rem; border-radius:.5rem; overflow-x:auto; }
+.guide-body pre code { background:none; padding:0; color:#e5e7eb; }
+.guide-body strong { color:#fff; font-weight:700; }
+.guide-body em { font-style:italic; }
+.guide-body img { max-width:100%; border-radius:.5rem; margin:.75rem auto; display:block; }
+.guide-body hr { border-color:#374151; margin:1.5rem 0; }
+.guide-body p { margin:.5rem 0; }
+</style>
+
+<script>
+var GUIDE_ID = {{ guide.id }};
+var LIKED    = {% if guide.liked %}true{% else %}false{% endif %};
+
+function getCsrf() {
+  var c = document.cookie.split(';');
+  for (var i=0;i<c.length;i++){ var p=c[i].trim(); if(p.startsWith('csrftoken=')) return p.slice(10); }
+  return '';
+}
+
+function toggleLike() {
+  {% if not web_user %}window.location.href='/login/?next={{ request.path }}';return;{% endif %}
+  fetch('/api/soulslike/guides/'+GUIDE_ID+'/like/', {
+    method:'POST', headers:{'X-CSRFToken':getCsrf(),'Content-Type':'application/json'}
+  }).then(r=>r.json()).then(d=>{
+    if(!d.ok) return;
+    LIKED = d.liked;
+    var btn = document.getElementById('like-btn');
+    document.getElementById('like-count').textContent = d.like_count;
+    if(d.liked){
+      btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition bg-red-900/30 border-red-700/50 text-red-400';
+    } else {
+      btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition bg-neutral-800 border-neutral-700 text-gray-400 hover:border-red-700/50 hover:text-red-400';
+    }
+  });
+}
+
+function submitComment() {
+  var body = document.getElementById('comment-input').value.trim();
+  if(!body) return;
+  var btn = document.getElementById('comment-btn');
+  btn.disabled = true; btn.textContent = 'Posting...';
+  fetch('/api/soulslike/guides/'+GUIDE_ID+'/comments/', {
+    method:'POST',
+    headers:{'X-CSRFToken':getCsrf(),'Content-Type':'application/json'},
+    body: JSON.stringify({body})
+  }).then(r=>r.json()).then(d=>{
+    btn.disabled=false; btn.textContent='Post Comment';
+    if(!d.ok){alert(d.error||'Failed');return;}
+    document.getElementById('comment-input').value='';
+    document.getElementById('no-comments')?.remove();
+    var c = d.comment;
+    var initials = c.author.charAt(0).toUpperCase();
+    var avatarHtml = c.avatar
+      ? `<img src="${escapeHtml(c.avatar)}" class="w-full h-full object-cover" alt="${escapeHtml(c.author)}">`
+      : `<div class="w-full h-full flex items-center justify-center text-gray-600 text-xs font-bold">${escapeHtml(initials)}</div>`;
+    var el = document.createElement('div');
+    el.className='flex gap-3';
+    el.id='comment-'+c.id;
+    el.innerHTML=`
+      <div class="w-7 h-7 rounded-full bg-neutral-700 overflow-hidden flex-shrink-0 mt-0.5">${avatarHtml}</div>
+      <div class="flex-1 min-w-0">
+        <div class="bg-neutral-800 rounded-xl px-3 py-2.5">
+          <p class="text-xs font-bold text-gray-300 mb-0.5">${escapeHtml(c.author)} <span class="text-gray-600 font-normal">- ${escapeHtml(c.date)}</span></p>
+          <p class="text-gray-300 text-sm">${escapeHtml(c.body)}</p>
+        </div>
+        <button onclick="deleteComment(${c.id})" class="text-[10px] text-gray-700 hover:text-red-400 transition mt-1 ml-3">delete</button>
+      </div>`;
+    document.getElementById('comment-list').appendChild(el);
+  }).catch(()=>{btn.disabled=false;btn.textContent='Post Comment';});
+}
+
+function deleteComment(id) {
+  if(!confirm('Delete this comment?')) return;
+  fetch('/api/soulslike/guides/comments/'+id+'/delete/', {
+    method:'POST', headers:{'X-CSRFToken':getCsrf()}
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok) document.getElementById('comment-'+id)?.remove();
+  });
+}
+
+function deleteGuide() {
+  if(!confirm('Permanently delete this guide? This cannot be undone.')) return;
+  fetch('/api/soulslike/guides/'+GUIDE_ID+'/delete/', {
+    method:'POST', headers:{'X-CSRFToken':getCsrf()}
+  }).then(r=>r.json()).then(d=>{
+    if(d.ok) window.location.href='/soulslike/guides/';
+  });
+}
+
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+{% endblock %}
