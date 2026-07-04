@@ -22,18 +22,25 @@
 
 <div class="max-w-5xl mx-auto px-3 py-4">
 
-  <div class="flex items-center gap-3 mb-1">
-    <a href="/soulslike/" class="text-gray-600 hover:text-gray-400 text-xs transition">
-      <i class="fas fa-chevron-left mr-1"></i>SoulsLike Hub
-    </a>
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <span class="text-gray-500">Community Builds</span>
   </div>
   <div class="flex items-center justify-between mb-4">
     <h1 class="text-xl font-black text-white flex items-center gap-2">
       <i class="fas fa-users text-amber-500 text-base"></i> Community Builds
     </h1>
-    <a href="/soulslike/builder/" class="px-4 py-1.5 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded transition">
-      <i class="fas fa-plus mr-1"></i>Create Build
-    </a>
+    <div class="flex gap-2">
+      {% if web_user %}
+      <a href="/soulslike/my-builds/" class="px-4 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white text-xs font-bold rounded transition">
+        <i class="fas fa-shield-halved mr-1"></i>My Builds
+      </a>
+      {% endif %}
+      <a href="/soulslike/builder/" class="px-4 py-1.5 bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold rounded transition">
+        <i class="fas fa-plus mr-1"></i>Create Build
+      </a>
+    </div>
   </div>
 
   <!-- Filters -->

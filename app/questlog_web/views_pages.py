@@ -5625,6 +5625,15 @@ def page_feedback(request):
 # SOULSLIKE HUB
 # =============================================================================
 
+def _safe_json_loads(value, default):
+    """Parse JSON safely - returns default on None, empty, or malformed input."""
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except (ValueError, TypeError):
+        return default
+
 @ensure_csrf_cookie
 @add_web_user_context
 def soulslike_hub(request):
@@ -5636,8 +5645,8 @@ def soulslike_hub(request):
             stats['active_runs']    = db.execute(text('SELECT COUNT(*) FROM sl_collection_sessions WHERE ended_at IS NULL')).scalar() or 0
             stats['total_deaths']   = db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM sl_collection_sessions')).scalar() or 0
             stats['bosses_killed']  = db.execute(text('SELECT COUNT(*) FROM sl_session_bosses WHERE is_defeated=1')).scalar() or 0
-            stats['total_builds']   = (db.execute(text('SELECT COUNT(*) FROM sl_er_builds')).scalar() or 0) + \
-                                      (db.execute(text('SELECT COUNT(*) FROM sl_err_builds')).scalar() or 0)
+            stats['total_builds']   = (db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0) + \
+                                      (db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0)
             stats['leaderboard']    = db.execute(text('SELECT COUNT(*) FROM sl_leaderboard_entries')).scalar() or 0
     except Exception:
         stats = {'total_runs':0,'active_runs':0,'total_deaths':0,'bosses_killed':0,'total_builds':0,'leaderboard':0}
@@ -5648,8 +5657,6 @@ def soulslike_hub(request):
         'stats': stats,
         'games_list': [
             'Elden Ring', 'Elden Ring Reforged',
-            'Dark Souls III', 'Sekiro', 'Lies of P',
-            'The First Berserker: Khazan',
         ],
     })
 
@@ -5676,7 +5683,7 @@ def soulslike_listener_download(request):
 @ensure_csrf_cookie
 @add_web_user_context
 def soulslike_tracker(request):
-    """QuestLog Mortality Tracker download & info page."""
+    """EldenTracker download & info page."""
     from app.db import get_db_session as _gds
     from sqlalchemy import text as _t
     import time as _time
@@ -5695,22 +5702,18 @@ def soulslike_tracker(request):
         'web_user': request.web_user,
         'active_page': 'soulslike_tracker',
         'download_count': download_count,
-        'setup_steps': [
-            'Create a free QuestLog account at questlog.casual-heroes.com/register/',
-            'Download and run the listener for your OS',
-            'Enter your QuestLog API token when prompted (Settings → API Token)',
-            'Launch Elden Ring - deaths are tracked automatically via OCR',
-            'Open your browser to manage runs, toggle bosses, and view your stats',
+        'hotkeys': [
+            ('F9',          'Log death'),
+            ('F10',         'Undo last death'),
+            ('F8',          'Reset session'),
         ],
-        'features_list': [
-            'Auto death detection via OCR - no manual input needed',
-            'Boss tracker for 200+ Elden Ring bosses',
-            "Rage meter that escalates through Maiden's Grace to HOLLOW",
-            'Deaths per hour stats and session tracking',
-            'OBS overlay URL for streaming',
-            'Multiple run support (vanilla, Reforged, NG+)',
-            'Leaderboards coming soon',
-            'LFG integration - find others in your NG cycle',
+        'quick_start': [
+            'Download and run EldenTracker.exe',
+            'Log in with your QuestLog account (one-time SSO login)',
+            'Create a new run or select an existing one',
+            'Boot Elden Ring - session timer starts when the game is detected',
+            'Tap bosses to track fights and kills - logs sync live to the web',
+            'Optional: copy overlay URLs from your run page into OBS/Meld',
         ],
     })
 
@@ -5806,6 +5809,70 @@ def soulslike_builds_browse(request):
             ('challenge', 'Challenge'),
             ('beginner',  'Beginner'),
         ],
+    })
+
+
+@web_login_required
+@add_web_user_context
+def sl_my_builds(request):
+    """My builds page - lists all of the user's ER and ERR builds."""
+    uid = request.web_user.id
+    with get_db_session() as db:
+        er_rows = db.execute(text("""
+            SELECT id, name, total_level, playstyle_tag, is_public, share_token,
+                   created_at, updated_at, 'vanilla' as game_mode
+            FROM sl_er_builds WHERE user_id=:uid ORDER BY updated_at DESC
+        """), {'uid': uid}).fetchall()
+        err_rows = db.execute(text("""
+            SELECT id, name, total_level, playstyle_tag, is_public, share_token,
+                   created_at, updated_at, 'err' as game_mode
+            FROM sl_err_builds WHERE user_id=:uid ORDER BY updated_at DESC
+        """), {'uid': uid}).fetchall()
+
+    # Get active run tokens keyed by build name (for linking)
+    with get_db_session() as db:
+        active_runs = db.execute(text("""
+            SELECT build_id, build_name, session_token
+            FROM sl_collection_sessions
+            WHERE user_id=:uid AND ended_at IS NULL
+        """), {'uid': uid}).fetchall()
+
+    # Map by build_id and build_name for fallback matching
+    active_by_id   = {r[0]: r[2] for r in active_runs if r[0]}
+    active_by_name = {r[1]: r[2] for r in active_runs}
+
+    import datetime
+
+    def fmt_row(r, game_mode):
+        try:
+            updated = datetime.datetime.utcfromtimestamp(r[7]).strftime('%b %d, %Y')
+        except Exception:
+            updated = ''
+        build_id = r[0]
+        name     = r[1]
+        # Find active run token by id first, then name
+        run_token = active_by_id.get(build_id) or active_by_name.get(name)
+        return {
+            'id':          build_id,
+            'name':        name,
+            'level':       r[2] or 1,
+            'playstyle':   r[3] or 'pve',
+            'is_public':   bool(r[4]),
+            'share_token': r[5] or '',
+            'updated':     updated,
+            'game_mode':   game_mode,
+            'game_label':  'ERR' if game_mode == 'err' else 'ER',
+            'run_token':   run_token or '',
+        }
+
+    builds = [fmt_row(r, 'vanilla') for r in er_rows] + \
+             [fmt_row(r, 'err') for r in err_rows]
+    builds.sort(key=lambda b: b['updated'], reverse=True)
+
+    return render(request, 'questlog_web/sl_my_builds.html', {
+        'web_user':    request.web_user,
+        'active_page': 'sl_my_builds',
+        'builds':      builds,
     })
 
 
@@ -5934,11 +6001,11 @@ def api_sl_spells(request):
             # This ensures ID 99 in sl_err_spells (Volcanic Storm) ≠ ID 99 in sl_spells (Gurrang's Beast Claw)
             sql = text(f"""
                 SELECT id, name, spell_type, fp_cost, slots_required AS slots,
-                       int_requirement, fai_requirement, arc_requirement, image_url
+                       int_requirement, fai_requirement, arc_requirement, image_url, school
                 FROM sl_spells WHERE game = 'elden_ring' {q_filter} {type_filter}
                 UNION ALL
                 SELECT id + 10000, name, spell_type, COALESCE(fp_cost,0), COALESCE(slots_used,0),
-                       COALESCE(int_req,0), COALESCE(fai_req,0), COALESCE(arc_req,0), NULL
+                       COALESCE(int_req,0), COALESCE(fai_req,0), COALESCE(arc_req,0), NULL, school
                 FROM sl_err_spells WHERE is_new_to_err = 1 {q_filter} {type_filter}
                 ORDER BY spell_type, name LIMIT :lim
             """)
@@ -5954,7 +6021,7 @@ def api_sl_spells(request):
             where = " AND ".join(conditions)
             rows = db.execute(text(
                 f"SELECT id, name, spell_type, fp_cost, slots_required, "
-                f"int_requirement, fai_requirement, arc_requirement, image_url "
+                f"int_requirement, fai_requirement, arc_requirement, image_url, school "
                 f"FROM sl_spells WHERE {where} ORDER BY spell_type, name LIMIT :lim"
             ), params).fetchall()
 
@@ -5962,7 +6029,8 @@ def api_sl_spells(request):
         {'id': r[0], 'name': r[1], 'type': r[2] or 'Sorcery', 'fp_cost': r[3] or 0,
          'slots': r[4] or 0,
          'requirements': {'int': r[5] or 0, 'fai': r[6] or 0, 'arc': r[7] or 0},
-         'image_url': r[8] or ''}
+         'image_url': r[8] or '',
+         'school': r[9] or ''}
         for r in rows
     ]})
 
@@ -6485,12 +6553,12 @@ def api_sl_builds(request):
                 "vigor=:vigor, mind=:mind, endurance=:endurance, strength=:strength, "
                 "dexterity=:dex, intelligence=:int, faith=:faith, arcane=:arc, "
                 "total_level=:level, "
-                "rh1_weapon_id=:rh1, rh1_aow_name=:rh1aow, "
-                "rh2_weapon_id=:rh2, rh2_aow_name=:rh2aow, "
-                "rh3_weapon_id=:rh3, rh3_aow_name=:rh3aow, "
-                "lh1_weapon_id=:lh1, lh1_aow_name=:lh1aow, "
-                "lh2_weapon_id=:lh2, lh2_aow_name=:lh2aow, "
-                "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, "
+                "rh1_weapon_id=:rh1, rh1_aow_name=:rh1aow, rh1_affinity=:rh1aff, "
+                "rh2_weapon_id=:rh2, rh2_aow_name=:rh2aow, rh2_affinity=:rh2aff, "
+                "rh3_weapon_id=:rh3, rh3_aow_name=:rh3aow, rh3_affinity=:rh3aff, "
+                "lh1_weapon_id=:lh1, lh1_aow_name=:lh1aow, lh1_affinity=:lh1aff, "
+                "lh2_weapon_id=:lh2, lh2_aow_name=:lh2aow, lh2_affinity=:lh2aff, "
+                "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, lh3_affinity=:lh3aff, "
                 "helm_id=:helm, chest_id=:chest, gauntlet_id=:gaunt, leg_id=:leg, "
                 "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
                 "spells=:spells, playstyle_tag=:tag, is_public=:pub, "
@@ -6506,12 +6574,12 @@ def api_sl_builds(request):
                 'strength': stats['strength'], 'dex': stats['dexterity'],
                 'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
                 'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
-                'rh1': _si('rh1_weapon_id'), 'rh1aow': sanitize_text(str(data.get('rh1_aow_name') or '')[:200]) or None,
-                'rh2': _si('rh2_weapon_id'), 'rh2aow': sanitize_text(str(data.get('rh2_aow_name') or '')[:200]) or None,
-                'rh3': _si('rh3_weapon_id'), 'rh3aow': sanitize_text(str(data.get('rh3_aow_name') or '')[:200]) or None,
-                'lh1': _si('lh1_weapon_id'), 'lh1aow': sanitize_text(str(data.get('lh1_aow_name') or '')[:200]) or None,
-                'lh2': _si('lh2_weapon_id'), 'lh2aow': sanitize_text(str(data.get('lh2_aow_name') or '')[:200]) or None,
-                'lh3': _si('lh3_weapon_id'), 'lh3aow': sanitize_text(str(data.get('lh3_aow_name') or '')[:200]) or None,
+                'rh1': _si('rh1_weapon_id'), 'rh1aow': sanitize_text(str(data.get('rh1_aow_name') or '')[:200]) or None, 'rh1aff': sanitize_text(str(data.get('rh1_affinity') or '')[:50]) or None,
+                'rh2': _si('rh2_weapon_id'), 'rh2aow': sanitize_text(str(data.get('rh2_aow_name') or '')[:200]) or None, 'rh2aff': sanitize_text(str(data.get('rh2_affinity') or '')[:50]) or None,
+                'rh3': _si('rh3_weapon_id'), 'rh3aow': sanitize_text(str(data.get('rh3_aow_name') or '')[:200]) or None, 'rh3aff': sanitize_text(str(data.get('rh3_affinity') or '')[:50]) or None,
+                'lh1': _si('lh1_weapon_id'), 'lh1aow': sanitize_text(str(data.get('lh1_aow_name') or '')[:200]) or None, 'lh1aff': sanitize_text(str(data.get('lh1_affinity') or '')[:50]) or None,
+                'lh2': _si('lh2_weapon_id'), 'lh2aow': sanitize_text(str(data.get('lh2_aow_name') or '')[:200]) or None, 'lh2aff': sanitize_text(str(data.get('lh2_affinity') or '')[:50]) or None,
+                'lh3': _si('lh3_weapon_id'), 'lh3aow': sanitize_text(str(data.get('lh3_aow_name') or '')[:200]) or None, 'lh3aff': sanitize_text(str(data.get('lh3_affinity') or '')[:50]) or None,
                 'helm': _si('helm_id'), 'chest': _si('chest_id'), 'gaunt': _si('gauntlet_id'),
                 'leg': _si('leg_id'),
                 't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
@@ -6556,8 +6624,8 @@ def api_sl_builds(request):
             "(user_id, name, description, class_id, "
             " vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane, "
             " total_level, "
-            " rh1_weapon_id, rh1_aow_name, rh2_weapon_id, rh2_aow_name, rh3_weapon_id, rh3_aow_name, "
-            " lh1_weapon_id, lh1_aow_name, lh2_weapon_id, lh2_aow_name, lh3_weapon_id, lh3_aow_name, "
+            " rh1_weapon_id, rh1_aow_name, rh1_affinity, rh2_weapon_id, rh2_aow_name, rh2_affinity, rh3_weapon_id, rh3_aow_name, rh3_affinity, "
+            " lh1_weapon_id, lh1_aow_name, lh1_affinity, lh2_weapon_id, lh2_aow_name, lh2_affinity, lh3_weapon_id, lh3_aow_name, lh3_affinity, "
             " helm_id, chest_id, gauntlet_id, leg_id, "
             " talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
             " spells, playstyle_tag, is_public, share_token, "
@@ -6568,8 +6636,8 @@ def api_sl_builds(request):
             "(:uid, :name, :desc, :cls, "
             " :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc, "
             " :level, "
-            " :rh1, :rh1aow, :rh2, :rh2aow, :rh3, :rh3aow, "
-            " :lh1, :lh1aow, :lh2, :lh2aow, :lh3, :lh3aow, "
+            " :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff, "
+            " :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff, "
             " :helm, :chest, :gaunt, :leg, "
             " :t1, :t2, :t3, :t4, "
             " :spells, :tag, :pub, :token, "
@@ -6584,12 +6652,12 @@ def api_sl_builds(request):
             'strength': stats['strength'], 'dex': stats['dexterity'],
             'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
             'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
-            'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'),
-            'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'),
-            'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'),
-            'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'),
-            'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'),
-            'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'),
+            'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'), 'rh1aff': _aow('rh1_affinity'),
+            'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'), 'rh2aff': _aow('rh2_affinity'),
+            'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'), 'rh3aff': _aow('rh3_affinity'),
+            'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'), 'lh1aff': _aow('lh1_affinity'),
+            'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'), 'lh2aff': _aow('lh2_affinity'),
+            'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'), 'lh3aff': _aow('lh3_affinity'),
             'helm': _si('helm_id'), 'chest': _si('chest_id'),
             'gaunt': _si('gauntlet_id'), 'leg': _si('leg_id'),
             't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
@@ -6615,7 +6683,9 @@ def api_sl_builds(request):
 @web_login_required
 @require_http_methods(['DELETE'])
 def api_sl_build_delete(request, build_id):
-    """DELETE /api/soulslike/builds/<id>/delete/ - delete own build."""
+    """DELETE /api/soulslike/builds/<id>/delete/ - delete own build.
+    Also archives any active runs linked to this build - a run without its build is an orphan.
+    """
     game = request.GET.get('game', 'elden_ring')[:32]
     _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
     table = _GAME_TABLES.get(game, 'sl_er_builds')
@@ -6623,10 +6693,18 @@ def api_sl_build_delete(request, build_id):
     bid = int(build_id) if str(build_id).isdigit() else 0
     if not bid:
         return JsonResponse({'error': 'Invalid build id'}, status=400)
+    now = int(time.time())
     with get_db_session() as db:
         result = db.execute(text(
             f"DELETE FROM {table} WHERE id = :bid AND user_id = :uid"
         ), {'bid': bid, 'uid': uid})
+        if result.rowcount:
+            # End any active runs that were linked to this build
+            db.execute(text("""
+                UPDATE sl_collection_sessions
+                SET ended_at=:now, is_archived=1
+                WHERE build_id=:bid AND user_id=:uid AND ended_at IS NULL
+            """), {'bid': bid, 'uid': uid, 'now': now})
         db.commit()
     if result.rowcount:
         logger.info("sl_build_delete uid=%s build_id=%s game=%s", uid, bid, game)
@@ -6721,12 +6799,14 @@ def api_sl_build_detail(request, share_token):
             f"SELECT b.id, b.name, b.description, b.class_id, "
             f"b.vigor, b.mind, b.endurance, b.strength, b.dexterity, b.intelligence, b.faith, b.arcane, "
             f"b.total_level, "
-            f"b.rh1_weapon_id, b.rh1_aow_name, b.rh2_weapon_id, b.rh2_aow_name, b.rh3_weapon_id, b.rh3_aow_name, "
-            f"b.lh1_weapon_id, b.lh1_aow_name, b.lh2_weapon_id, b.lh2_aow_name, b.lh3_weapon_id, b.lh3_aow_name, "
+            f"b.rh1_weapon_id, b.rh1_aow_name, b.rh1_affinity, b.rh2_weapon_id, b.rh2_aow_name, b.rh2_affinity, b.rh3_weapon_id, b.rh3_aow_name, b.rh3_affinity, "
+            f"b.lh1_weapon_id, b.lh1_aow_name, b.lh1_affinity, b.lh2_weapon_id, b.lh2_aow_name, b.lh2_affinity, b.lh3_weapon_id, b.lh3_aow_name, b.lh3_affinity, "
             f"b.helm_id, b.chest_id, b.gauntlet_id, b.leg_id, "
             f"b.talisman_1_id, b.talisman_2_id, b.talisman_3_id, b.talisman_4_id, "
             f"b.spells, b.playstyle_tag, b.is_public, b.upvotes, b.share_token, b.created_at, "
-            f"u.username, u.avatar_url "
+            f"u.username, u.avatar_url, "
+            f"b.spirit_ash_name, b.spirit_ash_upgrade, b.tear_1_name, b.tear_2_name, b.scadutree_level, "
+            f"b.curio_selections, b.rune_inventory "
             f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
             f"WHERE b.share_token = :tok AND (b.is_public = 1 OR b.user_id = :uid)"
         ), {'tok': share_token, 'uid': request.session.get('web_user_id', -1)}).mappings().fetchone()
@@ -6790,19 +6870,19 @@ def api_sl_build_detail(request, share_token):
 
     return JsonResponse({
         'id': row['id'], 'name': row['name'], 'description': row['description'] or '',
-        'author': row['username'], 'author_avatar': row['avatar_url'] or '',
+        'author': row['username'], 'author_username': row['username'], 'author_avatar': row['avatar_url'] or '',
         'level': row['total_level'], 'tag': row['playstyle_tag'],
         'is_public': bool(row['is_public']), 'upvotes': row['upvotes'],
         'share_token': row['share_token'],
         'stats': {s: row[s] for s in ('vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane')},
         'class_id': row.get('class_id'),
         'weapons': {
-            'rh1': _weapon_id_name(row.get('rh1_weapon_id')), 'rh1_aow': row.get('rh1_aow_name'),
-            'rh2': _weapon_id_name(row.get('rh2_weapon_id')), 'rh2_aow': row.get('rh2_aow_name'),
-            'rh3': _weapon_id_name(row.get('rh3_weapon_id')), 'rh3_aow': row.get('rh3_aow_name'),
-            'lh1': _weapon_id_name(row.get('lh1_weapon_id')), 'lh1_aow': row.get('lh1_aow_name'),
-            'lh2': _weapon_id_name(row.get('lh2_weapon_id')), 'lh2_aow': row.get('lh2_aow_name'),
-            'lh3': _weapon_id_name(row.get('lh3_weapon_id')), 'lh3_aow': row.get('lh3_aow_name'),
+            'rh1': _weapon_id_name(row.get('rh1_weapon_id')), 'rh1_aow': row.get('rh1_aow_name'), 'rh1_affinity': row.get('rh1_affinity'),
+            'rh2': _weapon_id_name(row.get('rh2_weapon_id')), 'rh2_aow': row.get('rh2_aow_name'), 'rh2_affinity': row.get('rh2_affinity'),
+            'rh3': _weapon_id_name(row.get('rh3_weapon_id')), 'rh3_aow': row.get('rh3_aow_name'), 'rh3_affinity': row.get('rh3_affinity'),
+            'lh1': _weapon_id_name(row.get('lh1_weapon_id')), 'lh1_aow': row.get('lh1_aow_name'), 'lh1_affinity': row.get('lh1_affinity'),
+            'lh2': _weapon_id_name(row.get('lh2_weapon_id')), 'lh2_aow': row.get('lh2_aow_name'), 'lh2_affinity': row.get('lh2_affinity'),
+            'lh3': _weapon_id_name(row.get('lh3_weapon_id')), 'lh3_aow': row.get('lh3_aow_name'), 'lh3_affinity': row.get('lh3_affinity'),
         },
         'armor': {
             'helm':     _armor_id_name(row.get('helm_id')),
@@ -6824,8 +6904,8 @@ def api_sl_build_detail(request, share_token):
         'tear_1_name':        row.get('tear_1_name'),
         'tear_2_name':        row.get('tear_2_name'),
         'scadutree_level':    row.get('scadutree_level') or 0,
-        'curio_selections':   json.loads(row['curio_selections']) if row.get('curio_selections') else {},
-        'rune_inventory':     json.loads(row['rune_inventory'])   if row.get('rune_inventory')   else [],
+        'curio_selections':   _safe_json_loads(row.get('curio_selections'), {}),
+        'rune_inventory':     _safe_json_loads(row.get('rune_inventory'), []),
     })
 
 
@@ -7029,9 +7109,9 @@ def api_sl_desktop_profile(request):
         # ── Saved builds ─────────────────────────────────────────────────────
         _BUILD_COLS = (
             "id, name, total_level, playstyle_tag, is_public, share_token, "
-            "rh1_weapon_id, rh1_aow_name, rh2_weapon_id, rh2_aow_name, "
-            "rh3_weapon_id, rh3_aow_name, lh1_weapon_id, lh1_aow_name, "
-            "lh2_weapon_id, lh2_aow_name, lh3_weapon_id, lh3_aow_name, "
+            "rh1_weapon_id, rh1_aow_name, rh1_affinity, rh2_weapon_id, rh2_aow_name, rh2_affinity, "
+            "rh3_weapon_id, rh3_aow_name, rh3_affinity, lh1_weapon_id, lh1_aow_name, lh1_affinity, "
+            "lh2_weapon_id, lh2_aow_name, lh2_affinity, lh3_weapon_id, lh3_aow_name, lh3_affinity, "
             "helm_id, chest_id, gauntlet_id, leg_id, "
             "talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
             "spells, vigor, mind, endurance, strength, dexterity, "
@@ -7049,38 +7129,44 @@ def api_sl_desktop_profile(request):
 
         def _build_row(r, game):
             import json as _j
+            # Columns: id,name,level,tag,is_public,share_token,
+            #   rh1_id,rh1_aow,rh1_aff, rh2_id,rh2_aow,rh2_aff, rh3_id,rh3_aow,rh3_aff,
+            #   lh1_id,lh1_aow,lh1_aff, lh2_id,lh2_aow,lh2_aff, lh3_id,lh3_aow,lh3_aff,
+            #   helm,chest,gauntlet,leg, t1,t2,t3,t4, spells,
+            #   vigor,mind,end,str,dex,int,fai,arc, class_id, updated_at,
+            #   ash_name,ash_upg,tear1,tear2,scadu [,curio,runes]
             return {
                 'id': r[0], 'name': r[1], 'level': r[2], 'tag': r[3],
                 'is_public': bool(r[4]), 'share_token': r[5],
                 'game': game,
                 'weapons': {
-                    'rh1': r[6],  'rh1_aow': r[7],
-                    'rh2': r[8],  'rh2_aow': r[9],
-                    'rh3': r[10], 'rh3_aow': r[11],
-                    'lh1': r[12], 'lh1_aow': r[13],
-                    'lh2': r[14], 'lh2_aow': r[15],
-                    'lh3': r[16], 'lh3_aow': r[17],
+                    'rh1': r[6],  'rh1_aow': r[7],  'rh1_affinity': r[8],
+                    'rh2': r[9],  'rh2_aow': r[10], 'rh2_affinity': r[11],
+                    'rh3': r[12], 'rh3_aow': r[13], 'rh3_affinity': r[14],
+                    'lh1': r[15], 'lh1_aow': r[16], 'lh1_affinity': r[17],
+                    'lh2': r[18], 'lh2_aow': r[19], 'lh2_affinity': r[20],
+                    'lh3': r[21], 'lh3_aow': r[22], 'lh3_affinity': r[23],
                 },
                 'armor': {
-                    'helm': r[18], 'chest': r[19],
-                    'gauntlet': r[20], 'leg': r[21],
+                    'helm': r[24], 'chest': r[25],
+                    'gauntlet': r[26], 'leg': r[27],
                 },
-                'talismans': [r[22], r[23], r[24], r[25]],
-                'spell_ids': _j.loads(r[26] or '[]'),
+                'talismans': [r[28], r[29], r[30], r[31]],
+                'spell_ids': _j.loads(r[32] or '[]'),
                 'stats': {
-                    'vigor': r[27], 'mind': r[28], 'endurance': r[29],
-                    'strength': r[30], 'dexterity': r[31],
-                    'intelligence': r[32], 'faith': r[33], 'arcane': r[34],
+                    'vigor': r[33], 'mind': r[34], 'endurance': r[35],
+                    'strength': r[36], 'dexterity': r[37],
+                    'intelligence': r[38], 'faith': r[39], 'arcane': r[40],
                 },
-                'spirit_ash_name':    r[37],
-                'spirit_ash_upgrade': r[38] or 0,
-                'tear_1_name':        r[39],
-                'tear_2_name':        r[40],
-                'scadutree_level':    r[41] or 0,
-                'curio_selections':   _j.loads(r[42]) if len(r) > 42 and r[42] else {},
-                'rune_inventory':     _j.loads(r[43]) if len(r) > 43 and r[43] else [],
-                'class_id': r[35],
-                'updated_at': r[36],
+                'spirit_ash_name':    r[43],
+                'spirit_ash_upgrade': r[44] or 0,
+                'tear_1_name':        r[45],
+                'tear_2_name':        r[46],
+                'scadutree_level':    r[47] or 0,
+                'curio_selections':   _safe_json_loads(r[48] if len(r) > 48 else None, {}),
+                'rune_inventory':     _safe_json_loads(r[49] if len(r) > 49 else None, []),
+                'class_id': r[41],
+                'updated_at': r[42],
             }
 
         builds = (
@@ -7265,12 +7351,12 @@ def api_sl_builds_desktop(request):
                 "vigor=:vigor, mind=:mind, endurance=:endurance, strength=:strength, "
                 "dexterity=:dex, intelligence=:int, faith=:faith, arcane=:arc, "
                 "total_level=:level, "
-                "rh1_weapon_id=:rh1, rh1_aow_name=:rh1aow, "
-                "rh2_weapon_id=:rh2, rh2_aow_name=:rh2aow, "
-                "rh3_weapon_id=:rh3, rh3_aow_name=:rh3aow, "
-                "lh1_weapon_id=:lh1, lh1_aow_name=:lh1aow, "
-                "lh2_weapon_id=:lh2, lh2_aow_name=:lh2aow, "
-                "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, "
+                "rh1_weapon_id=:rh1, rh1_aow_name=:rh1aow, rh1_affinity=:rh1aff, "
+                "rh2_weapon_id=:rh2, rh2_aow_name=:rh2aow, rh2_affinity=:rh2aff, "
+                "rh3_weapon_id=:rh3, rh3_aow_name=:rh3aow, rh3_affinity=:rh3aff, "
+                "lh1_weapon_id=:lh1, lh1_aow_name=:lh1aow, lh1_affinity=:lh1aff, "
+                "lh2_weapon_id=:lh2, lh2_aow_name=:lh2aow, lh2_affinity=:lh2aff, "
+                "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, lh3_affinity=:lh3aff, "
                 "helm_id=:helm, chest_id=:chest, gauntlet_id=:gaunt, leg_id=:leg, "
                 "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
                 "spells=:spells, playstyle_tag=:tag, is_public=:pub, updated_at=:now "
@@ -7282,12 +7368,12 @@ def api_sl_builds_desktop(request):
                 'strength': stats['strength'], 'dex': stats['dexterity'],
                 'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
                 'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
-                'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'),
-                'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'),
-                'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'),
-                'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'),
-                'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'),
-                'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'),
+                'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'), 'rh1aff': _aow('rh1_affinity'),
+                'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'), 'rh2aff': _aow('rh2_affinity'),
+                'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'), 'rh3aff': _aow('rh3_affinity'),
+                'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'), 'lh1aff': _aow('lh1_affinity'),
+                'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'), 'lh2aff': _aow('lh2_affinity'),
+                'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'), 'lh3aff': _aow('lh3_affinity'),
                 'helm': _si('helm_id'), 'chest': _si('chest_id'),
                 'gaunt': _si('gauntlet_id'), 'leg': _si('leg_id'),
                 't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
@@ -7306,27 +7392,40 @@ def api_sl_builds_desktop(request):
         if build_count >= 50:
             return JsonResponse({'error': 'Build limit reached (50 max)'}, status=429)
 
+        curio_sel = None
+        rune_inv  = None
+        if game == 'err':
+            raw_curio = data.get('curio_selections')
+            raw_runes = data.get('rune_inventory')
+            if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
+            if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+
         db.execute(text(
             f"INSERT INTO {table} "
             "(user_id, name, description, class_id, "
             " vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane, "
             " total_level, "
-            " rh1_weapon_id, rh1_aow_name, rh2_weapon_id, rh2_aow_name, "
-            " rh3_weapon_id, rh3_aow_name, "
-            " lh1_weapon_id, lh1_aow_name, lh2_weapon_id, lh2_aow_name, "
-            " lh3_weapon_id, lh3_aow_name, "
+            " rh1_weapon_id, rh1_aow_name, rh1_affinity, rh2_weapon_id, rh2_aow_name, rh2_affinity, "
+            " rh3_weapon_id, rh3_aow_name, rh3_affinity, "
+            " lh1_weapon_id, lh1_aow_name, lh1_affinity, lh2_weapon_id, lh2_aow_name, lh2_affinity, "
+            " lh3_weapon_id, lh3_aow_name, lh3_affinity, "
             " helm_id, chest_id, gauntlet_id, leg_id, "
             " talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
-            " spells, playstyle_tag, is_public, share_token, created_at, updated_at) "
+            " spells, playstyle_tag, is_public, share_token, "
+            " spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,"
+            " curio_selections, rune_inventory,"
+            " created_at, updated_at) "
             "VALUES "
             "(:uid, :name, :desc, :cls, "
             " :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc, "
             " :level, "
-            " :rh1, :rh1aow, :rh2, :rh2aow, :rh3, :rh3aow, "
-            " :lh1, :lh1aow, :lh2, :lh2aow, :lh3, :lh3aow, "
+            " :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff, "
+            " :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff, "
             " :helm, :chest, :gaunt, :leg, "
             " :t1, :t2, :t3, :t4, "
-            " :spells, :tag, :pub, :token, :now, :now)"
+            " :spells, :tag, :pub, :token, "
+            " :ash, :ash_upg, :tear1, :tear2, :scadu, :curio, :runes,"
+            " :now, :now)"
         ), {
             'uid': uid, 'name': name,
             'desc': sanitize_text(str(data.get('description',''))[:1000]),
@@ -7335,19 +7434,26 @@ def api_sl_builds_desktop(request):
             'strength': stats['strength'], 'dex': stats['dexterity'],
             'int': stats['intelligence'], 'faith': stats['faith'], 'arc': stats['arcane'],
             'level': _si('total_level', 1, 1, 200 if game == 'err' else 713),
-            'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'),
-            'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'),
-            'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'),
-            'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'),
-            'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'),
-            'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'),
+            'rh1': _si('rh1_weapon_id'), 'rh1aow': _aow('rh1_aow_name'), 'rh1aff': _aow('rh1_affinity'),
+            'rh2': _si('rh2_weapon_id'), 'rh2aow': _aow('rh2_aow_name'), 'rh2aff': _aow('rh2_affinity'),
+            'rh3': _si('rh3_weapon_id'), 'rh3aow': _aow('rh3_aow_name'), 'rh3aff': _aow('rh3_affinity'),
+            'lh1': _si('lh1_weapon_id'), 'lh1aow': _aow('lh1_aow_name'), 'lh1aff': _aow('lh1_affinity'),
+            'lh2': _si('lh2_weapon_id'), 'lh2aow': _aow('lh2_aow_name'), 'lh2aff': _aow('lh2_affinity'),
+            'lh3': _si('lh3_weapon_id'), 'lh3aow': _aow('lh3_aow_name'), 'lh3aff': _aow('lh3_affinity'),
             'helm': _si('helm_id'), 'chest': _si('chest_id'),
             'gaunt': _si('gauntlet_id'), 'leg': _si('leg_id'),
             't1': _si('talisman_1_id'), 't2': _si('talisman_2_id'),
             't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
             'spells': _json.dumps(spell_ids), 'tag': validated_tag,
             'pub': 1 if data.get('is_public', False) else 0,
-            'token': token, 'now': now,
+            'token': token,
+            'ash':     sanitize_text(str(data.get('spirit_ash_name') or '')[:200]) or None,
+            'ash_upg': safe_int(data.get('spirit_ash_upgrade'), 0, 0, 10),
+            'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
+            'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
+            'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
+            'curio': curio_sel, 'runes': rune_inv,
+            'now': now,
         })
         build_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
         db.commit()
