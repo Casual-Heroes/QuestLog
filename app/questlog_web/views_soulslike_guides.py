@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from django_ratelimit.decorators import ratelimit
 from sqlalchemy import text
 
 from app.db import get_db_session
@@ -252,6 +253,7 @@ def sl_guide_editor(request, slug=None):
 # ── API: Create ───────────────────────────────────────────────────────────────
 
 @web_login_required
+@ratelimit(key='user', rate='10/h', block=True)
 @require_http_methods(['POST'])
 def api_sl_guide_create(request):
     try:
@@ -418,6 +420,7 @@ def api_sl_guide_like(request, guide_id):
 # ── API: Comments ─────────────────────────────────────────────────────────────
 
 @web_login_required
+@ratelimit(key='user', rate='30/h', block=True)
 @require_http_methods(['POST'])
 def api_sl_guide_comment(request, guide_id):
     try:

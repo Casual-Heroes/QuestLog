@@ -90,7 +90,7 @@ html, body {
 </div>
 
 <script>
-var POLL_URL = '{{ poll_url }}';
+var POLL_URL = '{{ poll_url|escapejs }}';
 var lastHollow = false;
 var lastStreak = -1;
 var showing = false;

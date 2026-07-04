@@ -170,7 +170,7 @@ function getCsrf() {
 }
 
 function toggleLike() {
-  {% if not web_user %}window.location.href='/login/?next={{ request.path }}';return;{% endif %}
+  {% if not web_user %}window.location.href='/login/?next={{ request.path|escapejs }}';return;{% endif %}
   fetch('/api/soulslike/guides/'+GUIDE_ID+'/like/', {
     method:'POST', headers:{'X-CSRFToken':getCsrf(),'Content-Type':'application/json'}
   }).then(r=>r.json()).then(d=>{

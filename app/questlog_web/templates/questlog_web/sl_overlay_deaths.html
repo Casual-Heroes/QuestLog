@@ -74,7 +74,7 @@ body {
 
 <script>
 const TOKEN = '{{ token }}';
-const POLL_URL = '{{ poll_url }}';
+const POLL_URL = '{{ poll_url|escapejs }}';
 
 function load() {
   fetch(POLL_URL)
