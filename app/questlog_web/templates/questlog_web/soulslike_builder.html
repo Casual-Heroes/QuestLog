@@ -1776,6 +1776,35 @@ function loadBuildData(d) {
     updatePoise();
   });
 
+  // Restore ERR-only fields: curios, rune inventory, spirit ash, tears, scadutree
+  if (d.spirit_ash_name) {
+    const ash = ALL_SPIRIT_ASHES.find(a => a.name === d.spirit_ash_name);
+    if (ash) { BUILD.spirit_ash = ash; BUILD.spirit_ash_upgrade = d.spirit_ash_upgrade || 0; renderSpiritAshSlot?.(); }
+  }
+  if (d.tear_1_name || d.tear_2_name) {
+    // Tears restored via existing curio panel logic - set on BUILD for now
+    if (d.tear_1_name) BUILD.tears[0] = { name: d.tear_1_name };
+    if (d.tear_2_name) BUILD.tears[1] = { name: d.tear_2_name };
+  }
+  if (d.scadutree_level) {
+    BUILD.scadutree = d.scadutree_level || 0;
+    const scaduEl = document.getElementById('scadu-slider');
+    if (scaduEl) { scaduEl.value = BUILD.scadutree; updateScadutree?.(); }
+  }
+  if (BUILD.game === 'err') {
+    // Restore curio selections
+    if (d.curio_selections && typeof d.curio_selections === 'object') {
+      BUILD.curioSelections = d.curio_selections;
+      // Re-render curio panel if loaded
+      if (ALL_CURIOS.length) renderCurioPanel();
+    }
+    // Restore rune inventory
+    if (d.rune_inventory && Array.isArray(d.rune_inventory)) {
+      BUILD.rune_inventory = d.rune_inventory;
+      if (typeof renderRunePanel === 'function') renderRunePanel();
+    }
+  }
+
   // Restore Fortune + Minor Fortune (ERR only)
   if ((d.fortune_name || d.minor_fortune_name) && BUILD.game === 'err') {
     const applyFortunes = () => {
@@ -3963,7 +3992,7 @@ function saveBuild() {
     // ERR-only
     fortune_name:       BUILD.fortune?.name || null,
     minor_fortune_name: BUILD.minor_fortune?.name || null,
-    curio_selections:   BUILD.curio_selections || null,
+    curio_selections:   BUILD.curioSelections || null,
     rune_inventory:     BUILD.rune_inventory || null,
   };
   csrfFetch('/api/soulslike/builds/?game=' + BUILD.game, {
@@ -4110,9 +4139,9 @@ function buildCollectionItems() {
       items.push({ item_type: 'minor_fortune', item_id: null, item_name: BUILD.minor_fortune.name });
     }
     // Curios - each active/unsealed curio
-    if (BUILD.curio_selections) {
-      Object.entries(BUILD.curio_selections).forEach(([name, state]) => {
-        if (state && state !== 'locked') {
+    if (BUILD.curioSelections) {
+      Object.entries(BUILD.curioSelections).forEach(([name, state]) => {
+        if (state && (state.active || state === 'active')) {
           items.push({ item_type: 'curio', item_id: null, item_name: name });
         }
       });
