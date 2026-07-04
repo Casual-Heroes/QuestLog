@@ -93,7 +93,7 @@ def totp_verify(request):
             ).first()
 
             if not rec:
-                # 2FA record disappeared — allow through
+                # 2FA record disappeared - allow through
                 _complete_2fa_login(request, pending_user_id, db)
                 return redirect(request.session.pop('web_2fa_pending_next', ''))
 

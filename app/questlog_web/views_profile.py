@@ -1,4 +1,4 @@
-# QuestLog Web — profile & privacy views
+# QuestLog Web - profile & privacy views
 
 import os
 import json

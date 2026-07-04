@@ -1,7 +1,7 @@
 {% extends "questlog_web/base_web.html" %}
 {% load static %}
 
-{% block title %}Games Tracker — QuestLog Admin{% endblock %}
+{% block title %}Games Tracker - QuestLog Admin{% endblock %}
 
 {% block web_content %}
 <div class="max-w-5xl mx-auto px-4 py-8">
@@ -89,7 +89,7 @@
                     </p>
                     <p class="text-gray-500 text-xs font-mono">
                       Guild: {{ role.guild_id }} &nbsp;·&nbsp; Role: {{ role.role_id }}
-                      {% if role.role_name %} — {{ role.role_name }}{% endif %}
+                      {% if role.role_name %} - {{ role.role_name }}{% endif %}
                     </p>
                   </div>
                   <button onclick="deleteFluxerRoleMapping({{ role.id }})" class="text-red-400 hover:text-red-300 transition ml-4">
@@ -120,7 +120,7 @@
                     </p>
                     <p class="text-gray-500 text-xs font-mono">
                       Guild: {{ role.guild_id }} &nbsp;·&nbsp; Role: {{ role.role_id }}
-                      {% if role.role_name %} — {{ role.role_name }}{% endif %}
+                      {% if role.role_name %} - {{ role.role_name }}{% endif %}
                     </p>
                   </div>
                   <button onclick="deleteRoleMapping({{ role.id }})" class="text-red-400 hover:text-red-300 transition ml-4">
@@ -293,7 +293,7 @@
           </div>
           <!-- Custom image for non-Steam games -->
           <div>
-            <label class="block text-sm text-gray-400 mb-2">Custom Image Path <span class="text-xs text-gray-500">(Optional — for non-Steam games)</span></label>
+            <label class="block text-sm text-gray-400 mb-2">Custom Image Path <span class="text-xs text-gray-500">(Optional - for non-Steam games)</span></label>
             <input type="text" id="customImg" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white font-mono focus:border-indigo-500 focus:outline-none" placeholder="/static/img/games/...">
             <p class="text-xs text-gray-500 mt-1">Use when there's no Steam App ID.</p>
           </div>

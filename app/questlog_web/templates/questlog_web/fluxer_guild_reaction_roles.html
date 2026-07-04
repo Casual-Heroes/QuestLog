@@ -268,12 +268,12 @@ function initMentionRoleSelect(selectedId) {
   const container = document.getElementById('mentionRoleSelectContainer');
   if (!container) return;
   container.innerHTML = '';
-  const items = [{value: '', label: '— No ping —'}, ...roleOptions];
+  const items = [{value: '', label: '- No ping -'}, ...roleOptions];
   mentionRoleSelectInstance = createCustomSelect({
     container,
     name: 'mention_role_id',
     id: 'mention_role_id',
-    placeholder: '— No ping —',
+    placeholder: '- No ping -',
     items,
     selected: selectedId ? String(selectedId) : '',
     color: 'indigo'

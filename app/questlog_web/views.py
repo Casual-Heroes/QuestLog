@@ -1,4 +1,4 @@
-# views.py — backward compatibility shim
+# views.py - backward compatibility shim
 # This file exists for import compatibility. All logic has been split into focused modules.
 from .helpers import *
 from .views_auth import *

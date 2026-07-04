@@ -1,4 +1,4 @@
-# QuestLog Web — public browse APIs
+# QuestLog Web - public browse APIs
 
 import json
 import re
@@ -764,7 +764,7 @@ def api_lfg_list(request):
             db.add(group)
             db.flush()
 
-            # Creator is first member — store game-specific selections (class/spec/activity)
+            # Creator is first member - store game-specific selections (class/spec/activity)
             raw_selections = data.get('selections') or {}
             # Sanitize all string values to prevent XSS if rendered in templates
             from .helpers import sanitize_text as _st
@@ -822,7 +822,7 @@ def api_lfg_list(request):
 
         return JsonResponse({'success': True, 'id': group.id, 'share_token': group.share_token})
 
-    # GET — list groups; ?mine=true returns groups the user created or joined; ?community_id=X filters by community
+    # GET - list groups; ?mine=true returns groups the user created or joined; ?community_id=X filters by community
     mine = request.GET.get('mine') == 'true'
     community_id_filter = safe_int(request.GET.get('community_id'), None)
     limit = safe_int(request.GET.get('limit'), default=50, min_val=1, max_val=100)
@@ -3417,7 +3417,7 @@ def api_creators(request):
 
             return JsonResponse({'success': True, 'id': profile.id})
 
-    # GET: list creators — live first, then COTW/COTM, then by follower count
+    # GET: list creators - live first, then COTW/COTM, then by follower count
     with get_db_session() as db:
         from sqlalchemy.orm import aliased
         Community = aliased(WebCommunity)
@@ -3641,7 +3641,7 @@ def api_steam_app_details(request):
 @ratelimit(key='header:cf-connecting-ip', rate='60/m', block=True)
 def api_igdb_search(request):
     """API: Search IGDB directly for games. Used by LFG create/browse autocomplete.
-    No login required — IGDB is public game data.
+    No login required - IGDB is public game data.
     ?q=<query>  (min 2 chars)
     ?limit=<n>  (max 10)
     """

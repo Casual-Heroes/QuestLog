@@ -439,7 +439,7 @@ function addCategoryRoleOverride(catId) {
         </label>
         <label class="flex items-center gap-1 cursor-pointer">
           <input type="radio" name="perm-${overrideId}-${key}" value="neutral" checked class="text-gray-500">
-          <span class="text-gray-500">—</span>
+          <span class="text-gray-500">-</span>
         </label>
       </div>
     </div>
@@ -469,7 +469,7 @@ function addCategoryRoleOverride(catId) {
 
           <!-- Permissions with Allow/Deny -->
           <div>
-            <label class="text-xs text-gray-400 mb-2 block">Permissions (✓ Allow / ✗ Deny / — Neutral)</label>
+            <label class="text-xs text-gray-400 mb-2 block">Permissions (✓ Allow / ✗ Deny / - Neutral)</label>
             <div class="max-h-48 overflow-y-auto bg-neutral-900 rounded border border-neutral-600 p-2">
               ${permissionCheckboxes}
             </div>

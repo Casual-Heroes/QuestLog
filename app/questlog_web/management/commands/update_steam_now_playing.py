@@ -211,7 +211,7 @@ class Command(BaseCommand):
                         if game_name:
                             self.stdout.write(f'  {u.username}: now playing "{game_name}" (appid={game_appid})')
                             updated += 1
-                            # Queue XP award (opt-in, 30-min cooldown) — run after session closes
+                            # Queue XP award (opt-in, 30-min cooldown) - run after session closes
                             if u.track_game_launches:
                                 now_ts = int(time.time())
                                 last = u.last_game_launched_at or 0
@@ -225,7 +225,7 @@ class Command(BaseCommand):
                         u.current_game_appid = game_appid
                         u.current_game_started_at = int(time.time()) if game_name else None
 
-                        # Queue Fluxer status update — run after session closes
+                        # Queue Fluxer status update - run after session closes
                         if u.fluxer_sync_custom_status and u.fluxer_id and u.fluxer_access_token_enc:
                             status_text = f'Now Playing {game_name}' if game_name else None
                             status_queue.append((
@@ -233,7 +233,7 @@ class Command(BaseCommand):
                                 u.fluxer_access_token_enc, u.fluxer_refresh_token_enc,
                                 u.fluxer_token_expires_at, status_text,
                             ))
-                # Session commits and closes here — game state is now persisted
+                # Session commits and closes here - game state is now persisted
 
             # Award XP outside the session (award_xp opens its own session)
             from app.questlog_web.helpers import award_xp
@@ -260,7 +260,7 @@ class Command(BaseCommand):
                     now_ts = int(time.time())
                     exp = exp_at or 0
                     if exp and now_ts >= exp - 300:
-                        # Token near/past expiry — attempt refresh via a real DB session
+                        # Token near/past expiry - attempt refresh via a real DB session
                         with get_db_session() as db2:
                             real_u = db2.query(WebUser).filter_by(id=uid).first()
                             if real_u:

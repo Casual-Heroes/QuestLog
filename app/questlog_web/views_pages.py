@@ -7,7 +7,7 @@ import time
 
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings as django_settings
 from django_ratelimit.decorators import ratelimit
@@ -5634,6 +5634,45 @@ def _safe_json_loads(value, default):
     except (ValueError, TypeError):
         return default
 
+
+def _sanitize_rune_inventory(raw_runes: list) -> list:
+    """
+    Validate rune inventory before saving. Caps copies to max_forge_level from DB
+    so clients cannot send copies: 999 to inflate stat bonuses.
+    Drops unknown rune names silently.
+    """
+    if not raw_runes:
+        return []
+    if len(raw_runes) > 200:
+        return []  # reject oversized payloads entirely
+    try:
+        with get_db_session() as db:
+            max_forge_map = {
+                r[0]: r[1]
+                for r in db.execute(text(
+                    "SELECT name, max_forge_level FROM sl_err_binding_runes"
+                )).fetchall()
+            }
+    except Exception:
+        logger.warning("_sanitize_rune_inventory: DB unavailable, rejecting payload")
+        return []  # fail closed - don't accept unsanitized data
+
+    sanitized = []
+    for entry in raw_runes:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get('name', ''))[:200]
+        copies = int(entry.get('copies', 0))
+        max_copies = max_forge_map.get(name)
+        if max_copies is None:
+            continue  # unknown rune name - drop it
+        sanitized.append({
+            **entry,
+            'name': name,
+            'copies': max(0, min(copies, max_copies)),  # clamp to [0, max_forge_level]
+        })
+    return sanitized
+
 @ensure_csrf_cookie
 @add_web_user_context
 def soulslike_hub(request):
@@ -5769,6 +5808,9 @@ def soulslike_builder(request):
             ('fp',     'FP'),
             ('stam',   'Stamina'),
             ('eqload', 'Equip Load'),
+            ('poise',  'Poise'),
+            ('weight', 'Weight'),
+            ('roll',   'Roll Type'),
         ],
         'weapon_slots': [
             ('rh1', 'Right Hand 1', 'fas fa-sword',      'right'),
@@ -6165,6 +6207,38 @@ def api_sl_err_curios(request):
 
 
 @require_http_methods(['GET'])
+def api_sl_err_fortunes(request):
+    """GET /api/soulslike/err/fortunes/ - all ERR Fortunes grouped by type."""
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT id, name, fortune_type, description, buffs, drawbacks, "
+            "unique_effects, how_to_unlock, minor_effects "
+            "FROM sl_err_fortunes ORDER BY fortune_type, name"
+        )).fetchall()
+
+    import json as _json
+    def _parse(val):
+        if not val: return []
+        try: return _json.loads(val)
+        except Exception: return [val]
+
+    return JsonResponse({'fortunes': [
+        {
+            'id':            r[0],
+            'name':          r[1],
+            'fortune_type':  r[2] or 'common',
+            'description':   r[3] or '',
+            'buffs':         _parse(r[4]),
+            'drawbacks':     _parse(r[5]),
+            'unique_effects': r[6] or '',
+            'how_to_unlock': r[7] or '',
+            'minor_effects':  r[8] or '',
+        }
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
 def api_sl_err_runeforging(request):
     """GET /api/soulslike/err/runeforging/ - ERR Runeforging system + categories + Binding Runes."""
     with get_db_session() as db:
@@ -6474,7 +6548,7 @@ def api_sl_armor(request):
 
 
 @web_login_required
-@ratelimit(key='user', rate='20/h', block=True)
+@ratelimit(key='user', rate='50/h', block=True)
 @require_http_methods(['GET', 'POST'])
 def api_sl_builds(request):
     """GET user builds, POST to save a new build."""
@@ -6509,6 +6583,8 @@ def api_sl_builds(request):
     if not name:
         return JsonResponse({'error': 'Build name required'}, status=400)
 
+    if not safe_int(data.get("class_id"), None):
+        return JsonResponse({"error": "A class must be selected before saving a build"}, status=400)
     now   = int(time.time())
     token = _sec.token_urlsafe(10)
 
@@ -6539,14 +6615,22 @@ def api_sl_builds(request):
             build_id = existing[0]
             existing_token = existing[1]
             # Validate ERR-only JSON fields
-            curio_sel = None
-            rune_inv  = None
+            curio_sel    = None
+            rune_inv     = None
+            fortune_name = None
             if game == 'err':
                 raw_curio = data.get('curio_selections')
                 raw_runes = data.get('rune_inventory')
-                if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
-                if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+                if isinstance(raw_curio, dict) and len(raw_curio) <= 50: curio_sel = _json.dumps(raw_curio)
+                if isinstance(raw_runes, list): rune_inv = _json.dumps(_sanitize_rune_inventory(raw_runes))
+                fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
+            minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
+            # ERR-only extra SET clauses
+            err_set = (
+                "curio_selections=:curio, rune_inventory=:runes, "
+                "fortune_name=:fortune, minor_fortune_name=:mfortune, "
+            ) if game == 'err' else ""
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -6563,8 +6647,8 @@ def api_sl_builds(request):
                 "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
                 "spells=:spells, playstyle_tag=:tag, is_public=:pub, "
                 "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
-                "tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
-                "curio_selections=:curio, rune_inventory=:runes, "
+                f"tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
+                f"{err_set}"
                 "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
@@ -6591,8 +6675,9 @@ def api_sl_builds(request):
                 'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
                 'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
                 'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
-                'curio':   curio_sel,
-                'runes':   rune_inv,
+                **({'curio': curio_sel, 'runes': rune_inv,
+                     'fortune': fortune_name, 'mfortune': minor_fortune_name}
+                    if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -6611,40 +6696,18 @@ def api_sl_builds(request):
             return sanitize_text(str(data.get(key) or '')[:200]) or None
 
         # ERR-only JSON fields
-        curio_sel = None
-        rune_inv  = None
+        curio_sel    = None
+        rune_inv     = None
+        fortune_name = None
         if game == 'err':
             raw_curio = data.get('curio_selections')
             raw_runes = data.get('rune_inventory')
-            if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
-            if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+            if isinstance(raw_curio, dict) and len(raw_curio) <= 50: curio_sel = _json.dumps(raw_curio)
+            if isinstance(raw_runes, list): rune_inv = _json.dumps(_sanitize_rune_inventory(raw_runes))
+            fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
+            minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
-        db.execute(text(
-            f"INSERT INTO {table} "
-            "(user_id, name, description, class_id, "
-            " vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane, "
-            " total_level, "
-            " rh1_weapon_id, rh1_aow_name, rh1_affinity, rh2_weapon_id, rh2_aow_name, rh2_affinity, rh3_weapon_id, rh3_aow_name, rh3_affinity, "
-            " lh1_weapon_id, lh1_aow_name, lh1_affinity, lh2_weapon_id, lh2_aow_name, lh2_affinity, lh3_weapon_id, lh3_aow_name, lh3_affinity, "
-            " helm_id, chest_id, gauntlet_id, leg_id, "
-            " talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
-            " spells, playstyle_tag, is_public, share_token, "
-            " spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,"
-            " curio_selections, rune_inventory,"
-            " created_at, updated_at) "
-            "VALUES "
-            "(:uid, :name, :desc, :cls, "
-            " :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc, "
-            " :level, "
-            " :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff, "
-            " :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff, "
-            " :helm, :chest, :gaunt, :leg, "
-            " :t1, :t2, :t3, :t4, "
-            " :spells, :tag, :pub, :token, "
-            " :ash, :ash_upg, :tear1, :tear2, :scadu,"
-            " :curio, :runes,"
-            " :now, :now)"
-        ), {
+        _common = {
             'uid': uid, 'name': name,
             'desc': sanitize_text(str(data.get('description', ''))[:1000]),
             'cls': _si('class_id'),
@@ -6670,9 +6733,70 @@ def api_sl_builds(request):
             'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
             'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
             'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
-            'curio':   curio_sel, 'runes': rune_inv,
             'now': now,
-        })
+        }
+
+        if game == 'err':
+            db.execute(text("""
+                INSERT INTO sl_err_builds
+                    (user_id, name, description, class_id,
+                     vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane,
+                     total_level,
+                     rh1_weapon_id, rh1_aow_name, rh1_affinity,
+                     rh2_weapon_id, rh2_aow_name, rh2_affinity,
+                     rh3_weapon_id, rh3_aow_name, rh3_affinity,
+                     lh1_weapon_id, lh1_aow_name, lh1_affinity,
+                     lh2_weapon_id, lh2_aow_name, lh2_affinity,
+                     lh3_weapon_id, lh3_aow_name, lh3_affinity,
+                     helm_id, chest_id, gauntlet_id, leg_id,
+                     talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id,
+                     spells, playstyle_tag, is_public, share_token,
+                     spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
+                     curio_selections, rune_inventory, fortune_name, minor_fortune_name,
+                     created_at, updated_at)
+                VALUES
+                    (:uid, :name, :desc, :cls,
+                     :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc,
+                     :level,
+                     :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff,
+                     :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff,
+                     :helm, :chest, :gaunt, :leg,
+                     :t1, :t2, :t3, :t4,
+                     :spells, :tag, :pub, :token,
+                     :ash, :ash_upg, :tear1, :tear2, :scadu,
+                     :curio, :runes, :fortune, :mfortune,
+                     :now, :now)
+            """), {**_common, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name})
+        else:
+            db.execute(text("""
+                INSERT INTO sl_er_builds
+                    (user_id, name, description, class_id,
+                     vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane,
+                     total_level,
+                     rh1_weapon_id, rh1_aow_name, rh1_affinity,
+                     rh2_weapon_id, rh2_aow_name, rh2_affinity,
+                     rh3_weapon_id, rh3_aow_name, rh3_affinity,
+                     lh1_weapon_id, lh1_aow_name, lh1_affinity,
+                     lh2_weapon_id, lh2_aow_name, lh2_affinity,
+                     lh3_weapon_id, lh3_aow_name, lh3_affinity,
+                     helm_id, chest_id, gauntlet_id, leg_id,
+                     talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id,
+                     spells, playstyle_tag, is_public, share_token,
+                     spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
+                     created_at, updated_at)
+                VALUES
+                    (:uid, :name, :desc, :cls,
+                     :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc,
+                     :level,
+                     :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff,
+                     :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff,
+                     :helm, :chest, :gaunt, :leg,
+                     :t1, :t2, :t3, :t4,
+                     :spells, :tag, :pub, :token,
+                     :ash, :ash_upg, :tear1, :tear2, :scadu,
+                     :now, :now)
+            """), _common)
+
         build_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
         db.commit()
 
@@ -6708,6 +6832,49 @@ def api_sl_build_delete(request, build_id):
         db.commit()
     if result.rowcount:
         logger.info("sl_build_delete uid=%s build_id=%s game=%s", uid, bid, game)
+        return JsonResponse({'ok': True})
+    return JsonResponse({'error': 'Build not found'}, status=404)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_sl_build_delete_desktop(request, build_id):
+    """
+    POST /api/soulslike/desktop/builds/<id>/delete/?game=elden_ring
+    Header: X-Listener-Key: ql_xxx
+    Desktop app build delete - API key auth, POST method (some HTTP clients struggle with DELETE).
+    Also archives any active runs linked to this build.
+    """
+    user = _resolve_api_key_user(request)
+    if not user:
+        return JsonResponse({'error': 'Invalid or missing API key'}, status=401)
+    uid, _ = user
+
+    game = request.GET.get('game', 'elden_ring')[:32]
+    bid = int(build_id) if str(build_id).isdigit() else 0
+    if not bid:
+        return JsonResponse({'error': 'Invalid build id'}, status=400)
+
+    now = int(time.time())
+    with get_db_session() as db:
+        if game == 'err':
+            result = db.execute(text(
+                "DELETE FROM sl_err_builds WHERE id=:bid AND user_id=:uid"
+            ), {'bid': bid, 'uid': uid})
+        else:
+            result = db.execute(text(
+                "DELETE FROM sl_er_builds WHERE id=:bid AND user_id=:uid"
+            ), {'bid': bid, 'uid': uid})
+        if result.rowcount:
+            db.execute(text("""
+                UPDATE sl_collection_sessions
+                SET ended_at=:now, is_archived=1
+                WHERE build_id=:bid AND user_id=:uid AND ended_at IS NULL
+            """), {'bid': bid, 'uid': uid, 'now': now})
+        db.commit()
+
+    if result.rowcount:
+        logger.info("sl_build_delete_desktop uid=%s build_id=%s game=%s", uid, bid, game)
         return JsonResponse({'ok': True})
     return JsonResponse({'error': 'Build not found'}, status=404)
 
@@ -6806,7 +6973,8 @@ def api_sl_build_detail(request, share_token):
             f"b.spells, b.playstyle_tag, b.is_public, b.upvotes, b.share_token, b.created_at, "
             f"u.username, u.avatar_url, "
             f"b.spirit_ash_name, b.spirit_ash_upgrade, b.tear_1_name, b.tear_2_name, b.scadutree_level, "
-            f"b.curio_selections, b.rune_inventory "
+            f"b.curio_selections, b.rune_inventory, "
+            f"{'b.fortune_name, b.minor_fortune_name' if table == 'sl_err_builds' else 'NULL as fortune_name, NULL as minor_fortune_name'} "
             f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
             f"WHERE b.share_token = :tok AND (b.is_public = 1 OR b.user_id = :uid)"
         ), {'tok': share_token, 'uid': request.session.get('web_user_id', -1)}).mappings().fetchone()
@@ -6906,6 +7074,8 @@ def api_sl_build_detail(request, share_token):
         'scadutree_level':    row.get('scadutree_level') or 0,
         'curio_selections':   _safe_json_loads(row.get('curio_selections'), {}),
         'rune_inventory':     _safe_json_loads(row.get('rune_inventory'), []),
+        'fortune_name':       row.get('fortune_name') or '',
+        'minor_fortune_name': row.get('minor_fortune_name') or '',
     })
 
 
@@ -7119,11 +7289,12 @@ def api_sl_desktop_profile(request):
             "spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level"
         )
         er_builds = db.execute(text(
-            f"SELECT {_BUILD_COLS} FROM sl_er_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
+            f"SELECT {_BUILD_COLS}, NULL as fortune_name, NULL as minor_fortune_name, NULL as curio_selections, NULL as rune_inventory "
+            "FROM sl_er_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
         ), {'uid': uid}).fetchall()
 
         err_builds = db.execute(text(
-            f"SELECT {_BUILD_COLS}, curio_selections, rune_inventory "
+            f"SELECT {_BUILD_COLS}, fortune_name, minor_fortune_name, curio_selections, rune_inventory "
             "FROM sl_err_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
         ), {'uid': uid}).fetchall()
 
@@ -7163,8 +7334,10 @@ def api_sl_desktop_profile(request):
                 'tear_1_name':        r[45],
                 'tear_2_name':        r[46],
                 'scadutree_level':    r[47] or 0,
-                'curio_selections':   _safe_json_loads(r[48] if len(r) > 48 else None, {}),
-                'rune_inventory':     _safe_json_loads(r[49] if len(r) > 49 else None, []),
+                'fortune_name':       r[48] or '',
+                'minor_fortune_name': r[49] or '',
+                'curio_selections':   _safe_json_loads(r[50] if len(r) > 50 else None, {}),
+                'rune_inventory':     _safe_json_loads(r[51] if len(r) > 51 else None, []),
                 'class_id': r[41],
                 'updated_at': r[42],
             }
@@ -7273,6 +7446,8 @@ def api_sl_desktop_profile(request):
     })
 
 
+@csrf_exempt
+@ratelimit(key='ip', rate='60/m', block=True)
 @require_http_methods(['GET', 'POST'])
 def api_sl_builds_desktop(request):
     """
@@ -7295,16 +7470,19 @@ def api_sl_builds_desktop(request):
     table = _GAME_TABLES.get(game, 'sl_er_builds')
 
     if request.method == 'GET':
+        is_err = (table == 'sl_err_builds')
+        fortune_col = ", fortune_name" if is_err else ", NULL as fortune_name"
         with get_db_session() as db:
             rows = db.execute(text(
                 "SELECT id, name, total_level, playstyle_tag, is_public, "
-                "upvotes, share_token, created_at, updated_at "
+                f"upvotes, share_token, created_at, updated_at{fortune_col} "
                 f"FROM {table} WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
             ), {'uid': uid}).fetchall()
         return JsonResponse({'builds': [
             {'id': r[0], 'name': r[1], 'level': r[2], 'tag': r[3],
              'is_public': bool(r[4]), 'upvotes': r[5],
-             'share_token': r[6], 'created_at': r[7], 'updated_at': r[8]}
+             'share_token': r[6], 'created_at': r[7], 'updated_at': r[8],
+             'fortune_name': r[9] or ''}
             for r in rows
         ]})
 
@@ -7317,6 +7495,8 @@ def api_sl_builds_desktop(request):
     name = sanitize_text(str(data.get('name', 'Untitled Build'))[:200])
     if not name:
         return JsonResponse({'error': 'Build name required'}, status=400)
+    if not safe_int(data.get("class_id"), None):
+        return JsonResponse({"error": "A class must be selected before saving a build"}, status=400)
 
     now   = int(time.time())
     token = _sec.token_urlsafe(10)
@@ -7338,6 +7518,19 @@ def api_sl_builds_desktop(request):
     def _aow(key):
         return sanitize_text(str(data.get(key) or '')[:200]) or None
 
+    # Parse ERR-only fields up front (needed by both UPDATE and INSERT paths)
+    curio_sel    = None
+    rune_inv     = None
+    fortune_name = None
+    minor_fortune_name = None
+    if game == 'err':
+        raw_curio = data.get('curio_selections')
+        raw_runes = data.get('rune_inventory')
+        if isinstance(raw_curio, dict) and len(raw_curio) <= 50: curio_sel = _json.dumps(raw_curio)
+        if isinstance(raw_runes, list): rune_inv = _json.dumps(_sanitize_rune_inventory(raw_runes))
+        fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
+        minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
+
     with get_db_session() as db:
         existing = db.execute(text(
             f"SELECT id, share_token FROM {table} WHERE user_id=:uid AND name=:name"
@@ -7345,6 +7538,10 @@ def api_sl_builds_desktop(request):
 
         if existing:
             build_id = existing[0]
+            err_set_d = (
+                "curio_selections=:curio, rune_inventory=:runes, "
+                "fortune_name=:fortune, minor_fortune_name=:mfortune, "
+            ) if game == 'err' else ""
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -7359,7 +7556,11 @@ def api_sl_builds_desktop(request):
                 "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, lh3_affinity=:lh3aff, "
                 "helm_id=:helm, chest_id=:chest, gauntlet_id=:gaunt, leg_id=:leg, "
                 "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
-                "spells=:spells, playstyle_tag=:tag, is_public=:pub, updated_at=:now "
+                "spells=:spells, playstyle_tag=:tag, is_public=:pub, "
+                "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
+                f"tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
+                f"{err_set_d}"
+                "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
                 'desc': sanitize_text(str(data.get('description',''))[:1000]),
@@ -7380,6 +7581,14 @@ def api_sl_builds_desktop(request):
                 't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
                 'spells': _json.dumps(spell_ids), 'tag': validated_tag,
                 'pub': 1 if data.get('is_public', False) else 0,
+                'ash':     sanitize_text(str(data.get('spirit_ash_name') or '')[:200]) or None,
+                'ash_upg': safe_int(data.get('spirit_ash_upgrade'), 0, 0, 10),
+                'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
+                'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
+                'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
+                **({'curio': curio_sel, 'runes': rune_inv,
+                     'fortune': fortune_name, 'mfortune': minor_fortune_name}
+                    if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -7392,41 +7601,8 @@ def api_sl_builds_desktop(request):
         if build_count >= 50:
             return JsonResponse({'error': 'Build limit reached (50 max)'}, status=429)
 
-        curio_sel = None
-        rune_inv  = None
-        if game == 'err':
-            raw_curio = data.get('curio_selections')
-            raw_runes = data.get('rune_inventory')
-            if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
-            if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
-
-        db.execute(text(
-            f"INSERT INTO {table} "
-            "(user_id, name, description, class_id, "
-            " vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane, "
-            " total_level, "
-            " rh1_weapon_id, rh1_aow_name, rh1_affinity, rh2_weapon_id, rh2_aow_name, rh2_affinity, "
-            " rh3_weapon_id, rh3_aow_name, rh3_affinity, "
-            " lh1_weapon_id, lh1_aow_name, lh1_affinity, lh2_weapon_id, lh2_aow_name, lh2_affinity, "
-            " lh3_weapon_id, lh3_aow_name, lh3_affinity, "
-            " helm_id, chest_id, gauntlet_id, leg_id, "
-            " talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id, "
-            " spells, playstyle_tag, is_public, share_token, "
-            " spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,"
-            " curio_selections, rune_inventory,"
-            " created_at, updated_at) "
-            "VALUES "
-            "(:uid, :name, :desc, :cls, "
-            " :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc, "
-            " :level, "
-            " :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff, "
-            " :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff, "
-            " :helm, :chest, :gaunt, :leg, "
-            " :t1, :t2, :t3, :t4, "
-            " :spells, :tag, :pub, :token, "
-            " :ash, :ash_upg, :tear1, :tear2, :scadu, :curio, :runes,"
-            " :now, :now)"
-        ), {
+        # Shared params for both ER and ERR
+        _common_params = {
             'uid': uid, 'name': name,
             'desc': sanitize_text(str(data.get('description',''))[:1000]),
             'cls': _si('class_id'),
@@ -7452,9 +7628,71 @@ def api_sl_builds_desktop(request):
             'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
             'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
             'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
-            'curio': curio_sel, 'runes': rune_inv,
             'now': now,
-        })
+        }
+
+        if game == 'err':
+            # ERR INSERT - includes curio_selections, rune_inventory, fortune_name
+            db.execute(text("""
+                INSERT INTO sl_err_builds
+                    (user_id, name, description, class_id,
+                     vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane,
+                     total_level,
+                     rh1_weapon_id, rh1_aow_name, rh1_affinity,
+                     rh2_weapon_id, rh2_aow_name, rh2_affinity,
+                     rh3_weapon_id, rh3_aow_name, rh3_affinity,
+                     lh1_weapon_id, lh1_aow_name, lh1_affinity,
+                     lh2_weapon_id, lh2_aow_name, lh2_affinity,
+                     lh3_weapon_id, lh3_aow_name, lh3_affinity,
+                     helm_id, chest_id, gauntlet_id, leg_id,
+                     talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id,
+                     spells, playstyle_tag, is_public, share_token,
+                     spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
+                     curio_selections, rune_inventory, fortune_name, minor_fortune_name,
+                     created_at, updated_at)
+                VALUES
+                    (:uid, :name, :desc, :cls,
+                     :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc,
+                     :level,
+                     :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff,
+                     :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff,
+                     :helm, :chest, :gaunt, :leg,
+                     :t1, :t2, :t3, :t4,
+                     :spells, :tag, :pub, :token,
+                     :ash, :ash_upg, :tear1, :tear2, :scadu,
+                     :curio, :runes, :fortune, :mfortune,
+                     :now, :now)
+            """), {**_common_params, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name})
+        else:
+            # ER INSERT - no ERR-only columns
+            db.execute(text("""
+                INSERT INTO sl_er_builds
+                    (user_id, name, description, class_id,
+                     vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane,
+                     total_level,
+                     rh1_weapon_id, rh1_aow_name, rh1_affinity,
+                     rh2_weapon_id, rh2_aow_name, rh2_affinity,
+                     rh3_weapon_id, rh3_aow_name, rh3_affinity,
+                     lh1_weapon_id, lh1_aow_name, lh1_affinity,
+                     lh2_weapon_id, lh2_aow_name, lh2_affinity,
+                     lh3_weapon_id, lh3_aow_name, lh3_affinity,
+                     helm_id, chest_id, gauntlet_id, leg_id,
+                     talisman_1_id, talisman_2_id, talisman_3_id, talisman_4_id,
+                     spells, playstyle_tag, is_public, share_token,
+                     spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
+                     created_at, updated_at)
+                VALUES
+                    (:uid, :name, :desc, :cls,
+                     :vigor, :mind, :endurance, :strength, :dex, :int, :faith, :arc,
+                     :level,
+                     :rh1, :rh1aow, :rh1aff, :rh2, :rh2aow, :rh2aff, :rh3, :rh3aow, :rh3aff,
+                     :lh1, :lh1aow, :lh1aff, :lh2, :lh2aow, :lh2aff, :lh3, :lh3aow, :lh3aff,
+                     :helm, :chest, :gaunt, :leg,
+                     :t1, :t2, :t3, :t4,
+                     :spells, :tag, :pub, :token,
+                     :ash, :ash_upg, :tear1, :tear2, :scadu,
+                     :now, :now)
+            """), _common_params)
         build_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
         db.commit()
 

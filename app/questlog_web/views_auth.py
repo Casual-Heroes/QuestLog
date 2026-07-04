@@ -1,4 +1,4 @@
-# QuestLog Web — authentication & OAuth views
+# QuestLog Web - authentication & OAuth views
 
 import re
 import time
@@ -67,7 +67,7 @@ def _verify_turnstile(token: str, remote_ip: str) -> bool:
     """Server-side verify a Cloudflare Turnstile token. Returns True if valid."""
     secret = django_settings.TURNSTILE_SECRET_KEY
     if not secret:
-        return True  # Not configured (dev/test) — don't block
+        return True  # Not configured (dev/test) - don't block
     if not token:
         return False
     try:
@@ -109,7 +109,7 @@ def _send_verification_email(request, django_user):
                 f"{verify_url}\n\n"
                 f"This link expires in 3 days.\n\n"
                 f"If you didn't create this account, you can ignore this email.\n\n"
-                f"— QuestLog at Casual Heroes"
+                f"- QuestLog at Casual Heroes"
             ),
             from_email=django_settings.DEFAULT_FROM_EMAIL,
             recipient_list=[django_user.email],
@@ -173,7 +173,7 @@ def _maybe_award_founding_flair(user, db):
 
 @ratelimit(key='ip', rate='20/m', block=True)
 def ql_login(request, early_access_bypass=False):
-    """Site login — username + password via Django auth."""
+    """Site login - username + password via Django auth."""
     if request.session.get('web_user_id'):
         return redirect(safe_redirect_url(request.GET.get('next', '')))
 
@@ -318,7 +318,7 @@ _RESERVED_USERNAMES = frozenset({
     'bot', 'api', 'null', 'undefined', 'anonymous', 'guest', 'official',
 })
 
-# Known disposable email domains — block spam/throwaway registrations
+# Known disposable email domains - block spam/throwaway registrations
 _DISPOSABLE_EMAIL_DOMAINS = frozenset({
     'mailinator.com', 'guerrillamail.com', 'tempmail.com', 'throwaway.email',
     'sharklasers.com', 'guerrillamailblock.com', 'grr.la', 'guerrillamail.info',
@@ -334,7 +334,7 @@ _DISPOSABLE_EMAIL_DOMAINS = frozenset({
 @ratelimit(key='ip', rate='10/h', block=True)
 def ql_admin_login(request):
     """
-    Admin-only login gate — hardened with Turnstile, honeypot, and timing check.
+    Admin-only login gate - hardened with Turnstile, honeypot, and timing check.
     Only accounts with is_admin=True in WebUser can ever authenticate here.
     No hints are given if a non-admin account attempts access.
     """
@@ -383,7 +383,7 @@ def ql_admin_login(request):
             messages.error(request, "Invalid credentials.")
             return render(request, 'questlog_web/admin_login.html', ctx)
 
-        # Admin check — always return same error to avoid oracle
+        # Admin check - always return same error to avoid oracle
         with get_db_session() as db:
             user = db.query(WebUser).filter_by(username=django_user.username).first()
             if not user or not user.is_admin or user.is_banned or user.is_disabled:
@@ -441,7 +441,7 @@ def api_check_invite(request):
 @ratelimit(key='ip', rate='5/h', method='POST', block=True)
 @ratelimit(key='ip', rate='60/h', method='GET', block=True)
 def ql_register(request):
-    """Account registration — username + password via Django auth."""
+    """Account registration - username + password via Django auth."""
     if request.session.get('web_user_id'):
         return redirect('/')
 
@@ -509,7 +509,7 @@ def ql_register(request):
                 logger.warning(f"Registration timing check failed ({elapsed}s) from {_get_remote_ip(request)}")
                 errors.append("Form submitted too quickly. Please try again.")
         except (ValueError, TypeError):
-            pass  # Missing/malformed timestamp — don't block
+            pass  # Missing/malformed timestamp - don't block
 
         # 3. Cloudflare Turnstile
         if not _verify_turnstile(request.POST.get('cf-turnstile-response', ''), _get_remote_ip(request)):
@@ -780,7 +780,7 @@ def verify_email(request, token):
 
 @ratelimit(key='ip', rate='5/h', block=True)
 def resend_verification(request):
-    """Resend verification email — works from login page or standalone."""
+    """Resend verification email - works from login page or standalone."""
     if request.method == 'POST':
         # Session uid is set during registration; email is a fallback for the standalone form
         uid = request.session.get('pending_verification_uid')
@@ -810,7 +810,7 @@ def resend_verification(request):
 
 
 def check_email(request):
-    """Post-registration page — check your email + resend button."""
+    """Post-registration page - check your email + resend button."""
     email = request.session.get('pending_verification_email', '')
     uid = request.session.get('pending_verification_uid')
 
@@ -847,7 +847,7 @@ def logout(request):
     return redirect('/')
 
 
-# --- Steam linking (optional connection — unlocks game features) -------------
+# --- Steam linking (optional connection - unlocks game features) -------------
 
 @web_login_required
 def steam_link(request):
@@ -911,7 +911,7 @@ def steam_unlink(request):
     return redirect('questlog_web_settings')
 
 
-# --- Discord linking (optional — connects Discord identity to QuestLog account) ---
+# --- Discord linking (optional - connects Discord identity to QuestLog account) ---
 
 @web_login_required
 def discord_link(request):
@@ -1667,7 +1667,7 @@ def twitch_oauth_initiate(request):
 
 @web_login_required
 def twitch_oauth_callback(request):
-    """Handle Twitch OAuth callback — store encrypted tokens on creator profile."""
+    """Handle Twitch OAuth callback - store encrypted tokens on creator profile."""
     from app.utils.encryption import encrypt_token
 
     code = request.GET.get('code')
@@ -1820,7 +1820,7 @@ def youtube_oauth_initiate(request):
 
 @web_login_required
 def youtube_oauth_callback(request):
-    """Handle YouTube OAuth callback — store encrypted tokens on creator profile."""
+    """Handle YouTube OAuth callback - store encrypted tokens on creator profile."""
     from app.utils.encryption import encrypt_token
 
     code = request.GET.get('code')
@@ -2139,7 +2139,7 @@ def password_reset_request(request):
                             f"{reset_url}\n\n"
                             f"This link expires in 1 hour.\n\n"
                             f"If you didn't request this, you can safely ignore this email.\n\n"
-                            f"— QuestLog at Casual Heroes"
+                            f"- QuestLog at Casual Heroes"
                         ),
                         from_email=django_settings.DEFAULT_FROM_EMAIL,
                         recipient_list=[django_user.email],

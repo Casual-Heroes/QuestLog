@@ -384,6 +384,12 @@
           </div>
           {% endfor %}
         </div>
+        <div id="char-err-weight-note" class="hidden px-3 py-2 border-t border-white/5">
+          <p class="text-[10px] text-gray-600 leading-relaxed">
+            <i class="fas fa-info-circle mr-1"></i>
+            ERR modifies armor and weapon weights differently than ER. We use ER weight data as an approximation - equip load and roll type may be slightly off.
+          </p>
+        </div>
       </div>
 
     </div>
@@ -400,6 +406,7 @@
           <button onclick="switchEquipTab('spirit')" id="equip-tab-spirit" class="sl-section-tab" style="padding-top:0.6rem;padding-bottom:0.6rem">Spirit</button>
           <button onclick="switchEquipTab('physick')" id="equip-tab-physick" class="sl-section-tab" style="padding-top:0.6rem;padding-bottom:0.6rem">Physick</button>
           <button onclick="switchEquipTab('curios')" id="equip-tab-curios" class="sl-section-tab hidden" style="padding-top:0.6rem;padding-bottom:0.6rem">Curios</button>
+          <button onclick="switchEquipTab('fortunes')" id="equip-tab-fortunes" class="sl-section-tab hidden" style="padding-top:0.6rem;padding-bottom:0.6rem">Fortunes</button>
           <button onclick="switchEquipTab('runes')" id="equip-tab-runes" class="sl-section-tab hidden" style="padding-top:0.6rem;padding-bottom:0.6rem">Binding Runes</button>
         </div>
 
@@ -517,6 +524,13 @@
               <div class="text-xs font-bold" id="roll-type">-</div>
             </div>
           </div>
+          <!-- ERR weight disclaimer -->
+          <div id="err-weight-note" class="hidden px-3 pb-2">
+            <p class="text-[10px] text-gray-600 leading-relaxed">
+              <i class="fas fa-info-circle mr-1"></i>
+              ERR modifies armor and weapon weights differently than ER. We use ER weight data as an approximation - equip load and roll type may be slightly off.
+            </p>
+          </div>
         </div>
 
         <!-- Talismans tab -->
@@ -618,6 +632,44 @@
         <!-- Curios tab (ERR only) -->
         <div id="equip-panel-curios" class="hidden p-2">
           <div id="curio-panel-list"><div class="text-xs text-gray-600 text-center py-3">Loading Curios...</div></div>
+        </div>
+
+        <!-- Fortunes tab (ERR only) -->
+        <div id="equip-panel-fortunes" class="hidden p-2">
+          <!-- Main Fortune display -->
+          <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Main Fortune</div>
+          <div id="fortune-selected-display" class="hidden mb-2 p-2.5 bg-amber-950/30 border border-amber-800/30 rounded-lg">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-amber-400" id="fortune-selected-name"></span>
+              <button onclick="clearFortune()" class="text-gray-600 hover:text-red-400 text-[10px] transition">
+                <i class="fas fa-times mr-0.5"></i>Clear
+              </button>
+            </div>
+            <span id="fortune-selected-type" class="text-[10px] px-1.5 py-0.5 bg-neutral-800 text-gray-400 rounded capitalize"></span>
+            <div id="fortune-selected-effect" class="text-[10px] text-gray-400 mt-1.5 leading-relaxed"></div>
+          </div>
+          <!-- Minor Fortune display -->
+          <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 mt-3">
+            Minor Fortune
+            <span class="text-gray-700 font-normal normal-case ml-1">(unlock: defeat Royal Guardian Helicos)</span>
+          </div>
+          <div id="minor-fortune-selected-display" class="hidden mb-2 p-2.5 bg-purple-950/30 border border-purple-800/30 rounded-lg">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-purple-400" id="minor-fortune-selected-name"></span>
+              <button onclick="clearMinorFortune()" class="text-gray-600 hover:text-red-400 text-[10px] transition">
+                <i class="fas fa-times mr-0.5"></i>Clear
+              </button>
+            </div>
+            <span class="text-[10px] text-gray-400" id="minor-fortune-selected-effect"></span>
+          </div>
+          <!-- Fortune list - switches between main and minor mode -->
+          <div class="flex gap-1.5 mb-2">
+            <button onclick="setFortuneMode('main')" id="fortune-mode-main"
+                    class="flex-1 text-[10px] py-1 rounded border border-amber-700/50 text-amber-400 bg-amber-900/20 font-bold">Main</button>
+            <button onclick="setFortuneMode('minor')" id="fortune-mode-minor"
+                    class="flex-1 text-[10px] py-1 rounded border border-neutral-700 text-gray-500 hover:text-white transition">Minor</button>
+          </div>
+          <div id="fortune-panel-list"><div class="text-xs text-gray-600 text-center py-3">Loading Fortunes...</div></div>
         </div>
 
         <!-- Binding Runes tab (ERR only) -->
@@ -995,6 +1047,8 @@ const BUILD = {
   spirit_ash: null,          // { name, fp_cost, hp_cost, description }
   spirit_ash_upgrade: 0,     // 0-10
   tears: [null, null],       // [tear1, tear2] - each { name, effect }
+  fortune: null,             // ERR only - selected main Fortune object
+  minor_fortune: null,       // ERR only - selected Minor Fortune object (different from main)
 };
 
 let CLASSES = [];
@@ -1111,6 +1165,125 @@ function loadCurios() {
       CURIOS_SYSTEM_NOTE = d.system_overview || '';
       renderCurioPanel();
     }).catch(() => {});
+}
+
+let ALL_FORTUNES = [];
+let _fortunesLoaded = false;
+let _fortuneMode = 'main'; // 'main' or 'minor'
+
+function setFortuneMode(mode) {
+  _fortuneMode = mode;
+  document.getElementById('fortune-mode-main').className =
+    'flex-1 text-[10px] py-1 rounded border font-bold transition ' +
+    (mode === 'main' ? 'border-amber-700/50 text-amber-400 bg-amber-900/20' : 'border-neutral-700 text-gray-500 hover:text-white');
+  document.getElementById('fortune-mode-minor').className =
+    'flex-1 text-[10px] py-1 rounded border font-bold transition ' +
+    (mode === 'minor' ? 'border-purple-700/50 text-purple-400 bg-purple-900/20' : 'border-neutral-700 text-gray-500 hover:text-white');
+  renderFortunePanel();
+}
+
+function loadFortunes() {
+  if (BUILD.game !== 'err') return;
+  fetch('/api/soulslike/err/fortunes/')
+    .then(r => r.json()).then(d => {
+      ALL_FORTUNES = d.fortunes || [];
+      _fortunesLoaded = true;
+      renderFortunePanel();
+    }).catch(() => {});
+}
+
+function renderFortunePanel() {
+  const el = document.getElementById('fortune-panel-list');
+  if (!el) return;
+  if (!ALL_FORTUNES.length) { el.innerHTML = '<div class="text-xs text-gray-600 text-center py-3">No fortunes found</div>'; return; }
+
+  const isMinorMode = _fortuneMode === 'minor';
+  // Minor mode: exclude Basic tier (cannot be minor) and exclude current main fortune
+  const mainName = BUILD.fortune?.name;
+  const minorName = BUILD.minor_fortune?.name;
+  const visibleFortunes = isMinorMode
+    ? ALL_FORTUNES.filter(f => f.fortune_type !== 'basic' && f.name !== mainName)
+    : ALL_FORTUNES;
+
+  const byType = {};
+  visibleFortunes.forEach(f => { (byType[f.fortune_type] = byType[f.fortune_type] || []).push(f); });
+
+  const typeOrder = ['basic', 'common', 'uncommon', 'rare', 'legendary', 'unique'];
+  const typeColors = { basic:'text-gray-400', common:'text-green-400', uncommon:'text-blue-400', rare:'text-purple-400', legendary:'text-amber-400', unique:'text-red-400' };
+  const selectedName = isMinorMode ? minorName : mainName;
+  const selectedColor = isMinorMode ? 'bg-purple-900/20 border-purple-700/40' : 'bg-amber-900/20 border-amber-700/40';
+  const checkColor = isMinorMode ? 'text-purple-400' : 'text-amber-400';
+
+  el.innerHTML = typeOrder.filter(t => byType[t]).map(type => `
+    <div class="mb-3">
+      <div class="text-[10px] font-bold uppercase tracking-widest px-1 mb-1 ${typeColors[type] || 'text-gray-500'}">${type}</div>
+      <div class="space-y-1">
+        ${byType[type].map(f => `
+          <div class="sl-equip-slot group cursor-pointer rounded-lg px-2 py-1.5 ${selectedName === f.name ? selectedColor : ''}"
+               onclick="${isMinorMode ? 'selectMinorFortune' : 'selectFortune'}(${JSON.stringify(f).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})">
+            <div class="flex-1 min-w-0">
+              <div class="sl-slot-name text-xs">${escapeHtml(f.name)}</div>
+              ${isMinorMode && f.minor_effects ? `<div class="text-[10px] text-green-600 truncate">${escapeHtml(f.minor_effects)}</div>` :
+                (f.buffs && f.buffs.length ? `<div class="text-[10px] text-green-600 truncate">${escapeHtml(f.buffs[0])}</div>` : '')}
+              ${!isMinorMode && f.drawbacks && f.drawbacks.length ? `<div class="text-[10px] text-red-700 truncate">${escapeHtml(f.drawbacks[0])}</div>` : ''}
+            </div>
+            ${selectedName === f.name ? `<i class="fas fa-check ${checkColor} text-[10px] flex-shrink-0"></i>` : ''}
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function selectFortune(fortune) {
+  // If this was the minor fortune, clear minor (can't have same as main)
+  if (BUILD.minor_fortune && BUILD.minor_fortune.name === fortune.name) {
+    clearMinorFortune();
+  }
+  BUILD.fortune = fortune;
+  const disp = document.getElementById('fortune-selected-display');
+  const nameEl = document.getElementById('fortune-selected-name');
+  const typeEl = document.getElementById('fortune-selected-type');
+  const effectEl = document.getElementById('fortune-selected-effect');
+  if (disp && nameEl && typeEl) {
+    nameEl.textContent = fortune.name;
+    typeEl.textContent = fortune.fortune_type;
+    if (effectEl) {
+      const lines = [...(fortune.buffs || []), ...(fortune.drawbacks || [])];
+      effectEl.textContent = lines.join(' | ') || '';
+    }
+    disp.classList.remove('hidden');
+  }
+  renderFortunePanel();
+  updateDerivedStats();
+  updateAllStatBars();
+  updateAllWeaponARs();
+}
+
+function clearFortune() {
+  BUILD.fortune = null;
+  document.getElementById('fortune-selected-display')?.classList.add('hidden');
+  renderFortunePanel();
+  updateDerivedStats();
+  updateAllStatBars();
+  updateAllWeaponARs();
+}
+
+function selectMinorFortune(fortune) {
+  BUILD.minor_fortune = fortune;
+  const disp = document.getElementById('minor-fortune-selected-display');
+  const nameEl = document.getElementById('minor-fortune-selected-name');
+  const effectEl = document.getElementById('minor-fortune-selected-effect');
+  if (disp && nameEl) {
+    nameEl.textContent = fortune.name;
+    if (effectEl) effectEl.textContent = fortune.minor_effects || '';
+    disp.classList.remove('hidden');
+  }
+  renderFortunePanel();
+}
+
+function clearMinorFortune() {
+  BUILD.minor_fortune = null;
+  document.getElementById('minor-fortune-selected-display')?.classList.add('hidden');
+  renderFortunePanel();
 }
 
 function loadRuneforging() {
@@ -1605,6 +1778,9 @@ function loadBuildData(d) {
       const affinity = d.weapons?.[slot + '_affinity'];
       if (affinity && BUILD.slots[slot]) {
         BUILD.slots[slot].equippedAffinity = affinity;
+        // Update the affinity label in the weapon slot UI
+        const affinityNameEl = document.getElementById('affinity-' + slot + '-name');
+        if (affinityNameEl) affinityNameEl.textContent = affinity;
       }
       // Restore AoW
       const aowName = d.weapons?.[slot + '_aow'];
@@ -1623,6 +1799,92 @@ function loadBuildData(d) {
     updateEquipLoad();
     updatePoise();
   });
+
+  // Restore ERR-only fields: curios, rune inventory, spirit ash, tears, scadutree
+  // Restore spirit ash - look up full object and call equipSpiritAsh for full UI update
+  if (d.spirit_ash_name) {
+    const applyAsh = () => {
+      const ash = ALL_SPIRIT_ASHES.find(a => a.name === d.spirit_ash_name);
+      if (ash) {
+        equipSpiritAsh(ash);
+        BUILD.spirit_ash_upgrade = d.spirit_ash_upgrade || 0;
+        const upgEl = document.getElementById('spirit-ash-upgrade');
+        if (upgEl) upgEl.value = BUILD.spirit_ash_upgrade;
+      }
+    };
+    if (ALL_SPIRIT_ASHES.length) {
+      applyAsh();
+    } else {
+      fetch('/api/soulslike/spirit-ashes/?game=' + BUILD.game)
+        .then(r => r.json()).then(sd => {
+          ALL_SPIRIT_ASHES = sd.ashes || [];
+          applyAsh();
+        }).catch(() => {});
+    }
+  }
+  // Restore tears - look up full tear object from ALL_CRYSTAL_TEARS
+  if (d.tear_1_name || d.tear_2_name) {
+    const applyTears = () => {
+      if (d.tear_1_name) {
+        const t = ALL_CRYSTAL_TEARS.find(x => x.name === d.tear_1_name);
+        if (t) equipTear(1, t); else BUILD.tears[0] = { name: d.tear_1_name };
+      }
+      if (d.tear_2_name) {
+        const t = ALL_CRYSTAL_TEARS.find(x => x.name === d.tear_2_name);
+        if (t) equipTear(2, t); else BUILD.tears[1] = { name: d.tear_2_name };
+      }
+    };
+    if (ALL_CRYSTAL_TEARS.length) {
+      applyTears();
+    } else {
+      fetch('/api/soulslike/crystal-tears/?game=' + BUILD.game)
+        .then(r => r.json()).then(td => {
+          ALL_CRYSTAL_TEARS = td.tears || [];
+          applyTears();
+        }).catch(() => {});
+    }
+  }
+  if (d.scadutree_level) {
+    BUILD.scadutree = d.scadutree_level || 0;
+    const scaduEl = document.getElementById('scadu-slider');
+    if (scaduEl) { scaduEl.value = BUILD.scadutree; onScaduChange(BUILD.scadutree); }
+  }
+  if (BUILD.game === 'err') {
+    // Restore curio selections
+    if (d.curio_selections && typeof d.curio_selections === 'object') {
+      BUILD.curioSelections = d.curio_selections;
+      // Re-render curio panel if loaded
+      if (ALL_CURIOS.length) renderCurioPanel();
+    }
+    // Restore rune inventory
+    if (d.rune_inventory && Array.isArray(d.rune_inventory)) {
+      BUILD.runeInventory = d.rune_inventory;
+      renderRuneInventory();
+    }
+  }
+
+  // Restore Fortune + Minor Fortune (ERR only)
+  if ((d.fortune_name || d.minor_fortune_name) && BUILD.game === 'err') {
+    const applyFortunes = () => {
+      if (d.fortune_name) {
+        const found = ALL_FORTUNES.find(f => f.name === d.fortune_name);
+        if (found) selectFortune(found);
+      }
+      if (d.minor_fortune_name) {
+        const found = ALL_FORTUNES.find(f => f.name === d.minor_fortune_name);
+        if (found) selectMinorFortune(found);
+      }
+    };
+    if (_fortunesLoaded) { applyFortunes(); }
+    else {
+      fetch('/api/soulslike/err/fortunes/')
+        .then(r => r.json()).then(fd => {
+          ALL_FORTUNES = fd.fortunes || [];
+          _fortunesLoaded = true;
+          applyFortunes();
+        }).catch(() => {});
+    }
+  }
 }
 
 function deleteBuild(buildId) {
@@ -1867,10 +2129,11 @@ function switchLeftTab(tab) {
 }
 
 function switchEquipTab(tab) {
-  ['armament','armor','talismans','spirit','physick','curios','runes'].forEach(t => {
+  ['armament','armor','talismans','spirit','physick','curios','fortunes','runes'].forEach(t => {
     document.getElementById('equip-panel-' + t)?.classList.toggle('hidden', t !== tab);
     document.getElementById('equip-tab-' + t)?.classList.toggle('active', t === tab);
   });
+  if (tab === 'fortunes' && !_fortunesLoaded) loadFortunes();
 }
 
 function runOptimizer() {
@@ -1963,20 +2226,22 @@ function updateAllStatBars() {
 }
 
 function updateStatBar(stat) {
-  const runeBonuses = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
-  const base = BUILD.stats[stat] || 10;
-  const bonus = runeBonuses[stat] || 0;
-  const val = Math.min(99, base + bonus);
-  // Show bonus on the input field as a tooltip/highlight when active
+  const runeBonuses    = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
+  const fortuneBonuses = calcFortuneStatBonuses();
+  const base  = BUILD.stats[stat] || 10;
+  const rune  = runeBonuses[stat] || 0;
+  const fort  = fortuneBonuses[stat] || 0;
+  const bonus = rune + fort;
+  const val   = Math.min(99, base + bonus);
   const input = document.getElementById('stat-' + stat);
   if (input) {
-    // Show the effective (boosted) value in the input box.
-    // We track whether the current value was rune-modified so onStatChange()
-    // still reads the real BASE from BUILD.stats, not the displayed bonus value.
     input.value = val;
-    if (bonus > 0) {
-      input.title = `Base: ${base} + Rune bonus: +${bonus}`;
-      input.style.color = '#fbbf24';
+    if (bonus !== 0) {
+      const parts = [];
+      if (rune !== 0)  parts.push((rune > 0 ? '+' : '') + rune + ' Rune');
+      if (fort !== 0)  parts.push((fort > 0 ? '+' : '') + fort + ' Fortune');
+      input.title = `Base: ${base} | ${parts.join(', ')}`;
+      input.style.color = bonus > 0 ? '#fbbf24' : '#f87171';
       input.dataset.runeBonus = bonus;
     } else {
       input.title = '';
@@ -2035,13 +2300,83 @@ function runeCostToLevel(level) {
   return Math.floor((x + 0.1) * L * L) + 1;
 }
 
+// HP/FP/Stamina multipliers from ERR Fortunes
+const FORTUNE_DERIVED_MULTS = {
+  // HP multipliers
+  'Bold':        { hp: 1.05, fp: 0.94 },
+  'Cunning':     { hp: 0.95, stamina: 1.12 },
+  'Wise':        { fp: 1.085, stamina: 0.93 },
+  'Assassin':    { hp: 0.91 },
+  'Barbarian':   { stamina: 1.15, fp: 0.9 },
+  'Cleric':      { hp: 1.1, stamina: 0.85 },
+  'Dancer':      { fp: 0.65 },
+  'Sage':        { fp: 1.1 },
+  'Veteran':     { hp: 1.02, stamina: 1.04, fp: 1.03 },
+  'Haima':       { fp: 0.8 },
+  'Latenna':     { fp: 1.1 },
+  'Brave':       { hp: 1.0 },   // Brave has no HP mult but stat bonuses handled separately
+  'Sorcerer':    { stamina: 0.95 },
+  'Crucible':    { },
+};
+
+// Flat stat bonuses granted by ERR Fortunes (only direct +/- stat point effects)
+const FORTUNE_STAT_BONUSES = {
+  'Spellsword': { mind: 6 },
+  'Adherent':   { faith: 2 },
+  'Apothecary': { arcane: 3 },
+  'Heretic':    { vigor: -3 },
+  'Sage':       { vigor: -1 },
+  'Sentinel':   { arcane: -3 },
+  'Brave':      { vigor: 2, endurance: 2 },
+  'Bulwark':    { endurance: 6 },
+  'Godslayers': { dexterity: 2 },
+  'Houses':     { intelligence: 2, faith: 2, strength: -3, dexterity: -3 },
+  'Warmaster':  { strength: 1, dexterity: 1 },
+};
+
+function calcFortuneStatBonuses() {
+  if (!BUILD.fortune || BUILD.game !== 'err') return {};
+  return FORTUNE_STAT_BONUSES[BUILD.fortune.name] || {};
+}
+
+function calcFortuneDerivedMults() {
+  if (!BUILD.fortune || BUILD.game !== 'err') return { hp: 1, fp: 1, stamina: 1 };
+  const m = FORTUNE_DERIVED_MULTS[BUILD.fortune.name] || {};
+  return { hp: m.hp || 1, fp: m.fp || 1, stamina: m.stamina || 1 };
+}
+
+// Rune multiplicative effects on HP/FP/Stamina/EquipLoad
+// Per-copy multiplier compounds: N copies of x1.007 = x(1.007^N)
+const RUNE_DERIVED_MULTS = {
+  'Cursed Health':   { hp:      1.006 },  // x1.006 Max HP per copy
+  'Cradled Focus':   { fp:      1.007 },  // x1.007 Max FP per copy
+  'Leonine Stamina': { stamina: 1.008 },  // x1.008 Max Stamina per copy
+  'Leonine Weight':  { eqload:  1.004 },  // x1.004 Equip Load per copy
+};
+
+function calcRuneDerivedMults() {
+  const result = { hp: 1, fp: 1, stamina: 1, eqload: 1 };
+  if (BUILD.game !== 'err') return result;
+  for (const r of BUILD.runeInventory) {
+    const m = RUNE_DERIVED_MULTS[r.name];
+    if (!m || !r.copies) continue;
+    // Compound: N copies = base^N
+    if (m.hp)      result.hp      *= Math.pow(m.hp,      r.copies);
+    if (m.fp)      result.fp      *= Math.pow(m.fp,      r.copies);
+    if (m.stamina) result.stamina *= Math.pow(m.stamina, r.copies);
+    if (m.eqload)  result.eqload  *= Math.pow(m.eqload,  r.copies);
+  }
+  return result;
+}
+
 function updateDerivedStats() {
   const s = BUILD.stats;
-  const runeBonuses = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
-  // Effective stats = base + rune bonuses, capped at 99
+  const runeBonuses     = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
+  const fortuneBonuses  = calcFortuneStatBonuses();
+  // Effective stats = base + rune bonuses + fortune bonuses, capped at 99
   const eff = {};
   ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'].forEach(k => {
-    eff[k] = Math.min(99, (s[k] || 10) + (runeBonuses[k] || 0));
+    eff[k] = Math.min(99, (s[k] || 10) + (runeBonuses[k] || 0) + (fortuneBonuses[k] || 0));
   });
   // Level = class starting level + points spent above class base (rune bonuses don't count toward level)
   const classLevel = BUILD.class_id ? (CLASSES.find(c => c.id === BUILD.class_id)?.level || 1) : 1;
@@ -2051,11 +2386,16 @@ function updateDerivedStats() {
   const totalLevel = Math.min(levelCap, classLevel + pointsSpent);
   document.getElementById('total-level').textContent = Math.max(1, totalLevel);
 
-  // HP/FP/Stamina use effective (rune-boosted) stats
-  const hp = calcHP(eff.vigor);
-  const fp = calcFP(eff.mind);
-  const stam = calcStamina(eff.endurance);
-  const eqLoad = calcEquipLoad(eff.endurance);
+  // HP/FP/Stamina: apply fortune multipliers then rune multipliers (both compound)
+  const fm = calcFortuneDerivedMults();
+  const rm = calcRuneDerivedMults();
+  const hp   = Math.floor(calcHP(eff.vigor)          * fm.hp      * rm.hp);
+  const fp   = Math.floor(calcFP(eff.mind)           * fm.fp      * rm.fp);
+  const stam = Math.floor(calcStamina(eff.endurance) * fm.stamina * rm.stamina);
+  // ERR: base equip load = 100 (Endurance has no effect). ER: use formula.
+  const eqLoad = BUILD.game === 'err'
+    ? Math.round(100 * rm.eqload * 10) / 10
+    : Math.floor(calcEquipLoad(eff.endurance) * rm.eqload * 10) / 10;
 
   const el = id => document.getElementById('derived-' + id);
   if (el('hp'))     el('hp').textContent    = hp;
@@ -2109,31 +2449,83 @@ function calcEquipLoad(end) {
 }
 
 function updateEquipLoad() {
-  const eqLoad = calcEquipLoad(BUILD.stats.endurance);
-  const el_eq = document.getElementById('derived-eqload');
-  if (el_eq) el_eq.textContent = eqLoad.toFixed(1);
+  let eqLoad;
 
-  // Sum equipped armor weight
-  let totalWeight = 0;
-  ['helm','chest','gauntlet','leg'].forEach(slot => {
-    const item = BUILD.slots[slot];
-    if (item) totalWeight += item.weight || 0;
-  });
-  ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
-    const item = BUILD.slots[slot];
-    if (item) totalWeight += item.weight || 0;
-  });
+  if (BUILD.game === 'err') {
+    // ERR: Base equip load = 100. Endurance does NOT affect it.
+    // Only Leonine Weight rune, Fortune of Sentinel (x1.08), Barbarian (x0.84),
+    // Dynasts (x0.85), Bulwark (always Massive) and talismans affect it.
+    const rm = calcRuneDerivedMults();
+    // Fortune equip load modifiers
+    const FORTUNE_EQ_MULTS = {
+      'Sentinel':  1.08,
+      'Barbarian': 0.84,
+      'Dynasts':   0.85,
+    };
+    const fortuneMult = BUILD.fortune ? (FORTUNE_EQ_MULTS[BUILD.fortune.name] || 1.0) : 1.0;
+    eqLoad = Math.round(100 * fortuneMult * rm.eqload * 10) / 10;
 
-  const weightEl = document.getElementById('total-weight');
-  if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
+    // ERR weapon weight: only heaviest RH + heaviest LH (not all 6 slots)
+    const rhWeights = ['rh1','rh2','rh3'].map(s => BUILD.slots[s]?.weight || 0);
+    const lhWeights = ['lh1','lh2','lh3'].map(s => BUILD.slots[s]?.weight || 0);
+    const weaponWeight = Math.max(...rhWeights) + Math.max(...lhWeights);
+    let armorWeight = 0;
+    ['helm','chest','gauntlet','leg'].forEach(s => { armorWeight += BUILD.slots[s]?.weight || 0; });
+    const totalWeight = weaponWeight + armorWeight;
 
-  const ratio = totalWeight / eqLoad;
-  const rollEl = document.getElementById('roll-type');
-  if (rollEl) {
-    if (ratio <= 0.299)     { rollEl.textContent = 'Light'; rollEl.className = 'text-xs font-bold text-blue-400'; }
-    else if (ratio <= 0.699){ rollEl.textContent = 'Medium'; rollEl.className = 'text-xs font-bold text-green-400'; }
-    else if (ratio <= 0.999){ rollEl.textContent = 'Heavy'; rollEl.className = 'text-xs font-bold text-yellow-400'; }
-    else                    { rollEl.textContent = 'Overloaded'; rollEl.className = 'text-xs font-bold text-red-400'; }
+    const weightEl = document.getElementById('total-weight');
+    if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
+
+    const el_eq = document.getElementById('derived-eqload');
+    if (el_eq) el_eq.textContent = eqLoad.toFixed(1);
+
+    // ERR thresholds and frame names
+    const ratio = totalWeight / eqLoad;
+    const rollEl = document.getElementById('roll-type');
+    let rollText = '', rollClass = '';
+    if (BUILD.fortune && BUILD.fortune.name === 'Bulwark') {
+      rollText = 'Massive Frame'; rollClass = 'text-xs font-bold text-red-400';
+    } else if (ratio < 0.333)  { rollText = 'Nimble Frame';   rollClass = 'text-xs font-bold text-blue-400'; }
+    else if (ratio < 0.666)    { rollText = 'Balanced Frame'; rollClass = 'text-xs font-bold text-green-400'; }
+    else if (ratio < 1.0)      { rollText = 'Solid Frame';    rollClass = 'text-xs font-bold text-yellow-400'; }
+    else                       { rollText = 'Massive Frame';  rollClass = 'text-xs font-bold text-red-400'; }
+    if (rollEl) { rollEl.textContent = rollText; rollEl.className = rollClass; }
+    // Mirror to CHARACTER panel
+    const charWeight = document.getElementById('derived-weight');
+    const charRoll   = document.getElementById('derived-roll');
+    if (charWeight) charWeight.textContent = totalWeight.toFixed(1) + ' / ' + eqLoad.toFixed(1);
+    if (charRoll)   { charRoll.textContent = rollText; charRoll.className = 'text-sm font-bold ' + rollClass.replace('text-xs ',''); }
+  } else {
+    // ER vanilla: Endurance scales equip load
+    const runeBonuses = calcRuneStatBonuses();
+    const fortuneBonuses = calcFortuneStatBonuses();
+    const effEnd = Math.min(99, (BUILD.stats.endurance || 10) + (runeBonuses.endurance || 0) + (fortuneBonuses.endurance || 0));
+    eqLoad = Math.round(calcEquipLoad(effEnd) * 10) / 10;
+
+    let totalWeight = 0;
+    ['helm','chest','gauntlet','leg','rh1','rh2','rh3','lh1','lh2','lh3'].forEach(s => {
+      totalWeight += BUILD.slots[s]?.weight || 0;
+    });
+
+    const weightEl = document.getElementById('total-weight');
+    if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
+
+    const el_eq = document.getElementById('derived-eqload');
+    if (el_eq) el_eq.textContent = eqLoad.toFixed(1);
+
+    const ratio = totalWeight / eqLoad;
+    const rollEl = document.getElementById('roll-type');
+    let rollText = '', rollClass = '';
+    if (ratio <= 0.299)     { rollText = 'Light';      rollClass = 'text-xs font-bold text-blue-400'; }
+    else if (ratio <= 0.699){ rollText = 'Medium';     rollClass = 'text-xs font-bold text-green-400'; }
+    else if (ratio <= 0.999){ rollText = 'Heavy';      rollClass = 'text-xs font-bold text-yellow-400'; }
+    else                    { rollText = 'Overloaded'; rollClass = 'text-xs font-bold text-red-400'; }
+    if (rollEl) { rollEl.textContent = rollText; rollEl.className = rollClass; }
+    // Mirror to CHARACTER panel
+    const charWeight = document.getElementById('derived-weight');
+    const charRoll   = document.getElementById('derived-roll');
+    if (charWeight) charWeight.textContent = totalWeight.toFixed(1) + ' / ' + eqLoad.toFixed(1);
+    if (charRoll)   { charRoll.textContent = rollText; charRoll.className = 'text-sm font-bold ' + rollClass.replace('text-xs ',''); }
   }
 }
 
@@ -2262,8 +2654,8 @@ function selectGame(gameKey, label) {
   loadCrystalTears();
   {% if web_user %}loadMyBuilds();{% endif %}
   resetBuildSilent();
-  // Curios and Runeforging are ERR-only; Affinities exist in both games
-  ['tab-curios', 'tab-runeforging'].forEach(id => {
+  // Curios, Fortunes, and Runeforging are ERR-only; Affinities exist in both games
+  ['tab-curios', 'equip-tab-fortunes', 'tab-runeforging'].forEach(id => {
     document.getElementById(id)?.classList.toggle('hidden', gameKey !== 'err');
   });
   // Affinities tab always visible
@@ -3505,14 +3897,23 @@ function switchErrTab(tab) {
 
 function toggleErrPanels(isErr) {
   // Show/hide ERR-only tabs in the center equipment panel
-  ['curios','runes'].forEach(t => {
+  ['curios','fortunes','runes'].forEach(t => {
     document.getElementById('equip-tab-' + t)?.classList.toggle('hidden', !isErr);
   });
-  // If switching away from ERR and current tab is curios/runes, go back to armament
+  // If switching away from ERR and current tab is ERR-only, go back to armament
   if (!isErr) {
-    const active = document.querySelector('#equip-tab-curios.active, #equip-tab-runes.active');
+    const active = document.querySelector('#equip-tab-curios.active, #equip-tab-runes.active, #equip-tab-fortunes.active');
     if (active) switchEquipTab('armament');
+    BUILD.fortune = null;
+    BUILD.minor_fortune = null;
+    document.getElementById('fortune-selected-display')?.classList.add('hidden');
+    document.getElementById('minor-fortune-selected-display')?.classList.add('hidden');
+    _fortunesLoaded = false;
+    _fortuneMode = 'main';
   }
+  // Show ERR weight approximation note in armor tab and character panel
+  document.getElementById('err-weight-note')?.classList.toggle('hidden', !isErr);
+  document.getElementById('char-err-weight-note')?.classList.toggle('hidden', !isErr);
   // Show affinity rows on all weapon slots if ERR and weapon is equipped
   ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
     const row = document.getElementById('affinity-row-' + slot);
@@ -3645,6 +4046,9 @@ function updatePoise() {
   });
   const el = document.getElementById('total-poise');
   if (el) el.textContent = poise.toFixed(1);
+  // Mirror to CHARACTER panel
+  const charPoise = document.getElementById('derived-poise');
+  if (charPoise) charPoise.textContent = poise.toFixed(1);
 }
 
 function equipSpell(spell) {
@@ -3692,6 +4096,12 @@ function setTag(tag) {
 // ── Save ──────────────────────────────────────────────────────────────────────
 {% if web_user %}
 function saveBuild() {
+  if (!BUILD.class_id) {
+    alert('Please select a class before saving your build.');
+    // Scroll to class section
+    document.querySelector('.sl-panel')?.scrollIntoView({behavior: 'smooth'});
+    return;
+  }
   const name = document.getElementById('build-name').value.trim() || 'Untitled Build';
   const payload = {
     name,
@@ -3717,6 +4127,17 @@ function saveBuild() {
     spells: BUILD.spells.map(s => s.id),
     playstyle_tag: BUILD.playstyle_tag,
     is_public: document.getElementById('build-public').checked,
+    // ER + ERR
+    spirit_ash_name:    BUILD.spirit_ash?.name || null,
+    spirit_ash_upgrade: BUILD.spirit_ash_upgrade || 0,
+    tear_1_name:        BUILD.tears[0]?.name || null,
+    tear_2_name:        BUILD.tears[1]?.name || null,
+    scadutree_level:    BUILD.scadutree || 0,
+    // ERR-only
+    fortune_name:       BUILD.fortune?.name || null,
+    minor_fortune_name: BUILD.minor_fortune?.name || null,
+    curio_selections:   BUILD.curioSelections || null,
+    rune_inventory:     BUILD.runeInventory || null,
   };
   csrfFetch('/api/soulslike/builds/?game=' + BUILD.game, {
     method: 'POST',
@@ -3819,10 +4240,17 @@ function startCollectionRun() {
 
 function buildCollectionItems() {
   const items = [];
+  const SKIP_AOW = new Set(['No Skill', 'Stamp (Upward Cut)', 'Kick', 'Quickstep', 'Parry']);
+
   // Weapons
   ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
     const w = BUILD.slots[slot];
     if (w) items.push({ item_type: 'weapon', item_id: w.id, item_name: w.name });
+    // AoW for this slot (ER + ERR) - skip basic/default skills
+    const aow = BUILD.aow?.[slot];
+    if (aow && aow.name && !SKIP_AOW.has(aow.name)) {
+      items.push({ item_type: 'aow', item_id: null, item_name: aow.name });
+    }
   });
   // Armor
   ['helm','chest','gauntlet','leg'].forEach(slot => {
@@ -3836,14 +4264,33 @@ function buildCollectionItems() {
   });
   // Spells
   BUILD.spells.forEach(s => items.push({ item_type: 'spell', item_id: s.id, item_name: s.name }));
-  // Spirit Ash
+  // Spirit Ash (ER + ERR)
   if (BUILD.spirit_ash) {
     items.push({ item_type: 'spirit_ash', item_id: null, item_name: BUILD.spirit_ash.name });
   }
-  // Crystal Tears / Wondrous Physick
+  // Crystal Tears / Wondrous Physick (ER + ERR)
   BUILD.tears.forEach((tear, i) => {
     if (tear) items.push({ item_type: 'crystal_tear', item_id: null, item_name: tear.name, location_hint: `Tear ${i + 1}` });
   });
+  // ERR only
+  if (BUILD.game === 'err') {
+    // Main Fortune
+    if (BUILD.fortune) {
+      items.push({ item_type: 'fortune', item_id: null, item_name: BUILD.fortune.name });
+    }
+    // Minor Fortune
+    if (BUILD.minor_fortune) {
+      items.push({ item_type: 'minor_fortune', item_id: null, item_name: BUILD.minor_fortune.name });
+    }
+    // Curios - each active/unsealed curio
+    if (BUILD.curioSelections) {
+      Object.entries(BUILD.curioSelections).forEach(([name, state]) => {
+        if (state && (state.active || state === 'active')) {
+          items.push({ item_type: 'curio', item_id: null, item_name: name });
+        }
+      });
+    }
+  }
   return items;
 }
 

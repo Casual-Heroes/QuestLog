@@ -555,7 +555,7 @@ function renderMembers() {
               <span class="text-xs text-gray-400 ml-auto">${list.length}/${needed}</span>
             </div>
             <div class="space-y-0.5 min-h-[40px]">
-              ${list.length > 0 ? list.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+              ${list.length > 0 ? list.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">-</span>'}
             </div>
           </div>`;
         }).join('')}
@@ -571,7 +571,7 @@ function renderMembers() {
               <span class="text-xs text-gray-400 ml-auto">${supportList.length}/${g.support_needed||0}</span>
             </div>
             <div class="space-y-0.5 min-h-[40px]">
-              ${supportList.length > 0 ? supportList.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">—</span>'}
+              ${supportList.length > 0 ? supportList.map(renderRoleMemberDetail).join('') : '<span class="text-gray-500 text-xs italic">-</span>'}
             </div>
           </div>`;
         })() : '<div></div>'}
@@ -609,7 +609,7 @@ function renderMembers() {
         </span>
       </div>`;
     rosterEl.classList.remove('hidden');
-    listEl.innerHTML = ''; // role roster is the complete member display — no flat cards
+    listEl.innerHTML = ''; // role roster is the complete member display - no flat cards
   } else if (_survivalEnabledDetail) {
     // ── Survival grid (TANKS/HEALERS/DPS/SUPPORT + sub-choice cards) ─────────
     document.getElementById('roleRoster').classList.add('hidden');
@@ -1182,7 +1182,7 @@ function buildJoinUpdateContent(currentSelections) {
   // Initialize all template field selects
   initJoinCustomSelects(currentSelections);
 
-  // Role select for slot-based groups (not in joinSelects registry — read via hidden input)
+  // Role select for slot-based groups (not in joinSelects registry - read via hidden input)
   if (document.getElementById('jopt_cs_role')) {
     const prevRole = (currentSelections && currentSelections['__role']) || '';
     const roleItems = [
