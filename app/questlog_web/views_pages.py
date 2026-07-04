@@ -6584,6 +6584,11 @@ def api_sl_builds(request):
                 fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
             minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
+            # ERR-only extra SET clauses
+            err_set = (
+                "curio_selections=:curio, rune_inventory=:runes, "
+                "fortune_name=:fortune, minor_fortune_name=:mfortune, "
+            ) if game == 'err' else ""
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -6600,8 +6605,8 @@ def api_sl_builds(request):
                 "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
                 "spells=:spells, playstyle_tag=:tag, is_public=:pub, "
                 "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
-                "tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
-                "curio_selections=:curio, rune_inventory=:runes, fortune_name=:fortune, minor_fortune_name=:mfortune, "
+                f"tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
+                f"{err_set}"
                 "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
@@ -6628,10 +6633,9 @@ def api_sl_builds(request):
                 'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
                 'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
                 'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
-                'curio':    curio_sel,
-                'runes':    rune_inv,
-                'fortune':  fortune_name,
-                'mfortune': minor_fortune_name,
+                **({'curio': curio_sel, 'runes': rune_inv,
+                     'fortune': fortune_name, 'mfortune': minor_fortune_name}
+                    if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -7468,6 +7472,19 @@ def api_sl_builds_desktop(request):
     def _aow(key):
         return sanitize_text(str(data.get(key) or '')[:200]) or None
 
+    # Parse ERR-only fields up front (needed by both UPDATE and INSERT paths)
+    curio_sel    = None
+    rune_inv     = None
+    fortune_name = None
+    minor_fortune_name = None
+    if game == 'err':
+        raw_curio = data.get('curio_selections')
+        raw_runes = data.get('rune_inventory')
+        if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
+        if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
+        fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
+        minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
+
     with get_db_session() as db:
         existing = db.execute(text(
             f"SELECT id, share_token FROM {table} WHERE user_id=:uid AND name=:name"
@@ -7475,6 +7492,10 @@ def api_sl_builds_desktop(request):
 
         if existing:
             build_id = existing[0]
+            err_set_d = (
+                "curio_selections=:curio, rune_inventory=:runes, "
+                "fortune_name=:fortune, minor_fortune_name=:mfortune, "
+            ) if game == 'err' else ""
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -7489,7 +7510,11 @@ def api_sl_builds_desktop(request):
                 "lh3_weapon_id=:lh3, lh3_aow_name=:lh3aow, lh3_affinity=:lh3aff, "
                 "helm_id=:helm, chest_id=:chest, gauntlet_id=:gaunt, leg_id=:leg, "
                 "talisman_1_id=:t1, talisman_2_id=:t2, talisman_3_id=:t3, talisman_4_id=:t4, "
-                "spells=:spells, playstyle_tag=:tag, is_public=:pub, updated_at=:now "
+                "spells=:spells, playstyle_tag=:tag, is_public=:pub, "
+                "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
+                f"tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
+                f"{err_set_d}"
+                "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
                 'desc': sanitize_text(str(data.get('description',''))[:1000]),
@@ -7510,6 +7535,14 @@ def api_sl_builds_desktop(request):
                 't3': _si('talisman_3_id'), 't4': _si('talisman_4_id'),
                 'spells': _json.dumps(spell_ids), 'tag': validated_tag,
                 'pub': 1 if data.get('is_public', False) else 0,
+                'ash':     sanitize_text(str(data.get('spirit_ash_name') or '')[:200]) or None,
+                'ash_upg': safe_int(data.get('spirit_ash_upgrade'), 0, 0, 10),
+                'tear1':   sanitize_text(str(data.get('tear_1_name') or '')[:200]) or None,
+                'tear2':   sanitize_text(str(data.get('tear_2_name') or '')[:200]) or None,
+                'scadu':   safe_int(data.get('scadutree_level'), 0, 0, 20),
+                **({'curio': curio_sel, 'runes': rune_inv,
+                     'fortune': fortune_name, 'mfortune': minor_fortune_name}
+                    if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -7521,17 +7554,6 @@ def api_sl_builds_desktop(request):
         ), {'uid': uid}).scalar() or 0
         if build_count >= 50:
             return JsonResponse({'error': 'Build limit reached (50 max)'}, status=429)
-
-        curio_sel    = None
-        rune_inv     = None
-        fortune_name = None
-        if game == 'err':
-            raw_curio = data.get('curio_selections')
-            raw_runes = data.get('rune_inventory')
-            if isinstance(raw_curio, dict): curio_sel = _json.dumps(raw_curio)
-            if isinstance(raw_runes, list):  rune_inv  = _json.dumps(raw_runes)
-            fortune_name = sanitize_text(str(data.get('fortune_name') or '')[:200]) or None
-            minor_fortune_name = sanitize_text(str(data.get('minor_fortune_name') or '')[:200]) or None
 
         # Shared params for both ER and ERR
         _common_params = {

@@ -3954,14 +3954,17 @@ function saveBuild() {
     spells: BUILD.spells.map(s => s.id),
     playstyle_tag: BUILD.playstyle_tag,
     is_public: document.getElementById('build-public').checked,
-    // ERR-only
+    // ER + ERR
     spirit_ash_name:    BUILD.spirit_ash?.name || null,
     spirit_ash_upgrade: BUILD.spirit_ash_upgrade || 0,
     tear_1_name:        BUILD.tears[0]?.name || null,
     tear_2_name:        BUILD.tears[1]?.name || null,
     scadutree_level:    BUILD.scadutree || 0,
+    // ERR-only
     fortune_name:       BUILD.fortune?.name || null,
     minor_fortune_name: BUILD.minor_fortune?.name || null,
+    curio_selections:   BUILD.curio_selections || null,
+    rune_inventory:     BUILD.rune_inventory || null,
   };
   csrfFetch('/api/soulslike/builds/?game=' + BUILD.game, {
     method: 'POST',
