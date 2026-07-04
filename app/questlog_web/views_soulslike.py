@@ -1700,6 +1700,81 @@ def sl_runs(request):
 
 
 @add_web_user_context
+def sl_community_runs(request):
+    """Public community runs - live and recently completed public runs."""
+    game     = request.GET.get('game', '')[:32]
+    now      = int(time.time())
+    cutoff   = now - (7 * 24 * 3600)  # last 7 days for completed runs
+
+    with get_db_session() as db:
+        filters = "WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
+        params  = {}
+        if game:
+            filters += " AND s.game=:game"
+            params['game'] = game
+
+        rows = db.execute(text(f"""
+            SELECT s.session_token, s.build_name, s.game, s.game_mode,
+                   s.death_count, s.ended_at, s.started_at,
+                   s.is_hardcore, s.hc_score,
+                   s.listener_session_sec, s.total_survival_sec,
+                   (SELECT COUNT(*) FROM sl_session_bosses b WHERE b.session_id=s.id AND b.is_defeated=1) as bosses_killed,
+                   (SELECT COUNT(*) FROM sl_session_bosses b WHERE b.session_id=s.id) as bosses_total,
+                   u.username, u.avatar_url, u.is_live, u.live_platform,
+                   u.twitch_username, u.live_url
+            FROM sl_collection_sessions s
+            JOIN web_users u ON u.id = s.user_id
+            {filters}
+              AND (s.ended_at IS NULL OR s.ended_at > :cutoff)
+            ORDER BY
+                (s.ended_at IS NULL) DESC,  -- active first
+                s.started_at DESC
+            LIMIT 50
+        """), {**params, 'cutoff': cutoff}).fetchall()
+
+    def stream_url(row):
+        if not row[15]: return None  # not live
+        if row[16] == 'twitch' and row[17]: return f'https://twitch.tv/{row[17]}'
+        if row[18]: return row[18]  # live_url - Kick or any other platform
+        return None
+
+    runs = [
+        {
+            'token':       r[0],
+            'build_name':  r[1],
+            'game':        r[2],
+            'game_mode':   r[3] or 'vanilla',
+            'game_label':  'ERR' if r[3] == 'err' else 'Elden Ring',
+            'deaths':      r[4] or 0,
+            'is_active':   r[5] is None,
+            'started_at':  r[6],
+            'is_hardcore': bool(r[7]),
+            'hc_score':    r[8] or 0,
+            'session_sec': r[9] or 0,
+            'session_fmt': _fmt_time(r[9] or 0),
+            'bosses_killed': r[11] or 0,
+            'bosses_total':  r[12] or 0,
+            'boss_pct':    round((r[11] or 0) / r[12] * 100) if r[12] else 0,
+            'username':    r[13],
+            'avatar':      r[14] or '',
+            'is_live':     bool(r[15]),
+            'stream_url':  stream_url(r),
+        }
+        for r in rows
+    ]
+
+    active_count = sum(1 for r in runs if r['is_active'])
+
+    return render(request, 'questlog_web/sl_community_runs.html', {
+        'web_user':     request.web_user,
+        'active_page':  'sl_community_runs',
+        'runs':         runs,
+        'active_count': active_count,
+        'game_filter':  game,
+    })
+
+
+@add_web_user_context
 def sl_leaderboards(request):
     """Public leaderboards - personal + community tabs."""
     return render(request, 'questlog_web/sl_leaderboards.html', {
@@ -2078,34 +2153,56 @@ def api_sl_leaderboards(request):
     ], 'category': category, 'game': game, 'scope': scope})
 
 
-@web_login_required
 @add_web_user_context
 def sl_run_detail(request, token):
-    """Manage a single run - web tracking interface. Login required; only the owner sees controls."""
+    """Run detail - owner sees full controls; public runs visible to anyone; private = 404 for non-owners."""
     from django.http import Http404
     with get_db_session() as db:
         session = db.execute(text("""
-            SELECT id, build_name, game, spoiler_mode, started_at, ended_at,
-                   death_count, last_death_boss, user_id, session_type, game_mode, timing_mode,
-                   total_survival_sec, longest_life_sec, listener_session_sec,
-                   hollow_streak, time_in_hollow_sec, rage_pct,
-                   is_hardcore, hc_score, hc_completed
-            FROM sl_collection_sessions WHERE session_token=:tok
+            SELECT s.id, s.build_name, s.game, s.spoiler_mode, s.started_at, s.ended_at,
+                   s.death_count, s.last_death_boss, s.user_id, s.session_type, s.game_mode, s.timing_mode,
+                   s.total_survival_sec, s.longest_life_sec, s.listener_session_sec,
+                   s.hollow_streak, s.time_in_hollow_sec, s.rage_pct,
+                   s.is_hardcore, s.hc_score, s.hc_completed, s.is_public,
+                   u.username, u.avatar_url, u.is_live, u.live_platform,
+                   u.twitch_username, u.youtube_channel_id, u.is_banned, u.live_url
+            FROM sl_collection_sessions s
+            JOIN web_users u ON u.id = s.user_id
+            WHERE s.session_token=:tok
         """), {'tok': token}).fetchone()
         if not session:
             raise Http404
 
-        is_owner = request.web_user and request.web_user.id == session[8]
-        if not is_owner:
-            from django.http import HttpResponseForbidden
-            return HttpResponseForbidden('This run belongs to another user.')
+        uid = request.web_user.id if request.web_user else None
+        is_owner = uid == session[8]
+        is_public = bool(session[21])
+        owner_banned = bool(session[28])
 
+        # Non-owners can only view public runs from non-banned users - 404 to avoid confirming existence
+        if not is_owner and (not is_public or owner_banned):
+            raise Http404
+
+        sid       = session[0]
         is_active = session[5] is None
-        summary = None
+        summary   = None
+
+        # Owner streaming info
+        owner_is_live     = bool(session[24])
+        owner_platform    = session[25] or ''
+        owner_twitch      = session[26] or ''
+        owner_youtube_id  = session[27] or ''
+        owner_live_url    = session[29] or ''  # custom stream URL from profile
+        stream_url = None
+        if owner_is_live:
+            if owner_platform == 'twitch' and owner_twitch:
+                stream_url = f'https://twitch.tv/{owner_twitch}'
+            elif owner_platform == 'youtube' and owner_youtube_id:
+                stream_url = f'https://youtube.com/channel/{owner_youtube_id}/live'
+            elif owner_live_url:
+                stream_url = owner_live_url  # Kick or any other platform set in profile
 
         if not is_active:
             # Build summary for completed run view
-            sid = session[0]
             bosses_killed = db.execute(text(
                 "SELECT COUNT(*) FROM sl_session_bosses WHERE session_id=:sid AND is_defeated=1"
             ), {'sid': sid}).scalar() or 0
@@ -2122,17 +2219,16 @@ def sl_run_detail(request, token):
                 "SELECT boss_name, life_duration_sec FROM sl_death_events WHERE session_id=:sid ORDER BY died_at ASC"
             ), {'sid': sid}).fetchall()
 
-            total_surv   = session[12] or 0
-            longest_life = session[13] or 0
-            session_sec  = session[14] or 0
+            total_surv    = session[12] or 0
+            longest_life  = session[13] or 0
+            session_sec   = session[14] or 0
             hollow_streak = session[15] or 0
-            deaths       = session[6] or 0
-            started_at   = session[4]
-            ended_at     = session[5]
-            duration_sec = max(0, (ended_at - started_at)) if ended_at and started_at else session_sec
-
-            surv_hrs     = total_surv / 3600 if total_surv > 0 else 0
-            deaths_hr    = round(deaths / surv_hrs, 1) if surv_hrs > 0.01 else 0.0
+            deaths        = session[6] or 0
+            started_at    = session[4]
+            ended_at      = session[5]
+            duration_sec  = max(0, (ended_at - started_at)) if ended_at and started_at else session_sec
+            surv_hrs      = total_surv / 3600 if total_surv > 0 else 0
+            deaths_hr     = round(deaths / surv_hrs, 1) if surv_hrs > 0.01 else 0.0
 
             hc_score_summary = db.execute(text(
                 "SELECT hc_score, hc_completed FROM sl_collection_sessions WHERE id=:sid"
@@ -2155,21 +2251,28 @@ def sl_run_detail(request, token):
             }
 
     return render(request, 'questlog_web/sl_run_detail.html', {
-        'web_user': request.web_user,
+        'web_user':    request.web_user,
         'active_page': 'soulslike_hub',
-        'token': token,
-        'build_name': session[1],
-        'game': session[2],
+        'token':       token,
+        'build_name':  session[1],
+        'game':        session[2],
         'spoiler_mode': session[3],
-        'is_active': is_active,
-        'is_owner': True,
+        'is_active':   is_active,
+        'is_owner':    is_owner,
+        'is_public':   is_public,
         'session_type': session[9] or 'run',
-        'game_mode': session[10] or 'vanilla',
+        'game_mode':   session[10] or 'vanilla',
         'timing_mode': session[11] or 'listener',
         'is_hardcore': bool(session[18]),
         'hc_score':    session[19] or 0,
         'hc_completed': bool(session[20]),
-        'summary': summary,
+        # Owner profile for viewer
+        'owner_username':  session[22] or '',
+        'owner_avatar':    session[23] or '',
+        'owner_is_live':   owner_is_live,
+        'owner_platform':  owner_platform,
+        'stream_url':      stream_url,
+        'summary':         summary,
     })
 
 

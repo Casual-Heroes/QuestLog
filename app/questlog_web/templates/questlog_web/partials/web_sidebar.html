@@ -185,9 +185,9 @@
 
     <!-- SoulsLike Section -->
     {% with sl_active=active_page|slice:":9" %}
-    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' %}true{% else %}false{% endif %} }">
+    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' %}true{% else %}false{% endif %} }">
       <button @click="open = !open"
-              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' %}active{% endif %}">
+              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' %}active{% endif %}">
         <i class="fas fa-skull text-gray-400 group-hover:text-amber-400 w-4 flex-shrink-0"></i>
         <span class="flex-1 text-left">SoulsLike</span>
         <i class="fas fa-chevron-down text-gray-600 text-[10px] transition-transform" :class="open ? 'rotate-180' : ''"></i>
@@ -214,6 +214,11 @@
            class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'questlog_web_sl_runs' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
           <i class="fas fa-skull w-3.5 text-center"></i>
           <span>My Runs</span>
+        </a>
+        <a href="/soulslike/community-runs/"
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'sl_community_runs' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-eye w-3.5 text-center"></i>
+          <span>Community Runs</span>
         </a>
         <a href="/soulslike/builds/"
            class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_builds_browse' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">

@@ -37,10 +37,10 @@ from .views_pages import (
     soulslike_builder, soulslike_builds_browse, sl_my_builds,
     api_sl_classes, api_sl_stat_caps, api_sl_weapons, api_sl_spells,
     api_sl_talismans, api_sl_aow, api_sl_armor, api_sl_builds,
-    api_sl_builds_browse, api_sl_build_detail, api_sl_build_delete,
+    api_sl_builds_browse, api_sl_build_detail, api_sl_build_delete, api_sl_build_delete_desktop,
     api_sl_ar_data, api_sl_weapon_ar_variants, api_sl_derived_curves,
     api_sl_spirit_ashes, api_sl_crystal_tears, api_sl_boss_registry,
-    api_sl_err_aow_skills, api_sl_err_curios, api_sl_err_runeforging,
+    api_sl_err_aow_skills, api_sl_err_curios, api_sl_err_runeforging, api_sl_err_fortunes,
     api_sl_err_affinities, api_sl_err_crystal_tears, api_sl_err_consumables,
     api_sl_err_armor_passives,
     api_active_poll, api_poll_vote,
@@ -306,6 +306,7 @@ from .views_profile import (
 from .views_soulslike import (
     api_sl_session_create, api_sl_collect, api_sl_uncollect,
     api_sl_death, api_sl_session_status, api_sl_session_end, api_sl_reset_deaths, api_sl_heartbeat,
+    api_sl_set_deaths,
     api_sl_boss_mark, api_sl_boss_unmark, api_sl_seed_bosses, api_sl_set_focus,
     api_sl_manual_start, sl_run_manifest, api_sl_desktop_session_create,
     api_sl_stream,
@@ -314,7 +315,7 @@ from .views_soulslike import (
     api_sl_tournament_join,
     api_sl_tournament_finalize, api_sl_admin_tournaments,
     api_sl_hc_complete,
-    sl_runs, sl_run_detail, sl_leaderboards, api_sl_leaderboards,
+    sl_runs, sl_run_detail, sl_community_runs, sl_leaderboards, api_sl_leaderboards,
     sl_overlay_collection, sl_overlay_deaths,
     sl_overlay_mortality, sl_overlay_hollow, sl_overlay_combined,
 )
@@ -544,6 +545,7 @@ urlpatterns = [
     path('api/soulslike/weapons/<str:weapon_name>/ar-variants/', api_sl_weapon_ar_variants, name='api_sl_weapon_ar_variants'),
     path('api/soulslike/err/aow-skills/',     api_sl_err_aow_skills,     name='api_sl_err_aow_skills'),
     path('api/soulslike/err/curios/',         api_sl_err_curios,         name='api_sl_err_curios'),
+    path('api/soulslike/err/fortunes/',       api_sl_err_fortunes,       name='api_sl_err_fortunes'),
     path('api/soulslike/err/runeforging/',    api_sl_err_runeforging,    name='api_sl_err_runeforging'),
     path('api/soulslike/err/affinities/',     api_sl_err_affinities,     name='api_sl_err_affinities'),
     path('api/soulslike/err/crystal-tears/',  api_sl_err_crystal_tears,  name='api_sl_err_crystal_tears'),
@@ -556,6 +558,7 @@ urlpatterns = [
     path('api/soulslike/session/<str:token>/status/',   api_sl_session_status,  name='api_sl_session_status'),
     path('api/soulslike/session/<str:token>/end/',          api_sl_session_end,    name='api_sl_session_end'),
     path('api/soulslike/session/<str:token>/reset-deaths/', api_sl_reset_deaths,   name='api_sl_reset_deaths'),
+    path('api/soulslike/session/<str:token>/set-deaths/',   api_sl_set_deaths,     name='api_sl_set_deaths'),
     path('api/soulslike/session/<str:token>/heartbeat/',   api_sl_heartbeat,      name='api_sl_heartbeat'),
     path('api/soulslike/session/<str:token>/boss/mark/',     api_sl_boss_mark,      name='api_sl_boss_mark'),
     path('api/soulslike/session/<str:token>/boss/unmark/',   api_sl_boss_unmark,    name='api_sl_boss_unmark'),
@@ -568,6 +571,7 @@ urlpatterns = [
     path('api/soulslike/runs/active/',                        api_sl_active_runs,     name='api_sl_active_runs'),
     path('soulslike/runs/<str:token>/manifest.json',        sl_run_manifest,       name='sl_run_manifest'),
     path('soulslike/runs/',                             sl_runs,                name='questlog_web_sl_runs'),
+    path('soulslike/community-runs/',                   sl_community_runs,      name='questlog_web_sl_community_runs'),
     path('soulslike/runs/<str:token>/',                 sl_run_detail,          name='questlog_web_sl_run_detail'),
     path('soulslike/overlay/<str:token>/collection/',   sl_overlay_collection,  name='questlog_web_sl_overlay_collection'),
     path('soulslike/overlay/<str:token>/deaths/',       sl_overlay_deaths,      name='questlog_web_sl_overlay_deaths'),
@@ -837,7 +841,8 @@ urlpatterns = [
 
     # Desktop app profile + builds (API key auth)
     path('api/soulslike/desktop/profile/',          api_sl_desktop_profile,         name='api_sl_desktop_profile'),
-    path('api/soulslike/desktop/builds/',           api_sl_builds_desktop,          name='api_sl_builds_desktop'),
+    path('api/soulslike/desktop/builds/',                        api_sl_builds_desktop,          name='api_sl_builds_desktop'),
+    path('api/soulslike/desktop/builds/<int:build_id>/delete/', api_sl_build_delete_desktop,    name='api_sl_build_delete_desktop'),
     path('api/soulslike/desktop/session/create/',   api_sl_desktop_session_create,  name='api_sl_desktop_session_create'),
 
     # Embed Validation API
