@@ -200,8 +200,12 @@ def api_sl_collect(request, token):
     """
     POST /api/soulslike/session/<token>/collect/
     Body: { "item_name": "Moonveil" }  OR  { "item_id": 42, "item_type": "weapon" }
-    Marks an item as collected. No login required - token is the auth.
+    Requires owner: web session OR X-Listener-Key.
     """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
     try:
         data = json.loads(request.body)
     except Exception:
@@ -215,8 +219,8 @@ def api_sl_collect(request, token):
 
     with get_db_session() as db:
         session = db.execute(text(
-            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND ended_at IS NULL"
-        ), {'tok': token}).fetchone()
+            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
         if not session:
             return JsonResponse({'error': 'Session not found or ended'}, status=404)
         sid = session[0]
@@ -268,8 +272,12 @@ def api_sl_uncollect(request, token):
     """
     POST /api/soulslike/session/<token>/uncollect/
     Body: { "item_name": "Moonveil" }
-    Unmarks an item (web mode - user misclicked).
+    Requires owner: web session OR X-Listener-Key.
     """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
     try:
         data = json.loads(request.body)
     except Exception:
@@ -279,8 +287,8 @@ def api_sl_uncollect(request, token):
 
     with get_db_session() as db:
         session = db.execute(text(
-            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND ended_at IS NULL"
-        ), {'tok': token}).fetchone()
+            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
         if not session:
             return JsonResponse({'error': 'Session not found'}, status=404)
         sid = session[0]
@@ -1192,7 +1200,11 @@ def api_sl_seed_bosses(request, token):
 @ratelimit(key='ip', rate='120/m', block=True)
 @require_http_methods(['POST'])
 def api_sl_boss_mark(request, token):
-    """POST /api/soulslike/session/<token>/boss/mark/ - mark boss defeated + decay rage"""
+    """POST /api/soulslike/session/<token>/boss/mark/ - mark boss defeated + decay rage. Owner only."""
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
     try:
         data = json.loads(request.body)
     except Exception:
@@ -1209,8 +1221,8 @@ def api_sl_boss_mark(request, token):
             SELECT id, rage_pct, hollow_streak, time_in_hollow_sec,
                    hollow_entered_at
             FROM sl_collection_sessions
-            WHERE session_token=:tok AND ended_at IS NULL
-        """), {'tok': token}).fetchone()
+            WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL
+        """), {'tok': token, 'uid': uid}).fetchone()
         if not session:
             return JsonResponse({'error': 'Session not found'}, status=404)
 
@@ -1350,7 +1362,11 @@ def api_sl_boss_mark(request, token):
 @ratelimit(key='ip', rate='120/m', block=True)
 @require_http_methods(['POST'])
 def api_sl_boss_unmark(request, token):
-    """POST /api/soulslike/session/<token>/boss/unmark/ - unmark boss (undo)"""
+    """POST /api/soulslike/session/<token>/boss/unmark/ - unmark boss (undo). Owner only."""
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
     try:
         data = json.loads(request.body)
     except Exception:
@@ -1362,8 +1378,8 @@ def api_sl_boss_unmark(request, token):
 
     with get_db_session() as db:
         session = db.execute(text(
-            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND ended_at IS NULL"
-        ), {'tok': token}).fetchone()
+            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
         if not session:
             return JsonResponse({'error': 'Session not found'}, status=404)
 
@@ -1578,6 +1594,22 @@ def api_sl_hc_complete(request, token):
         logger.info("sl_hc_complete uid=%s sid=%s score=%s", uid, sid, final_score)
 
     return JsonResponse({'ok': True, 'hc_score': final_score, 'hc_completed': True})
+
+
+def _owner_uid_from_request(request):
+    """
+    Resolve the authenticated user ID from web session or X-Listener-Key header.
+    Used to enforce owner-only access on write endpoints without @web_login_required
+    (which blocks desktop app requests that use API key auth instead of cookies).
+    Returns uid int or None if unauthenticated.
+    """
+    uid = request.session.get('web_user_id') if hasattr(request, 'session') else None
+    if uid:
+        return uid
+    api_key = request.headers.get('X-Listener-Key', '').strip()
+    if api_key:
+        return _resolve_listener_key(request, api_key)
+    return None
 
 
 def _resolve_listener_key(request, api_key):
