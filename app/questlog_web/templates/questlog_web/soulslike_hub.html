@@ -29,7 +29,7 @@
 <div class="max-w-5xl mx-auto px-4 py-10 space-y-10">
 
   <!-- Live community stats -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
     {% with stats_items=stats.items %}
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
       <div class="text-2xl font-black text-amber-400">{{ stats.total_runs }}</div>
@@ -46,6 +46,10 @@
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
       <div class="text-2xl font-black text-amber-400">{{ stats.bosses_killed }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Bosses Killed</div>
+    </div>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-green-400">{{ stats.items_collected }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Items Collected</div>
     </div>
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
       <div class="text-2xl font-black text-indigo-400">{{ stats.total_builds }}</div>
@@ -99,6 +103,19 @@
         <div class="p-4">
           <p class="text-white font-bold text-sm mb-1 group-hover:text-indigo-300 transition">Community Builds</p>
           <p class="text-gray-500 text-xs leading-relaxed">Browse and search builds shared by the community. PvE, PvP, challenge runs and more.</p>
+        </div>
+      </a>
+
+      <!-- Community Runs -->
+      <a href="/soulslike/community-runs/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-cyan-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-cyan-900/20">
+        <div class="h-28 bg-gradient-to-br from-cyan-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-eye text-5xl text-cyan-500 group-hover:text-cyan-400 transition-colors"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-cyan-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
+        </div>
+        <div class="p-4">
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-cyan-300 transition">Community Runs</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Watch live runs, see active boss trackers and what the community is playing right now.</p>
         </div>
       </a>
 

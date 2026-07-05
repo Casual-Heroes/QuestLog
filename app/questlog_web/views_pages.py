@@ -5680,15 +5680,18 @@ def soulslike_hub(request):
     stats = {}
     try:
         with get_db_session() as db:
-            stats['total_runs']     = db.execute(text('SELECT COUNT(*) FROM sl_collection_sessions')).scalar() or 0
-            stats['active_runs']    = db.execute(text('SELECT COUNT(*) FROM sl_collection_sessions WHERE ended_at IS NULL')).scalar() or 0
-            stats['total_deaths']   = db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM sl_collection_sessions')).scalar() or 0
-            stats['bosses_killed']  = db.execute(text('SELECT COUNT(*) FROM sl_session_bosses WHERE is_defeated=1')).scalar() or 0
-            stats['total_builds']   = (db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0) + \
-                                      (db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0)
-            stats['leaderboard']    = db.execute(text('SELECT COUNT(*) FROM sl_leaderboard_entries')).scalar() or 0
+            # Only count public non-archived runs from non-banned users
+            PUBLIC = "JOIN web_users u ON u.id = s.user_id WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
+            stats['total_runs']       = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC}')).scalar() or 0
+            stats['active_runs']      = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC} AND s.ended_at IS NULL')).scalar() or 0
+            stats['total_deaths']     = db.execute(text(f'SELECT COALESCE(SUM(s.death_count),0) FROM sl_collection_sessions s {PUBLIC}')).scalar() or 0
+            stats['bosses_killed']    = db.execute(text(f'SELECT COUNT(*) FROM sl_session_bosses sb JOIN sl_collection_sessions s ON s.id=sb.session_id {PUBLIC} AND sb.is_defeated=1')).scalar() or 0
+            stats['items_collected']  = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_item_status si JOIN sl_collection_sessions s ON s.id=si.session_id {PUBLIC} AND si.is_collected=1')).scalar() or 0
+            stats['total_builds']     = (db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0) + \
+                                        (db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0)
+            stats['leaderboard']      = db.execute(text('SELECT COUNT(DISTINCT user_id) FROM sl_leaderboard_entries')).scalar() or 0
     except Exception:
-        stats = {'total_runs':0,'active_runs':0,'total_deaths':0,'bosses_killed':0,'total_builds':0,'leaderboard':0}
+        stats = {'total_runs':0,'active_runs':0,'total_deaths':0,'bosses_killed':0,'items_collected':0,'total_builds':0,'leaderboard':0}
 
     return render(request, 'questlog_web/soulslike_hub.html', {
         'web_user': request.web_user,
