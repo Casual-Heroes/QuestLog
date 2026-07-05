@@ -503,6 +503,7 @@ def api_sl_death(request, token):
 
 # ── Session status (overlay polls this) ──────────────────────────────────────
 
+@csrf_exempt
 @require_http_methods(['GET'])
 def api_sl_session_status(request, token):
     """GET /api/soulslike/session/<token>/status/ - polled by overlay every 3s"""
@@ -571,16 +572,8 @@ def api_sl_session_status(request, token):
         else:
             current_life_sec = 0
 
-        # Deaths/HR = session deaths / session time (wall clock since Start Session)
-        # Only shown after 10 minutes of session time to avoid garbage numbers from small samples
-        # (e.g. dying 3 times in the first 30 seconds = 360/hr which is meaningless)
-        MIN_SESSION_SEC = 600  # 10 minutes minimum before showing rate
-        session_sec_for_rate = listener_sec or 0  # session clock (listener or manual)
-        session_deaths_val   = session_death_count or 0
-        if session_sec_for_rate >= MIN_SESSION_SEC and session_deaths_val >= 0:
-            true_death_rate = round(session_deaths_val / (session_sec_for_rate / 3600), 1)
-        else:
-            true_death_rate = None  # shown as "--" until 10 min threshold
+        # Deaths per Boss = total deaths / bosses defeated (calculated after boss_rows query below)
+        # true_death_rate set after bosses_defeated is known
 
         # Hollow time accumulation (add current hollow session if active)
         total_hollow = time_in_hollow or 0
@@ -605,6 +598,12 @@ def api_sl_session_status(request, token):
         """), {'sid': sid}).fetchall()
         bosses_defeated = sum(1 for b in boss_rows if b[4])
         bosses_total    = len(boss_rows)
+
+        # Deaths per Boss: meaningful souls metric - how many deaths does it take per boss kill
+        if bosses_defeated >= 1:
+            true_death_rate = round((death_count or 0) / bosses_defeated, 1)
+        else:
+            true_death_rate = None  # "--" until first boss killed
         bosses = [
             {'name': b[0], 'location': b[1], 'region': b[2], 'tier': b[3],
              'defeated': bool(b[4]), 'defeated_at': b[5], 'key': b[6]}
@@ -768,7 +767,7 @@ def api_sl_heartbeat(request, token):
                     "    game_stopped_at=NULL, "
                     f"   {reset_session}"
                     "    listener_session_sec=:sess, "
-                    "    total_survival_sec=:surv, "
+                    "    total_survival_sec=GREATEST(total_survival_sec, :surv), "
                     "    longest_life_sec=GREATEST(longest_life_sec, :longest), "
                     "    app_session_sec=:sess, app_streak_sec=:streak, app_longest_sec=:longest "
                     "WHERE id=:sid"
@@ -923,6 +922,7 @@ def api_sl_reset_deaths(request, token):
 def api_sl_set_deaths(request, token):
     """
     POST /api/soulslike/session/<token>/set-deaths/
+@csrf_exempt
     Body: { "count": 184 }
     Owner-only. Lets the player correct their total death count manually.
     session_death_count is also updated to match if it would exceed the new total.
@@ -1020,6 +1020,7 @@ def api_sl_subtract_death(request, token):
 def api_sl_active_runs(request):
     """
     GET /api/soulslike/runs/active/
+@csrf_exempt
     Header: X-Listener-Key: ql_xxxxx
     Returns active runs - same as /api/listener/runs/ but also includes
     full status snapshot so EldenTracker can sync state on launch.
@@ -1170,6 +1171,56 @@ def api_sl_manual_start(request, token):
 
 @csrf_exempt
 @ratelimit(key='user_or_ip', rate='20/m', block=True)
+@require_http_methods(['POST'])
+def api_sl_test_hollow(request, token):
+    """
+    POST /api/soulslike/session/<token>/test-hollow/
+    Owner only. Temporarily sets rage to 100 (HOLLOW) in DB so the polling
+    overlay picks it up. Auto-reverts after 5 seconds.
+    """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    with get_db_session() as db:
+        session = db.execute(text(
+            "SELECT id, rage_pct, rage_name, hollow_streak FROM sl_collection_sessions "
+            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
+        if not session:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        sid              = session[0]
+        orig_rage_pct    = session[1] or 0
+        orig_rage_name   = session[2] or "Maiden's Grace"
+        hollow_streak    = session[3] or 0
+
+        # Set to HOLLOW so next poll picks it up
+        db.execute(text(
+            "UPDATE sl_collection_sessions SET rage_pct=100, rage_name='HOLLOW', "
+            "hollow_entered_at=COALESCE(hollow_entered_at, :now) WHERE id=:sid"
+        ), {'sid': sid, 'now': int(time.time())})
+        db.commit()
+
+    # Revert after 5 seconds in background thread
+    import threading
+    def revert():
+        import time as _t
+        _t.sleep(5)
+        try:
+            with get_db_session() as _db:
+                _db.execute(text(
+                    "UPDATE sl_collection_sessions SET rage_pct=:pct, rage_name=:name, "
+                    "hollow_entered_at=NULL WHERE id=:sid"
+                ), {'pct': orig_rage_pct, 'name': orig_rage_name, 'sid': sid})
+                _db.commit()
+        except Exception as e:
+            logger.error("test_hollow revert failed sid=%s: %s", sid, e)
+    threading.Thread(target=revert, daemon=True).start()
+
+    return JsonResponse({'ok': True, 'message': 'Test hollow active for 5 seconds - check your overlay'})
+
+
+@csrf_exempt
 @require_http_methods(['POST'])
 def api_sl_test_hollow(request, token):
     """
@@ -1517,6 +1568,7 @@ def api_sl_boss_unmark(request, token):
 
 # ── End session ───────────────────────────────────────────────────────────────
 
+@csrf_exempt
 @web_login_required
 @require_http_methods(['POST'])
 def api_sl_session_end(request, token):
@@ -1550,14 +1602,13 @@ def api_sl_session_end(request, token):
         # Final survival = accumulated + current life if never tracked
         final_surv = total_surv or 0
 
-        # True death/hr
-        surv_hr = final_surv / 3600 if final_surv > 0 else 0
-        death_rate = round((deaths or 0) / surv_hr, 2) if surv_hr > 0.01 else 0.0
-
         # Boss count
         bosses_def = db.execute(text(
             "SELECT COUNT(*) FROM sl_session_bosses WHERE session_id=:sid AND is_defeated=1"
         ), {'sid': sid}).scalar() or 0
+
+        # Deaths per Boss (stored in true_death_rate column)
+        death_rate = round((deaths or 0) / bosses_def, 1) if bosses_def >= 1 else 0.0
 
         # HC: check if completed (all bosses, 0 deaths) and calculate final score
         is_hc = db.execute(text(
@@ -2027,12 +2078,12 @@ def api_sl_leaderboards(request):
     ALL_CATEGORIES = [
         # Per-session
         {'id': 'longest_life',      'name': 'Iron Tarnished',      'desc': 'Longest single life before dying',              'type': 'session',  'min_deaths': 0},
-        {'id': 'true_grit',         'name': 'True Grit',           'desc': 'Lowest Deaths/HR (min 5 deaths)',               'type': 'session',  'min_deaths': 5},
+        {'id': 'true_grit',         'name': 'True Grit',           'desc': 'Lowest Deaths/Boss (min 5 deaths)',             'type': 'session',  'min_deaths': 5},
         {'id': 'death_machine',     'name': 'Death Machine',       'desc': 'Most deaths in a single session',              'type': 'session',  'min_deaths': 1},
         {'id': 'hollow_lord',       'name': 'Hollow Lord',         'desc': 'Most time spent in HOLLOW state',              'type': 'session',  'min_deaths': 1},
         {'id': 'hollow_depth',      'name': 'Hollow Depth',        'desc': 'Most times gone hollow in a single session',   'type': 'session',  'min_deaths': 1},
         {'id': 'boss_slayer',       'name': 'Boss Slayer',         'desc': 'Most bosses defeated in a single session',     'type': 'session',  'min_deaths': 1},
-        {'id': 'glass_cannon',      'name': 'Glass Cannon',        'desc': 'Highest Deaths/HR with 5+ bosses killed',      'type': 'session',  'min_deaths': 5},
+        {'id': 'glass_cannon',      'name': 'Glass Cannon',        'desc': 'Highest Deaths/Boss with 5+ bosses killed',    'type': 'session',  'min_deaths': 5},
         {'id': 'from_hollow_rising','name': 'From Hollow, Rising', 'desc': 'Most boss kills while in HOLLOW state',        'type': 'session',  'min_deaths': 1},
         # Lifetime
         {'id': 'tarnished_legend',  'name': 'Tarnished Legend',   'desc': 'Most bosses killed across all runs ever',       'type': 'lifetime', 'min_deaths': 0},
@@ -2152,7 +2203,7 @@ def api_sl_leaderboards(request):
                 ], 'category': category, 'game': game, 'scope': scope})
 
             elif category == 'glass_cannon':
-                # Highest Deaths/HR with at least 5 bosses killed - chaos meets skill
+                # Highest Deaths/Boss with at least 5 bosses killed - chaos meets skill
                 sql = f"""
                     SELECT le.username, le.true_death_rate, le.bosses_defeated,
                            le.session_deaths, le.longest_life_sec
@@ -2169,11 +2220,11 @@ def api_sl_leaderboards(request):
                 return JsonResponse({'entries': [
                     {'rank': i+1, 'username': r[0],
                      'value': round(r[1] or 0, 1),
-                     'value_fmt': f'{round(r[1] or 0, 1)}/hr',
+                     'value_fmt': f'{round(r[1] or 0, 1)}/boss',
                      'bosses_defeated': r[2] or 0,
                      'session_deaths': r[3] or 0,
                      'longest_life_fmt': fmt(r[4] or 0),
-                     'label': 'Deaths/HR'}
+                     'label': 'Deaths/Boss'}
                     for i, r in enumerate(rows)
                 ], 'category': category, 'game': game, 'scope': scope})
 
@@ -2420,8 +2471,7 @@ def sl_run_detail(request, token):
             started_at    = session[4]
             ended_at      = session[5]
             duration_sec  = max(0, (ended_at - started_at)) if ended_at and started_at else session_sec
-            surv_hrs      = total_surv / 3600 if total_surv > 0 else 0
-            deaths_hr     = round(deaths / surv_hrs, 1) if surv_hrs > 0.01 else 0.0
+            deaths_hr     = round(deaths / bosses_killed, 1) if bosses_killed >= 1 else 0.0
 
             hc_score_summary = db.execute(text(
                 "SELECT hc_score, hc_completed FROM sl_collection_sessions WHERE id=:sid"
@@ -2450,6 +2500,7 @@ def sl_run_detail(request, token):
         'build_name':  session[1],
         'game':        session[2],
         'spoiler_mode': session[3],
+        'run_started_at': session[4] or 0,
         'is_active':   is_active,
         'is_owner':    is_owner,
         'is_public':   is_public,

@@ -4554,7 +4554,7 @@ function renderBotStats(d) {
         <select id="tc-cat" onchange="tcCatChanged()" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
           <optgroup label="Per-Session">
             <option value="longest_life">Iron Tarnished - Longest single life</option>
-            <option value="true_grit">True Grit - Lowest Deaths/HR (min 5 deaths)</option>
+            <option value="true_grit">True Grit - Lowest Deaths/Boss (min 5 deaths)</option>
             <option value="death_machine">Death Machine - Most deaths in one session</option>
             <option value="hollow_lord">Hollow Lord - Most time in HOLLOW state</option>
             <option value="hollow_depth">Hollow Depth - Most times gone hollow</option>
@@ -6632,12 +6632,12 @@ var _editingTournId = null;
 
 const CAT_DESCS = {
   'longest_life':'Longest single life before dying.',
-  'true_grit':'Lowest Deaths/HR (min 5 deaths).',
+  'true_grit':'Lowest Deaths/Boss (min 5 deaths).',
   'death_machine':'Most deaths in a single session.',
   'hollow_lord':'Most time spent in HOLLOW state.',
   'hollow_depth':'Most times gone hollow in one session.',
   'boss_slayer':'Most bosses defeated in one session.',
-  'glass_cannon':'Highest Deaths/HR with 5+ bosses killed.',
+  'glass_cannon':'Highest Deaths/Boss with 5+ bosses killed.',
   'from_hollow_rising':'Most boss kills while in HOLLOW state.',
   'tarnished_legend':'Total bosses killed across ALL runs ever.',
   'undying':'Most completed runs with 0 deaths.',

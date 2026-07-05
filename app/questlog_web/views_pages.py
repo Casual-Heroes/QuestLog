@@ -5807,6 +5807,33 @@ def soulslike_tracker(request):
     })
 
 
+@add_web_user_context
+def sl_checklist_landing(request):
+    """100% Completion Tracker landing page - coming soon."""
+    from app.db import get_db_session as _gds
+    from sqlalchemy import text as _t
+
+    item_count = 0
+    cat_count  = 0
+    try:
+        with _gds() as db:
+            item_count = db.execute(_t(
+                "SELECT COUNT(*) FROM sl_checklist_items WHERE game='elden_ring'"
+            )).scalar() or 0
+            cat_count = db.execute(_t(
+                "SELECT COUNT(*) FROM sl_checklist_categories WHERE game='elden_ring'"
+            )).scalar() or 0
+    except Exception:
+        pass
+
+    return render(request, 'questlog_web/sl_checklist_landing.html', {
+        'web_user':   request.web_user,
+        'active_page': 'sl_checklist',
+        'item_count': item_count,
+        'cat_count':  cat_count,
+    })
+
+
 @require_http_methods(['GET', 'POST'])
 def api_tracker_download(request):
     """Record a tracker download - no auth required, anyone can download."""

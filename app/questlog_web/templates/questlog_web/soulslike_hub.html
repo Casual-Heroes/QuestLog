@@ -77,19 +77,6 @@
     <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Tools</h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
-      <!-- EldenTracker -->
-      <a href="/soulslike/tracker/"
-         class="group relative bg-neutral-900 border border-neutral-800 hover:border-red-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-red-900/20">
-        <div class="h-28 bg-gradient-to-br from-red-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
-          <i class="fas fa-crosshairs text-5xl text-red-500 group-hover:text-red-400 transition-colors"></i>
-          <span class="absolute top-2 right-2 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
-        </div>
-        <div class="p-4">
-          <p class="text-white font-bold text-sm mb-1 group-hover:text-red-300 transition">EldenTracker</p>
-          <p class="text-gray-500 text-xs leading-relaxed">Desktop app for tracking deaths, boss kills, and rage meter. Connects live to the web.</p>
-        </div>
-      </a>
-
       <!-- Build Planner -->
       <a href="/soulslike/builder/"
          class="group relative bg-neutral-900 border border-neutral-800 hover:border-amber-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-amber-900/20">
@@ -154,6 +141,18 @@
         </div>
       </a>
 
+      <!-- 100% Completion Tracker -->
+      <a href="/soulslike/checklist/" class="group relative bg-neutral-900 border border-neutral-800 hover:border-orange-700/50 rounded-2xl overflow-hidden transition">
+        <div class="h-28 bg-gradient-to-br from-orange-950/50 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-list-check text-5xl text-orange-600/70 group-hover:text-orange-500 transition"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-orange-700 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Coming Soon</span>
+        </div>
+        <div class="p-4">
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-orange-300 transition">100% Completion Tracker</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Track every item, site of grace, boss, and questline. 3,489 items for Elden Ring.</p>
+        </div>
+      </a>
+
       <!-- Guides -->
       <a href="/soulslike/guides/" class="group relative bg-neutral-900 border border-neutral-800 hover:border-purple-700/50 rounded-2xl overflow-hidden transition">
         <div class="h-28 bg-gradient-to-br from-purple-950/50 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
@@ -175,32 +174,27 @@
         </div>
         <div class="p-4">
           <p class="text-white font-bold text-sm mb-1 group-hover:text-yellow-300 transition">Leaderboards</p>
-          <p class="text-gray-500 text-xs leading-relaxed">Longest life, best Deaths/HR, most bosses killed. Compete with the community.</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Longest life, best Deaths/Boss, most bosses killed. Compete with the community.</p>
+        </div>
+      </a>
+
+      <!-- EldenTracker -->
+      <a href="/soulslike/tracker/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-red-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-red-900/20">
+        <div class="h-28 bg-gradient-to-br from-red-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-crosshairs text-5xl text-red-500 group-hover:text-red-400 transition-colors"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
+        </div>
+        <div class="p-4">
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-red-300 transition">EldenTracker</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Desktop app for tracking deaths, boss kills, and rage meter. Connects live to the web.</p>
         </div>
       </a>
 
     </div>
   </div>
 
-  <!-- Desktop App CTA -->
-  <div class="bg-gradient-to-r from-neutral-900 via-neutral-900 to-amber-950/20 border border-amber-900/30 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6">
-    <div class="w-14 h-14 rounded-2xl bg-amber-900/30 border border-amber-700/30 flex items-center justify-center flex-shrink-0">
-      <i class="fas fa-desktop text-amber-400 text-xl"></i>
-    </div>
-    <div class="flex-1">
-      <div class="flex items-center gap-2 mb-1">
-        <h3 class="text-white font-bold text-base">EldenTracker Desktop App</h3>
-        <span class="text-[10px] px-1.5 py-0.5 bg-blue-900/40 border border-blue-700/40 text-blue-300 font-bold rounded"><i class="fab fa-windows mr-0.5"></i>Win</span>
-        <span class="text-[10px] px-1.5 py-0.5 bg-orange-900/40 border border-orange-700/40 text-orange-300 font-bold rounded"><i class="fab fa-linux mr-0.5"></i>Linux</span>
-        <span class="text-[10px] px-1.5 py-0.5 bg-neutral-700 border border-neutral-600 text-gray-300 font-bold rounded"><i class="fab fa-apple mr-0.5"></i>Mac</span>
-      </div>
-      <p class="text-gray-400 text-sm leading-relaxed">Full desktop experience - boss tracker, character builder, death tracking, and live sync to the web. Windows EXE or run from source on Linux and macOS.</p>
-    </div>
-    <a href="/soulslike/tracker/"
-       class="flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-amber-700 hover:bg-amber-600 text-white font-bold rounded-xl transition text-sm">
-      <i class="fas fa-download"></i> Get the App
-    </a>
-  </div>
+
 
   <!-- Supported Games -->
   <div>

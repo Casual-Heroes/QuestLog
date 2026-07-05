@@ -1,0 +1,212 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}100% Completion Tracker - SoulsLike Hub{% endblock %}
+{% block og_title %}100% Completion Tracker - Casual Heroes{% endblock %}
+{% block og_description %}Track every item, site of grace, boss, and questline in Elden Ring. {{ item_count }} items across {{ cat_count }} categories.{% endblock %}
+
+{% block web_content %}
+
+<!-- Hero -->
+<div class="relative w-full overflow-hidden" style="height:340px">
+  <img src="{% static 'img/siteassets/soulslike_hero.jpg' %}" alt="100% Completion Tracker"
+       class="w-full h-full object-cover object-center">
+  <div class="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/70 to-transparent"></div>
+  <div class="absolute inset-0 bg-gradient-to-r from-neutral-950/90 via-neutral-950/40 to-transparent"></div>
+  <div class="absolute bottom-0 left-0 right-0 p-8 sm:p-12 max-w-5xl mx-auto">
+    <div class="flex items-center gap-2 mb-3">
+      <i class="fas fa-list-check text-orange-400"></i>
+      <span class="text-xs font-bold uppercase tracking-widest text-orange-400">SoulsLike Hub</span>
+    </div>
+    <h1 class="text-3xl sm:text-4xl font-black text-white leading-tight mb-2">
+      100% Completion Tracker
+    </h1>
+    <p class="text-gray-300 text-sm max-w-lg leading-relaxed">
+      Every item, boss, site of grace, and questline - tracked per run. Data by RainingChain &amp; Fextralife.
+    </p>
+  </div>
+</div>
+
+<div class="max-w-5xl mx-auto px-4 py-10 space-y-10">
+
+  <!-- Coming soon banner -->
+  <div class="bg-orange-950/30 border border-orange-800/40 rounded-2xl p-6 flex items-center gap-5">
+    <div class="w-12 h-12 rounded-xl bg-orange-900/40 border border-orange-700/30 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-hammer text-orange-400 text-lg"></i>
+    </div>
+    <div>
+      <div class="text-white font-bold text-sm mb-1">In Development</div>
+      <p class="text-gray-400 text-xs leading-relaxed">
+        The data is seeded and ready - we're building the UI now. Expect it soon.
+        The tracker will tie directly into your runs so you can check off items mid-playthrough.
+      </p>
+    </div>
+    <span class="ml-auto px-3 py-1 bg-orange-700/60 text-orange-200 text-[10px] font-bold uppercase tracking-wide rounded-full whitespace-nowrap">Coming Soon</span>
+  </div>
+
+  <!-- Stats row -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-orange-400">{{ item_count|default:"3,489" }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Total Items</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-amber-400">{{ cat_count|default:"71" }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Categories</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-blue-400">414</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Sites of Grace</div>
+    </div>
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+      <div class="text-2xl font-black text-red-400">209+</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-1">Bosses</div>
+    </div>
+  </div>
+
+  <!-- What's coming -->
+  <div>
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">What's Coming</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <i class="fas fa-check-square text-orange-500 text-lg"></i>
+          <span class="text-white font-bold text-sm">Per-Run Checklist</span>
+        </div>
+        <p class="text-gray-500 text-xs leading-relaxed">
+          Check off items as you find them, tied to a specific run. Start a new NG+ and your checklist resets cleanly.
+        </p>
+      </div>
+
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <i class="fas fa-map-pin text-blue-500 text-lg"></i>
+          <span class="text-white font-bold text-sm">Sites of Grace</span>
+        </div>
+        <p class="text-gray-500 text-xs leading-relaxed">
+          All 414 sites of grace organized by region. Track which ones you've activated to confirm full map coverage.
+        </p>
+      </div>
+
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <i class="fas fa-scroll text-purple-500 text-lg"></i>
+          <span class="text-white font-bold text-sm">Questlines</span>
+        </div>
+        <p class="text-gray-500 text-xs leading-relaxed">
+          All 29 NPC questlines with missable flags. See which quests conflict with each other before you go too far.
+        </p>
+      </div>
+
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <i class="fas fa-skull text-red-500 text-lg"></i>
+          <span class="text-white font-bold text-sm">Boss Progress</span>
+        </div>
+        <p class="text-gray-500 text-xs leading-relaxed">
+          209+ bosses including field bosses, dungeon bosses, invaders, and DLC. Syncs with your live run tracker.
+        </p>
+      </div>
+
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <i class="fas fa-gem text-cyan-500 text-lg"></i>
+          <span class="text-white font-bold text-sm">Collectibles</span>
+        </div>
+        <p class="text-gray-500 text-xs leading-relaxed">
+          Golden seeds, sacred tears, crystal tears, paintings, and all upgrade materials. DLC items flagged separately.
+        </p>
+      </div>
+
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <i class="fas fa-repeat text-green-500 text-lg"></i>
+          <span class="text-white font-bold text-sm">NG+ Ready</span>
+        </div>
+        <p class="text-gray-500 text-xs leading-relaxed">
+          Import your manifest into a new run. Collectibles carry over where appropriate, bosses reset for the new cycle.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Games roadmap -->
+  <div>
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Games</h2>
+    <div class="space-y-3">
+
+      <!-- Elden Ring - first up -->
+      <div class="bg-neutral-900 border border-amber-800/40 rounded-xl p-4 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-lg bg-amber-950/60 border border-amber-800/40 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-ring text-amber-500 text-lg"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-white font-bold text-sm">Elden Ring</div>
+          <div class="text-gray-500 text-xs">{{ item_count|default:"3,489" }} items - {{ cat_count|default:"71" }} categories - Shadow of the Erdtree included</div>
+        </div>
+        <span class="px-2.5 py-1 bg-amber-700/50 text-amber-300 text-[10px] font-bold uppercase tracking-wide rounded-full whitespace-nowrap">Up First</span>
+      </div>
+
+      <!-- ERR -->
+      <div class="bg-neutral-900 border border-orange-900/30 rounded-xl p-4 flex items-center gap-4">
+        <div class="w-10 h-10 rounded-lg bg-orange-950/40 border border-orange-800/30 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-fire text-orange-600 text-lg"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-white font-bold text-sm">Elden Ring Reforged</div>
+          <div class="text-gray-500 text-xs">Mod-specific items and rebalanced content - data seeded</div>
+        </div>
+        <span class="px-2.5 py-1 bg-orange-900/40 text-orange-300 text-[10px] font-bold uppercase tracking-wide rounded-full whitespace-nowrap">Up Next</span>
+      </div>
+
+      <!-- Remnant 2 -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-4 opacity-50">
+        <div class="w-10 h-10 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-crosshairs text-red-700 text-lg"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-gray-400 font-bold text-sm">Remnant 2</div>
+          <div class="text-gray-600 text-xs">950+ items already seeded - weapons, armor, archetypes, rings</div>
+        </div>
+        <span class="px-2.5 py-1 bg-neutral-800 text-gray-500 text-[10px] font-bold uppercase tracking-wide rounded-full whitespace-nowrap">Planned</span>
+      </div>
+
+      <!-- Lords of the Fallen -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center gap-4 opacity-50">
+        <div class="w-10 h-10 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0">
+          <i class="fas fa-crown text-purple-800 text-lg"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-gray-400 font-bold text-sm">Lords of the Fallen</div>
+          <div class="text-gray-600 text-xs">2023 - Axiom and Umbral realm, dual-world traversal</div>
+        </div>
+        <span class="px-2.5 py-1 bg-neutral-800 text-gray-500 text-[10px] font-bold uppercase tracking-wide rounded-full whitespace-nowrap">Planned</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Data credit -->
+  <div class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 flex items-start gap-4">
+    <i class="fas fa-database text-gray-600 text-lg mt-0.5 flex-shrink-0"></i>
+    <div>
+      <div class="text-gray-400 text-xs font-bold mb-1">Data Attribution</div>
+      <p class="text-gray-500 text-xs leading-relaxed">
+        Item data sourced from the
+        <span class="text-gray-300">RainingChain/EldenRingChecklist</span> project
+        with contributions from the Fextralife community.
+        Hosted via our <span class="text-gray-300">CasualHeroes/EldenRingChecklist</span> fork.
+      </p>
+    </div>
+  </div>
+
+  <!-- Back link -->
+  <div>
+    <a href="/soulslike/" class="inline-flex items-center gap-2 text-gray-500 hover:text-white text-xs transition">
+      <i class="fas fa-arrow-left"></i> Back to SoulsLike Hub
+    </a>
+  </div>
+
+</div>
+{% endblock %}

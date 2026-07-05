@@ -173,7 +173,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ summary.deaths_hr }}</div>
-        <div class="stat-label">Deaths / HR</div>
+        <div class="stat-label">Deaths / Boss</div>
       </div>
     </div>
     <div class="grid grid-cols-3 gap-2">
@@ -295,8 +295,8 @@
       <div class="stat-label">This Session</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value" id="stat-death-rate">0.0</div>
-      <div class="stat-label">Deaths / HR</div>
+      <div class="stat-value" id="stat-death-rate">--</div>
+      <div class="stat-label">Deaths / Boss</div>
     </div>
   </div>
   <div class="grid grid-cols-3 gap-2 mb-2">
@@ -319,8 +319,8 @@
       <div class="stat-label">Session Time</div>
     </div>
     <div class="stat-card">
-      <div class="stat-value text-sm text-gray-400" id="stat-survival-time">00:00:00</div>
-      <div class="stat-label">Survival Time</div>
+      <div class="stat-value text-sm text-gray-400" id="stat-run-duration">00:00:00</div>
+      <div class="stat-label">Run Duration</div>
     </div>
   </div>
 
@@ -509,6 +509,7 @@ var GAME        = '{{ game|escapejs }}' || 'elden_ring';
 var GAME_MODE   = '{{ game_mode|escapejs }}' || 'vanilla';
 var TIMING_MODE      = '{{ timing_mode|escapejs }}';
 var SESSION_STARTED  = {% if session_started %}true{% else %}false{% endif %};
+var RUN_STARTED_AT   = {{ run_started_at|default:0 }};  // unix timestamp when run was created
 var IS_HARDCORE = {% if is_hardcore %}true{% else %}false{% endif %};
 
 var allItems         = [];
@@ -601,8 +602,11 @@ function loadStatus() {
       document.getElementById('stat-deaths').textContent         = deaths;
       document.getElementById('stat-session-deaths').textContent = d.session_deaths || 0;
       document.getElementById('stat-death-rate').textContent     = d.death_rate_ready ? (d.true_death_rate||0).toFixed(1) : '--';
-      document.getElementById('stat-longest').textContent        = d.longest_life_fmt || '00:00:00';
-      document.getElementById('stat-survival-time').textContent  = d.total_survival_fmt || '00:00:00';
+      // Longest life is run-scoped - always show server value (never reset on refresh)
+      var serverLongest = d.longest_life_sec || 0;
+      if (serverLongest > _localLongestSec) _localLongestSec = serverLongest;
+      document.getElementById('stat-longest').textContent        = fmtSecs(_localLongestSec);
+      
 
       // HC score update
       if (IS_HARDCORE) {
@@ -618,8 +622,9 @@ function loadStatus() {
       var gameRunning       = d.listener_game_running || false;
       var listenerConnected = d.listener_connected    || false;
       var sessionStarted    = d.session_started !== undefined ? d.session_started : SESSION_STARTED;
-      // Tick when: app game running, OR manual session active (no app), OR session started manually
-      var shouldTick = gameRunning || (IS_ACTIVE && !listenerConnected && (sessionStarted || manualSessionRunning));
+      // Tick when: app game running, OR manual session explicitly started (button pressed or boss clicked)
+      // sessionStarted alone is NOT enough - user must have actively started this session
+      var shouldTick = gameRunning || (IS_ACTIVE && !listenerConnected && manualSessionRunning);
 
       if (shouldTick && !_localGameRunning) {
         // Just started ticking - seed from server then JS owns display
@@ -627,10 +632,20 @@ function loadStatus() {
         _localSurvivalSec = serverSurvivalSec;
         _localLastTick    = Date.now();
         _localGameRunning = true;
+        _localSeeded      = true;
+      } else if (shouldTick && _localGameRunning) {
+        // Already ticking - re-seed if values are stale (refresh case)
+        if (!_localSeeded) {
+          _localSessionSec  = serverSessionSec;
+          _localSurvivalSec = serverSurvivalSec;
+          _localLastTick    = Date.now();
+        }
+        _localSeeded = true;
       } else if (!shouldTick && !_localGameRunning) {
-        // Not ticking and wasn't ticking - server is authoritative
+        // Not ticking and wasn't ticking - server is authoritative, show server values
         _localSessionSec  = serverSessionSec;
         _localSurvivalSec = serverSurvivalSec;
+        _localSeeded      = true;
         document.getElementById('stat-session-time').textContent = d.session_time_fmt  || '00:00:00';
         document.getElementById('stat-surv-time').textContent    = d.survival_time_fmt || '00:00:00';
       } else if (!shouldTick && _localGameRunning) {
@@ -892,6 +907,10 @@ function setFocus(bossName) {
     method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
     body:JSON.stringify({boss_name:bossName}),
   }).catch(function(){});
+  // Auto-start manual session if not already running and no app connected
+  if (!manualSessionRunning && !_localGameRunning) {
+    startManualSession();
+  }
 }
 function clearFocus() {
   applyFocus('', false);
@@ -915,7 +934,16 @@ function tapBoss(key,name,state) {
       method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
       body:JSON.stringify({boss_key:key}),
     }).then(function(r){return r.json();}).then(function(d){
-      if(d.ok){ bossData[key]=false; renderBossTab(activeBossTab); }
+      if(d.ok){
+        bossData[key]=false;
+        currentFocusBoss='';
+        // Clear server-side focus so loadStatus doesn't re-set it
+        fetch('/api/soulslike/session/'+TOKEN+'/set-focus/',{
+          method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+          body:JSON.stringify({boss_name:''}),
+        }).catch(function(){});
+        renderBossTab(activeBossTab);
+      }
     }).catch(function(){});
   }
 }
@@ -1206,20 +1234,25 @@ function updateRage(ragePct, rageName, isHollow, hollowStreak) {
   if (sb && hollowStreak > 0) sb.textContent = 'x'+(hollowStreak+1);
 }
 
-// Local timer state - incremented by JS tick, synced by server poll
+// Local timer state - JS ticker owns all timer display while running
 var _localSessionSec  = 0;
 var _localSurvivalSec = 0;
+var _localLongestSec  = 0;
 var _localGameRunning = false;
 var _localLastTick    = 0;
+var _localSeeded      = false;  // don't tick until server has seeded values
 
-// Smooth 1s tick - increments local timers, never flashes
+// Single smooth 1s tick - session + survival only
+// Longest life is run-scoped: server is truth, seeded on load
 setInterval(function() {
-  if (!_localGameRunning) return;
+  if (!_localGameRunning || !_localSeeded) return;
   var now = Date.now();
   if (_localLastTick > 0) {
-    var delta = Math.round((now - _localLastTick) / 1000);
-    _localSessionSec  += delta;
-    _localSurvivalSec += delta;
+    var elapsed = now - _localLastTick;
+    var secs = Math.round(elapsed / 1000);
+    if (secs < 1) { _localLastTick = now; return; }
+    _localSessionSec  += secs;
+    _localSurvivalSec += secs;
     var ss = document.getElementById('stat-session-time');
     var sk = document.getElementById('stat-surv-time');
     if (ss) ss.textContent = fmtSecs(_localSessionSec);
@@ -1227,6 +1260,28 @@ setInterval(function() {
   }
   _localLastTick = now;
 }, 1000);
+
+// Run Duration - always ticking wall clock from run creation, never resets
+// Completely independent of session state, app connection, or anything else
+if (RUN_STARTED_AT > 0) {
+  function updateRunDuration() {
+    var el = document.getElementById('stat-run-duration');
+    if (!el) return;
+    var secs = Math.floor(Date.now() / 1000) - RUN_STARTED_AT;
+    if (secs < 0) secs = 0;
+    // Show as days if over 24h
+    if (secs >= 86400) {
+      var days = Math.floor(secs / 86400);
+      var hrs  = Math.floor((secs % 86400) / 3600);
+      var mins = Math.floor((secs % 3600) / 60);
+      el.textContent = days + 'd ' + String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0');
+    } else {
+      el.textContent = fmtSecs(secs);
+    }
+  }
+  updateRunDuration();
+  setInterval(updateRunDuration, 1000);
+}
 
 document.addEventListener('DOMContentLoaded',function(){
   loadStatus();
