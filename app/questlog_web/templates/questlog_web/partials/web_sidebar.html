@@ -186,9 +186,9 @@
     <!-- SoulsLike Section -->
     {% with sl_active=active_page|slice:":9" %}
     {% with r2_active=active_page|slice:":10" %}
-    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' %}true{% else %}false{% endif %} }">
+    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' or active_page == 'sl_checklist' %}true{% else %}false{% endif %} }">
       <button @click="open = !open"
-              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' %}active{% endif %}">
+              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' or active_page == 'sl_checklist' %}active{% endif %}">
         <i class="fas fa-skull text-gray-400 group-hover:text-amber-400 w-4 flex-shrink-0"></i>
         <span class="flex-1 text-left">SoulsLike</span>
         <i class="fas fa-chevron-down text-gray-600 text-[10px] transition-transform" :class="open ? 'rotate-180' : ''"></i>
@@ -231,18 +231,15 @@
           <i class="fas fa-trophy w-3.5 text-center"></i>
           <span>Leaderboards</span>
         </a>
+        <a href="/soulslike/checklist/"
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'sl_checklist' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-list-check w-3.5 text-center"></i>
+          <span>100% Tracker</span>
+        </a>
         <a href="/soulslike/guides/"
            class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_guides' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
           <i class="fas fa-book-open w-3.5 text-center"></i>
           <span>Guides</span>
-        </a>
-        <a href="/soulslike/tracker/"
-           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'soulslike_tracker' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
-          <i class="fas fa-desktop w-3.5 text-center"></i>
-          <div>
-            <div>EldenTracker</div>
-            <div class="text-[9px] text-gray-600 normal-case tracking-normal font-normal">Desktop app</div>
-          </div>
         </a>
       </div>
     </div>
