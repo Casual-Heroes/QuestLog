@@ -14,6 +14,7 @@ _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='pageview')
 # Map URL prefix → section label. Order matters - first match wins.
 SECTION_MAP = [
     ('/soulslike/tracker',  'soulslike_tracker'),
+    ('/soulslike/r2',       'soulslike_r2'),
     ('/soulslike',          'soulslike'),
     ('/ffxiv/tools',        'ffxiv_tools'),
     ('/ffxiv',              'ffxiv'),
@@ -108,7 +109,17 @@ def _write_view(path, section, ip, user_id, referrer, utm_source, utm_medium,
         from sqlalchemy import text
         ip_hash = hashlib.sha256(ip.encode()).hexdigest() if ip else None
         now = int(time.time())
+        # Dedup: one view per ip_hash per section per calendar day
+        day_start = now - (now % 86400)
         with get_engine().connect() as conn:
+            if ip_hash:
+                existing = conn.execute(text("""
+                    SELECT id FROM web_page_views
+                    WHERE ip_hash=:h AND section=:s AND created_at >= :ds
+                    LIMIT 1
+                """), {'h': ip_hash, 's': section, 'ds': day_start}).fetchone()
+                if existing:
+                    return  # already recorded this ip+section today
             conn.execute(text("""
                 INSERT INTO web_page_views
                   (section, path, ip_hash, user_id, referrer, utm_source,

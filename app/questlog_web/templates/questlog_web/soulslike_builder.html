@@ -238,6 +238,8 @@
       <div class="sl-level-badge flex-shrink-0 ml-2">Lv <span id="total-level">1</span></div>
     </div>
 
+    {% include "questlog_web/partials/guest_gate.html" with gate_context="builds" %}
+
     <!-- Row 2: game selector + action buttons -->
     <div class="flex items-center gap-2 flex-wrap">
       <!-- Game selector -->
@@ -253,6 +255,9 @@
           <button onclick="selectGame('err','Elden Ring Reforged')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-amber-900/30 hover:text-amber-300 transition flex items-center justify-between border-t border-neutral-800">
             Elden Ring Reforged <i class="fas fa-check text-amber-500 text-[10px] hidden" id="check-err"></i>
           </button>
+          <a href="/soulslike/r2/builder/" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-neutral-800 hover:text-white transition flex items-center justify-between border-t border-neutral-800 block">
+            Remnant 2
+          </a>
         </div>
       </div>
 
@@ -812,6 +817,7 @@
                       class="sl-search-input resize-none"></textarea>
           </div>
           <div>
+            {% if web_user %}
             <div class="flex items-center gap-2">
               <input type="checkbox" id="build-public" class="rounded border-neutral-600">
               <label for="build-public" class="text-xs text-gray-400">Share publicly</label>
@@ -820,6 +826,12 @@
               <i class="fas fa-trophy text-amber-700 mr-0.5"></i>
               Public builds appear on community leaderboards when you end a run. Private builds track stats for you only.
             </p>
+            {% else %}
+            <a href="/login/?next={{ request.path|urlencode }}" class="flex items-center gap-2 text-xs text-indigo-400 hover:text-indigo-300 transition">
+              <i class="fas fa-sign-in-alt"></i> Sign in to share builds with the community
+            </a>
+            <input type="checkbox" id="build-public" class="hidden">
+            {% endif %}
           </div>
         </div>
       </div>

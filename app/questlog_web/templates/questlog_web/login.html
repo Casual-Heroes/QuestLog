@@ -150,6 +150,27 @@
     <h1 class="ql-login-title">Sign in to QuestLog</h1>
     <p class="ql-login-subtitle">Your Casual Heroes gaming hub</p>
 
+    {% if not logins_disabled %}
+    <!-- SSO buttons -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <a href="{% url 'questlog_web_discord_sso' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:#5865f2;color:#fff;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none;transition:background 0.15s"
+         onmouseover="this.style.background='#4752c4'" onmouseout="this.style.background='#5865f2'">
+        <i class="fab fa-discord" style="font-size:18px"></i> Continue with Discord
+      </a>
+      <a href="{% url 'questlog_web_fluxer_sso' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:#7c3aed;color:#fff;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none;transition:background 0.15s"
+         onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'">
+        <img src="/static/img/siteassets/fluxer-favicon.png" alt="" style="width:18px;height:18px;border-radius:3px"> Continue with Fluxer
+      </a>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="flex:1;height:1px;background:#1f2937"></div>
+      <span style="color:#4b5563;font-size:12px;font-weight:600">OR SIGN IN WITH EMAIL</span>
+      <div style="flex:1;height:1px;background:#1f2937"></div>
+    </div>
+    {% endif %}
+
     {% if logins_disabled %}
     <div style="background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12)); border: 1px solid rgba(99,102,241,0.4); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; text-align: center;">
       <p style="color: #a78bfa; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin: 0 0 6px 0;">Public Beta 6/6/2026</p>

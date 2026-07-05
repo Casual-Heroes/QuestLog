@@ -372,14 +372,18 @@ def api_follow_status(request, user_id):
 # POST API
 # =============================================================================
 
-@web_verified_required
+@web_login_required
 @require_http_methods(["GET", "POST"])
 @ratelimit(key='ip', rate='10/h', method='POST', block=True)
 @ratelimit(key='ip', rate='60/h', method='POST', block=True)
 def api_posts(request):
-    """GET: Feed posts. POST: Create post."""
+    """GET: Feed posts (login required). POST: Create post (verified only)."""
     if request.method == 'GET':
         return _get_feed_posts(request)
+    # POST requires verified account
+    from .helpers import require_verified
+    gate = require_verified(request)
+    if gate: return gate
 
     banned = check_banned(request)
     if banned:
@@ -810,6 +814,7 @@ def _get_recent_activity(request):
             WebUser.is_banned == False,
             WebUser.is_disabled == False,
             WebUser.is_hidden == False,
+            WebUser.email_verified == True,
         ).count()
 
         # Exclude posts from banned/disabled authors in all counts

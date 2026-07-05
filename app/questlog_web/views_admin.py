@@ -2184,6 +2184,7 @@ def api_admin_tracker_stats(request):
 
     SECTION_LABELS = {
         'soulslike_tracker': 'Mortality Tracker',
+        'soulslike_r2':      'Remnant 2',
         'soulslike':         'SoulsLike Hub',
         'ffxiv_tools':       'FFXIV Tools',
         'ffxiv':             'FFXIV',

@@ -22,7 +22,7 @@
         <a href="/discover/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
           <i class="fas fa-compass text-xs"></i> Discover
         </a>
-        <a href="/ql/find-groups/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+        <a href="/ql/lfg/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
           <i class="fas fa-users text-xs"></i> Find Groups
         </a>
         <a href="/ql/communities/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
@@ -31,20 +31,33 @@
         <a href="/soulslike/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-amber-500 hover:text-amber-400 hover:bg-amber-900/20 transition text-xs font-medium">
           <i class="fas fa-skull text-xs"></i> SoulsLike Hub
         </a>
-        <a href="/about-us/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+        <a href="/ql/aboutus/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
           <i class="fas fa-info-circle text-xs"></i> About Us
         </a>
         <a href="/ql/getting-started/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-emerald-600 hover:text-emerald-400 hover:bg-neutral-800 transition text-xs font-medium">
           <i class="fas fa-rocket text-xs"></i> Get Started
+        </a>
+        <a href="/ql/whats-new/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-yellow-500 hover:text-yellow-400 hover:bg-neutral-800 transition text-xs font-medium whitespace-nowrap">
+          <i class="fas fa-bullhorn text-xs"></i> What's New
         </a>
       </nav>
 
       <!-- Desktop auth -->
       <div class="hidden md:flex items-center gap-2">
         {% if web_user %}
-        <a href="/register/" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition">Explore</a>
+        <a href="/discover/" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition">
+          <i class="fas fa-compass mr-1"></i>Discover
+        </a>
+        <a href="/ql/profile/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-neutral-800 transition text-sm text-gray-300 font-medium">
+          {% if web_user.avatar_url %}
+          <img src="{{ web_user.avatar_url }}" class="w-7 h-7 rounded-full object-cover" alt="{{ web_user.username }}">
+          {% else %}
+          <div class="w-7 h-7 rounded-full bg-indigo-800 flex items-center justify-center text-xs font-bold text-white">{{ web_user.username|slice:":2"|upper }}</div>
+          {% endif %}
+          <span class="hidden sm:block">{{ web_user.display_name|default:web_user.username }}</span>
+        </a>
         {% else %}
-        <a href="/login/?next=/" class="text-gray-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-800 transition">Sign In</a>
+        <a href="/login/" class="text-gray-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-800 transition">Sign In</a>
         <a href="/register/" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-1.5 rounded-lg transition">Join Free</a>
         {% endif %}
       </div>
@@ -64,7 +77,7 @@
       <a href="/discover/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:bg-neutral-800 transition text-sm font-medium">
         <i class="fas fa-compass text-indigo-400 w-5 text-center"></i> Discover
       </a>
-      <a href="/ql/find-groups/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:bg-neutral-800 transition text-sm font-medium">
+      <a href="/ql/lfg/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:bg-neutral-800 transition text-sm font-medium">
         <i class="fas fa-users text-emerald-400 w-5 text-center"></i> Find Groups
       </a>
       <a href="/ql/communities/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:bg-neutral-800 transition text-sm font-medium">
@@ -73,7 +86,7 @@
       <a href="/soulslike/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-amber-300 hover:bg-amber-900/20 transition text-sm font-semibold">
         <i class="fas fa-skull text-amber-400 w-5 text-center"></i> SoulsLike Hub
       </a>
-      <a href="/about-us/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:bg-neutral-800 transition text-sm font-medium">
+      <a href="/ql/aboutus/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:bg-neutral-800 transition text-sm font-medium">
         <i class="fas fa-info-circle text-blue-400 w-5 text-center"></i> About Us
       </a>
       <a href="/ql/getting-started/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-emerald-300 hover:bg-emerald-900/20 transition text-sm font-semibold">
@@ -85,7 +98,7 @@
           <i class="fas fa-compass"></i> Explore
         </a>
         {% else %}
-        <a href="/login/?next=/" class="flex items-center justify-center py-3 rounded-xl border border-neutral-700 text-gray-300 hover:bg-neutral-800 font-semibold text-sm transition">
+        <a href="/login/" class="flex items-center justify-center py-3 rounded-xl border border-neutral-700 text-gray-300 hover:bg-neutral-800 font-semibold text-sm transition">
           Sign In
         </a>
         <a href="/register/" class="flex items-center justify-center py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition">

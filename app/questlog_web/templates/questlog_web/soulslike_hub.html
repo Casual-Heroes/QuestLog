@@ -28,38 +28,48 @@
 
 <div class="max-w-5xl mx-auto px-4 py-10 space-y-10">
 
-  <!-- Live community stats -->
+  {% include "questlog_web/partials/guest_gate.html" with gate_context="soulslike" %}
+
+  <!-- Live community stats + game filter -->
+  <div class="flex items-center justify-between mb-3">
+    <span class="text-xs text-gray-500 uppercase tracking-widest font-bold">Community Stats</span>
+    <select id="hub-game-filter" onchange="filterHubStats(this.value)"
+            class="bg-neutral-800 border border-neutral-700 text-gray-300 text-xs rounded-lg px-3 py-1.5 outline-none focus:border-amber-600 cursor-pointer">
+      <option value="all">All Games</option>
+      <option value="elden_ring">Elden Ring</option>
+      <option value="err">Elden Ring Reforged</option>
+      <option value="remnant2">Remnant 2</option>
+    </select>
+  </div>
   <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-    {% with stats_items=stats.items %}
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
-      <div class="text-2xl font-black text-amber-400">{{ stats.total_runs }}</div>
+      <div class="text-2xl font-black text-amber-400" id="hub-stat-runs">{{ stats.total_runs }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Runs</div>
     </div>
     <div class="bg-neutral-900/60 border border-green-900/30 rounded-xl p-4 text-center">
-      <div class="text-2xl font-black text-green-400">{{ stats.active_runs }}</div>
+      <div class="text-2xl font-black text-green-400" id="hub-stat-active">{{ stats.active_runs }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Active Now</div>
     </div>
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
-      <div class="text-2xl font-black text-red-400">{{ stats.total_deaths }}</div>
+      <div class="text-2xl font-black text-red-400" id="hub-stat-deaths">{{ stats.total_deaths }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Deaths</div>
     </div>
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
-      <div class="text-2xl font-black text-amber-400">{{ stats.bosses_killed }}</div>
+      <div class="text-2xl font-black text-amber-400" id="hub-stat-bosses">{{ stats.bosses_killed }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Bosses Killed</div>
     </div>
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
-      <div class="text-2xl font-black text-green-400">{{ stats.items_collected }}</div>
+      <div class="text-2xl font-black text-green-400" id="hub-stat-items">{{ stats.items_collected }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Items Collected</div>
     </div>
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
-      <div class="text-2xl font-black text-indigo-400">{{ stats.total_builds }}</div>
+      <div class="text-2xl font-black text-indigo-400" id="hub-stat-builds">{{ stats.total_builds }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Builds</div>
     </div>
     <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
-      <div class="text-2xl font-black text-purple-400">{{ stats.leaderboard }}</div>
+      <div class="text-2xl font-black text-purple-400" id="hub-stat-lb">{{ stats.leaderboard }}</div>
       <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">On Leaderboard</div>
     </div>
-    {% endwith %}
   </div>
 
   <!-- Tools grid -->
@@ -132,16 +142,15 @@
         </div>
       </a>
 
-      <!-- Leaderboards -->
-      <a href="/soulslike/leaderboards/"
-         class="group relative bg-neutral-900 border border-neutral-800 hover:border-yellow-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-yellow-900/20">
-        <div class="h-28 bg-gradient-to-br from-yellow-950/60 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
-          <i class="fas fa-trophy text-5xl text-yellow-500 group-hover:text-yellow-400 transition-colors"></i>
-          <span class="absolute top-2 right-2 px-2 py-0.5 bg-yellow-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
+      <!-- My Builds -->
+      <a href="/soulslike/my-builds/" class="group relative bg-neutral-900 border border-neutral-800 hover:border-indigo-700/50 rounded-2xl overflow-hidden transition">
+        <div class="h-28 bg-gradient-to-br from-indigo-950/50 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-shield-halved text-5xl text-indigo-700/60 group-hover:text-indigo-500 transition"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
         </div>
         <div class="p-4">
-          <p class="text-white font-bold text-sm mb-1 group-hover:text-yellow-300 transition">Leaderboards</p>
-          <p class="text-gray-500 text-xs leading-relaxed">Longest life, best Deaths/HR, most bosses killed. Compete with the community.</p>
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-indigo-300 transition">My Builds</p>
+          <p class="text-gray-500 text-xs leading-relaxed">All your builds across Elden Ring, ERR, and Remnant 2 in one place.</p>
         </div>
       </a>
 
@@ -154,6 +163,19 @@
         <div class="p-4">
           <p class="text-white font-bold text-sm mb-1 group-hover:text-purple-300 transition">Guides</p>
           <p class="text-gray-500 text-xs leading-relaxed">Boss strategies, build guides, and progression routes written by the community.</p>
+        </div>
+      </a>
+
+      <!-- Leaderboards -->
+      <a href="/soulslike/leaderboards/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-yellow-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-yellow-900/20">
+        <div class="h-28 bg-gradient-to-br from-yellow-950/60 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <i class="fas fa-trophy text-5xl text-yellow-500 group-hover:text-yellow-400 transition-colors"></i>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-yellow-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
+        </div>
+        <div class="p-4">
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-yellow-300 transition">Leaderboards</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Longest life, best Deaths/HR, most bosses killed. Compete with the community.</p>
         </div>
       </a>
 
@@ -197,4 +219,20 @@
   </div>
 
 </div>
+
+<script>
+function filterHubStats(game) {
+  fetch('/api/soulslike/hub-stats/?game=' + encodeURIComponent(game))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      document.getElementById('hub-stat-runs').textContent    = d.total_runs      !== undefined ? d.total_runs      : '?';
+      document.getElementById('hub-stat-active').textContent  = d.active_runs     !== undefined ? d.active_runs     : '?';
+      document.getElementById('hub-stat-deaths').textContent  = d.total_deaths    !== undefined ? d.total_deaths    : '?';
+      document.getElementById('hub-stat-bosses').textContent  = d.bosses_killed   !== undefined ? d.bosses_killed   : '?';
+      document.getElementById('hub-stat-items').textContent   = d.items_collected !== undefined ? d.items_collected : '?';
+      document.getElementById('hub-stat-builds').textContent  = d.total_builds    !== undefined ? d.total_builds    : '?';
+      document.getElementById('hub-stat-lb').textContent      = d.leaderboard     !== undefined ? d.leaderboard     : '?';
+    });
+}
+</script>
 {% endblock %}

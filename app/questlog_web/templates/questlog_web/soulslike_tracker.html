@@ -29,8 +29,12 @@
         <span class="px-2 py-0.5 bg-neutral-800 border border-neutral-700 text-gray-400 text-xs font-bold uppercase tracking-wide rounded-full">Free</span>
       </div>
       <p class="text-gray-400 text-lg leading-relaxed">
-        Desktop app for Elden Ring and ERR. Boss tracker, character builder, death tracking, rage system - all synced live to QuestLog.
+        Desktop app for Elden Ring and ERR. Boss tracker, character builder, death tracking, rage system - optional sync to QuestLog for leaderboards, tournaments and build sharing.
       </p>
+      <div class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-900/30 border border-indigo-700/30 rounded-lg text-xs text-indigo-300">
+        <i class="fas fa-bolt"></i>
+        <span><strong>EldenListener - Coming Soon.</strong> Lightweight background listener supporting more games. Automatically syncs sessions, deaths, and survival time to QuestLog.</span>
+      </div>
     </div>
   </div>
 
@@ -310,16 +314,15 @@
 
 <script>
 function triggerDownload() {
-  fetch('/api/tracker/download/?platform=windows', {method: 'GET'}).catch(() => {});
+  fetch('/ql/api/tracker/download/?platform=windows', {method: 'GET'}).catch(() => {});
   const link = document.createElement('a');
-  link.href = '/static/downloads/EldenTracker-latest-1.0.2.zip';
-  link.download = 'EldenTracker-latest-1.0.2.zip';
+  link.href = '/static/downloads/EldenTracker-latest-1.0.2a.zip';
+  link.download = 'EldenTracker-latest-1.0.2a.zip';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   const s = document.getElementById('download-status');
-  s.classList.remove('hidden');
-  setTimeout(() => s.classList.add('hidden'), 6000);
+  if (s) { s.classList.remove('hidden'); setTimeout(() => s.classList.add('hidden'), 6000); }
 }
 </script>
 {% endblock %}

@@ -185,9 +185,10 @@
 
     <!-- SoulsLike Section -->
     {% with sl_active=active_page|slice:":9" %}
-    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' %}true{% else %}false{% endif %} }">
+    {% with r2_active=active_page|slice:":10" %}
+    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' %}true{% else %}false{% endif %} }">
       <button @click="open = !open"
-              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' %}active{% endif %}">
+              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' %}active{% endif %}">
         <i class="fas fa-skull text-gray-400 group-hover:text-amber-400 w-4 flex-shrink-0"></i>
         <span class="flex-1 text-left">SoulsLike</span>
         <i class="fas fa-chevron-down text-gray-600 text-[10px] transition-transform" :class="open ? 'rotate-180' : ''"></i>
@@ -245,6 +246,7 @@
         </a>
       </div>
     </div>
+    {% endwith %}
     {% endwith %}
 
     <!-- LFG Section -->

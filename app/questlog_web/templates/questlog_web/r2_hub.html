@@ -1,0 +1,104 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Remnant 2 Hub | QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-4xl mx-auto px-3 py-6">
+
+  <!-- Breadcrumb -->
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-4">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <span class="text-gray-400">Remnant 2</span>
+  </div>
+
+  <!-- Header -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-black text-white flex items-center gap-3">
+        <span class="text-2xl">🌀</span> Remnant 2
+      </h1>
+      <p class="text-gray-500 text-sm mt-1">Build planner - run tracker - persistent manifest - community runs</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/soulslike/r2/builder/" class="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded-lg transition">
+        <i class="fas fa-drafting-compass mr-1"></i>Builder
+      </a>
+      <a href="/soulslike/r2/runs/" class="px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition">
+        <i class="fas fa-play mr-1"></i>My Runs
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats grid -->
+  <div class="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-6">
+    {% for label, val, color in stats_list %}
+    <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3 text-center">
+      <div class="text-lg font-black {{ color }}">{{ val }}</div>
+      <div class="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">{{ label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Feature cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+
+    <!-- Builder -->
+    <a href="/soulslike/r2/builder/" class="block bg-neutral-900 border border-purple-900/40 hover:border-purple-600/60 rounded-2xl p-5 transition group">
+      <div class="text-2xl mb-3">🧬</div>
+      <h2 class="text-white font-bold text-base mb-1 group-hover:text-purple-300 transition">Build Planner</h2>
+      <p class="text-gray-500 text-xs">Archetype combos, gear, traits, weapons, mods - plan your perfect build.</p>
+      <div class="mt-3 text-purple-500 text-xs font-semibold">Open Builder -></div>
+    </a>
+
+    <!-- Run Tracker -->
+    <a href="/soulslike/r2/runs/" class="block bg-neutral-900 border border-green-900/40 hover:border-green-600/60 rounded-2xl p-5 transition group">
+      <div class="text-2xl mb-3">🗺</div>
+      <h2 class="text-white font-bold text-base mb-1 group-hover:text-green-300 transition">Run Tracker</h2>
+      <p class="text-gray-500 text-xs">Track bosses and items per run. Import from previous runs - your manifest grows forever.</p>
+      <div class="mt-3 text-green-500 text-xs font-semibold">Start a Run -></div>
+    </a>
+
+    <!-- Guides (reuse sl_guides with game filter) -->
+    <a href="/soulslike/guides/?game=remnant2" class="block bg-neutral-900 border border-amber-900/40 hover:border-amber-600/60 rounded-2xl p-5 transition group">
+      <div class="text-2xl mb-3">📖</div>
+      <h2 class="text-white font-bold text-base mb-1 group-hover:text-amber-300 transition">Guides</h2>
+      <p class="text-gray-500 text-xs">Community-written guides for builds, strategies, and world navigation.</p>
+      <div class="mt-3 text-amber-500 text-xs font-semibold">Browse Guides -></div>
+    </a>
+  </div>
+
+  <!-- Recent public runs -->
+  {% if recent_runs %}
+  <div class="mb-2">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+      <i class="fas fa-globe mr-1"></i>Recent Community Runs
+    </h2>
+    <div class="space-y-2">
+      {% for run in recent_runs %}
+      <a href="/soulslike/r2/runs/{{ run.token }}/" class="flex items-center gap-3 bg-neutral-900 border border-neutral-800 hover:border-neutral-600 rounded-xl px-4 py-3 transition group">
+        <div class="w-7 h-7 rounded-full bg-neutral-700 flex-shrink-0 overflow-hidden">
+          {% if run.avatar %}
+          <img src="{{ run.avatar }}" class="w-full h-full object-cover" alt="" loading="lazy">
+          {% else %}
+          <div class="w-full h-full flex items-center justify-center text-gray-500 text-xs">{{ run.username|first|upper }}</div>
+          {% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+          <span class="text-white text-sm font-semibold group-hover:text-purple-300 transition truncate block">{{ run.name }}</span>
+          <span class="text-gray-500 text-[11px]">by {{ run.username }} - {{ run.run_type }}</span>
+        </div>
+        <div class="flex items-center gap-3 text-[11px] text-gray-500 flex-shrink-0">
+          {% if run.is_hardcore %}<span class="text-red-400 font-bold text-[10px]">HC</span>{% endif %}
+          <span><i class="fas fa-skull text-[9px] mr-0.5"></i>{{ run.deaths }}</span>
+          <span><i class="fas fa-dragon text-[9px] mr-0.5"></i>{{ run.bosses_killed }}</span>
+          {% if run.is_active %}<span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}My Remnant 2 Builds | QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-2xl mx-auto px-3 py-4">
+
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <a href="/soulslike/r2/" class="hover:text-gray-400 transition">Remnant 2</a>
+    <span>/</span>
+    <span class="text-gray-500">My Builds</span>
+  </div>
+
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-black text-white flex items-center gap-2">
+      <i class="fas fa-drafting-compass text-purple-400 text-base"></i> My R2 Builds
+    </h1>
+    <a href="/soulslike/r2/builder/"
+       class="px-4 py-1.5 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded transition">
+      <i class="fas fa-plus mr-1"></i>New Build
+    </a>
+  </div>
+
+  {% if builds %}
+  <div class="space-y-2">
+    {% for b in builds %}
+    <div class="flex items-center gap-3 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-0.5 flex-wrap">
+          {% if b.primary_arch %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-300 font-bold">{{ b.primary_arch }}</span>{% endif %}
+          {% if b.secondary_arch %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-300 font-bold">{{ b.secondary_arch }}</span>{% endif %}
+          {% if b.is_public %}<span class="text-[10px] text-green-700 font-semibold">Public</span>{% else %}<span class="text-[10px] text-gray-700">Private</span>{% endif %}
+        </div>
+        <p class="text-white text-sm font-semibold truncate">{{ b.name }}</p>
+        {% if b.playstyle %}<p class="text-gray-600 text-[11px]">{{ b.playstyle }}</p>{% endif %}
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <a href="/soulslike/r2/builder/?load={{ b.token }}"
+           class="text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1.5 rounded-lg hover:bg-neutral-800">
+          <i class="fas fa-pen"></i>
+        </a>
+        <a href="/soulslike/r2/runs/"
+           class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-bold rounded-lg transition">
+          <i class="fas fa-play mr-1"></i>Start Run
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-12 text-gray-600">
+    <i class="fas fa-drafting-compass text-4xl mb-4 block"></i>
+    <p class="text-lg font-semibold mb-2">No builds yet</p>
+    <p class="text-sm mb-6">Create your first Remnant 2 build in the builder.</p>
+    <a href="/soulslike/r2/builder/" class="px-6 py-2.5 bg-purple-700 hover:bg-purple-600 text-white text-sm font-bold rounded-lg transition">
+      <i class="fas fa-drafting-compass mr-1"></i>Open Builder
+    </a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

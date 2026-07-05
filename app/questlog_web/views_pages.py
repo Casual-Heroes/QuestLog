@@ -24,7 +24,7 @@ from .models import (
 )
 from app.db import get_db_session
 from .helpers import (
-    web_login_required, web_verified_required, add_web_user_context, safe_int, EXCLUDED_USER_IDS,
+    web_login_required, web_verified_required, require_verified, add_web_user_context, safe_int, EXCLUDED_USER_IDS,
     fluxer_login_required, create_notification, sanitize_text,
 )
 from .fluxer_webhooks import queue_lfg_embed_edit_for_group as _queue_lfg_embed_edit
@@ -1178,7 +1178,7 @@ def _community_slug(name):
     return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 def lfg_create(request):
     """Create LFG group."""
@@ -1383,7 +1383,7 @@ def lfg_join(request, group_id):
     return JsonResponse({'success': True})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_leave(request, group_id):
@@ -1421,7 +1421,7 @@ def lfg_leave(request, group_id):
     return JsonResponse({'success': True})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def lfg_update_member(request, group_id):
@@ -1448,7 +1448,7 @@ def lfg_update_member(request, group_id):
     return JsonResponse({'success': True})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_edit(request, group_id):
@@ -1491,7 +1491,7 @@ def lfg_edit(request, group_id):
     return JsonResponse({'success': True})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='10/h', method='POST', block=True)
 def lfg_delete(request, group_id):
@@ -1531,7 +1531,7 @@ def lfg_delete(request, group_id):
     return JsonResponse({'success': True, 'deleted': False})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def lfg_kick(request, group_id, user_id):
@@ -1567,7 +1567,7 @@ def lfg_kick(request, group_id, user_id):
     return JsonResponse({'success': True})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def lfg_set_co_leader(request, group_id):
@@ -1630,7 +1630,7 @@ def network_leaderboard(request):
             "WHERE wu.is_banned = 0 AND wu.is_disabled = 0 AND wu.is_hidden = 0 "
             "AND wu.email_verified = 1 AND wu.web_xp > 0 "
             "AND wu.id NOT IN :excl "
-            "ORDER BY wu.web_xp DESC "
+            "ORDER BY wu.web_xp DESC, wu.web_level DESC, wu.created_at ASC "
             "LIMIT :limit OFFSET :offset"
         ), {'limit': per_page, 'offset': offset, 'excl': tuple(EXCLUDED_USER_IDS) or (0,)}).fetchall()
 
@@ -1831,7 +1831,7 @@ def communities(request):
     return render(request, 'questlog_web/communities.html', context)
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 def community_register(request):
     """Register a community."""
@@ -2292,7 +2292,7 @@ def profile(request):
     return render(request, 'questlog_web/profile.html', context)
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 def profile_edit(request):
     """Edit own profile."""
@@ -2397,7 +2397,7 @@ def profile_edit(request):
     return render(request, 'questlog_web/profile_edit.html', context)
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 def creator_register(request):
     """Register/edit creator profile."""
@@ -2727,7 +2727,7 @@ def api_active_poll(request):
         return JsonResponse({'error': 'Failed to load poll'}, status=500)
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(["POST"])
 @ratelimit(key='ip', rate='10/h', block=True)
 def api_poll_vote(request, poll_id):
@@ -4280,7 +4280,7 @@ def _queue_guild_flair_role_update(web_user_id: int, action: str, flair_emoji: s
         logger.warning(f'_queue_guild_flair_role_update: failed for user {web_user_id}: {exc}')
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 @require_http_methods(['POST'])
 def api_fluxer_guild_flair_buy(request, guild_id, flair_id):
@@ -4334,7 +4334,7 @@ def api_fluxer_guild_flair_buy(request, guild_id, flair_id):
     return JsonResponse({'success': True, 'hero_points': user.hero_points})
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 @require_http_methods(['POST'])
 def api_fluxer_guild_flair_equip(request, guild_id, flair_id):
@@ -4366,7 +4366,7 @@ def api_fluxer_guild_flair_equip(request, guild_id, flair_id):
     return JsonResponse({'success': True, 'equipped_flair_id': flair_id})
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 @require_http_methods(['POST'])
 def api_fluxer_guild_flair_unequip(request, guild_id, flair_id):
@@ -4409,7 +4409,7 @@ NOMINATION_CATEGORIES = [
 ]
 
 
-@web_login_required
+@web_verified_required
 @add_web_user_context
 def legacy_nominate(request):
     """Nomination submission page at legacy/nominate/."""
@@ -4450,7 +4450,7 @@ def legacy_nominate(request):
     })
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(['POST'])
 def api_legacy_nominate(request):
     """POST api/legacy/nominate/ - submit or update a nomination."""
@@ -5485,7 +5485,7 @@ def api_submit_feedback(request):
 
 
 @require_http_methods(['GET'])
-@web_login_required
+@web_verified_required
 @add_web_user_context
 def api_my_feedback(request):
     """Logged-in user: list their own feedback submissions."""
@@ -5703,6 +5703,53 @@ def soulslike_hub(request):
     })
 
 
+def api_sl_hub_stats(request):
+    """GET /api/soulslike/hub-stats/?game=all|elden_ring|err|remnant2"""
+    game = request.GET.get('game', 'all')[:16]
+    stats = {}
+    try:
+        with get_db_session() as db:
+            if game == 'remnant2':
+                stats['total_runs']      = db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                stats['active_runs']     = db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1 AND is_active=1')).scalar() or 0
+                stats['total_deaths']    = db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                stats['bosses_killed']   = db.execute(text('SELECT COALESCE(SUM(bosses_killed),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                stats['items_collected'] = db.execute(text('SELECT COALESCE(SUM(items_found),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                stats['total_builds']    = db.execute(text('SELECT COUNT(*) FROM r2_builds WHERE is_public=1')).scalar() or 0
+                stats['leaderboard']     = db.execute(text('SELECT COUNT(DISTINCT user_id) FROM r2_leaderboard')).scalar() or 0
+            else:
+                PUBLIC = "JOIN web_users u ON u.id = s.user_id WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
+                game_filter = ''
+                if game == 'elden_ring':
+                    game_filter = " AND s.game='elden_ring' AND (s.game_mode IS NULL OR s.game_mode != 'err')"
+                elif game == 'err':
+                    game_filter = " AND s.game_mode='err'"
+                stats['total_runs']      = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC}{game_filter}')).scalar() or 0
+                stats['active_runs']     = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC}{game_filter} AND s.ended_at IS NULL')).scalar() or 0
+                stats['total_deaths']    = db.execute(text(f'SELECT COALESCE(SUM(s.death_count),0) FROM sl_collection_sessions s {PUBLIC}{game_filter}')).scalar() or 0
+                stats['bosses_killed']   = db.execute(text(f'SELECT COUNT(*) FROM sl_session_bosses sb JOIN sl_collection_sessions s ON s.id=sb.session_id {PUBLIC}{game_filter} AND sb.is_defeated=1')).scalar() or 0
+                stats['items_collected'] = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_item_status si JOIN sl_collection_sessions s ON s.id=si.session_id {PUBLIC}{game_filter} AND si.is_collected=1')).scalar() or 0
+                if game == 'all':
+                    stats['total_runs']      += db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                    stats['active_runs']     += db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1 AND is_active=1')).scalar() or 0
+                    stats['total_deaths']    += db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                    stats['bosses_killed']   += db.execute(text('SELECT COALESCE(SUM(bosses_killed),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                    stats['items_collected'] += db.execute(text('SELECT COALESCE(SUM(items_found),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
+                if game == 'elden_ring':
+                    stats['total_builds'] = db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0
+                elif game == 'err':
+                    stats['total_builds'] = db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0
+                else:  # all
+                    er_builds  = db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0
+                    err_builds = db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0
+                    r2_builds  = db.execute(text('SELECT COUNT(*) FROM r2_builds WHERE is_public=1')).scalar() or 0
+                    stats['total_builds'] = er_builds + err_builds + r2_builds
+                stats['leaderboard']  = db.execute(text('SELECT COUNT(DISTINCT user_id) FROM sl_leaderboard_entries')).scalar() or 0
+    except Exception:
+        stats = {'total_runs':0,'active_runs':0,'total_deaths':0,'bosses_killed':0,'items_collected':0,'total_builds':0,'leaderboard':0}
+    return JsonResponse(stats)
+
+
 @add_web_user_context
 def soulslike_listener_download(request):
     """QuestLog Listener download page."""
@@ -5762,7 +5809,7 @@ def soulslike_tracker(request):
 
 @require_http_methods(['GET', 'POST'])
 def api_tracker_download(request):
-    """Record a download - no auth required, anyone can download."""
+    """Record a tracker download - no auth required, anyone can download."""
     import time as _time
     from app.db import get_db_session as _gds
     from sqlalchemy import text as _t
@@ -5778,11 +5825,11 @@ def api_tracker_download(request):
             """), {'p': platform, 'ip': ip, 'ts': int(_time.time())})
             db.commit()
     except Exception:
-        pass  # log and continue
+        pass
 
     return JsonResponse({
         'ok': True,
-        'url': '/static/downloads/QuestLogMortalityTracker.zip',
+        'url': '/static/downloads/EldenTracker-latest-1.0.2.zip',
     })
 
 
@@ -5914,10 +5961,34 @@ def sl_my_builds(request):
              [fmt_row(r, 'err') for r in err_rows]
     builds.sort(key=lambda b: b['updated'], reverse=True)
 
+    # R2 builds
+    r2_rows = db.execute(text("""
+        SELECT b.id, b.name, b.share_token, b.is_public, b.playstyle,
+               b.updated_at, a1.name as primary_arch, a2.name as secondary_arch
+        FROM r2_builds b
+        LEFT JOIN r2_archetypes a1 ON b.primary_archetype_id = a1.id
+        LEFT JOIN r2_archetypes a2 ON b.secondary_archetype_id = a2.id
+        WHERE b.user_id = :uid
+        ORDER BY b.updated_at DESC
+    """), {'uid': uid}).fetchall()
+
+    r2_builds = []
+    for r in r2_rows:
+        try:
+            updated = datetime.datetime.utcfromtimestamp(r[5]).strftime('%b %d, %Y')
+        except Exception:
+            updated = ''
+        r2_builds.append({
+            'id': r[0], 'name': r[1], 'token': r[2], 'is_public': bool(r[3]),
+            'playstyle': r[4] or '', 'updated': updated,
+            'primary_arch': r[6] or '', 'secondary_arch': r[7] or '',
+        })
+
     return render(request, 'questlog_web/sl_my_builds.html', {
         'web_user':    request.web_user,
         'active_page': 'sl_my_builds',
         'builds':      builds,
+        'r2_builds':   r2_builds,
     })
 
 
@@ -6550,11 +6621,14 @@ def api_sl_armor(request):
     ]})
 
 
-@web_login_required
+@web_verified_required
 @ratelimit(key='user', rate='50/h', block=True)
 @require_http_methods(['GET', 'POST'])
 def api_sl_builds(request):
     """GET user builds, POST to save a new build."""
+    if request.method == 'POST':
+        gate = require_verified(request)
+        if gate: return gate
     import json as _json
     import secrets as _sec
     game  = request.GET.get('game', 'elden_ring')[:32]
@@ -6807,7 +6881,7 @@ def api_sl_builds(request):
     return JsonResponse({'ok': True, 'build_id': build_id, 'share_token': token})
 
 
-@web_login_required
+@web_verified_required
 @require_http_methods(['DELETE'])
 def api_sl_build_delete(request, build_id):
     """DELETE /api/soulslike/builds/<id>/delete/ - delete own build.
@@ -6848,6 +6922,8 @@ def api_sl_build_delete_desktop(request, build_id):
     Desktop app build delete - API key auth, POST method (some HTTP clients struggle with DELETE).
     Also archives any active runs linked to this build.
     """
+    gate = _check_app_version(request)
+    if gate: return gate
     user = _resolve_api_key_user(request)
     if not user:
         return JsonResponse({'error': 'Invalid or missing API key'}, status=401)
@@ -7187,8 +7263,9 @@ def listener_auth_page(request):
         ), {'code': code, 'exp': now + 60, 'uid': uid})
         db.commit()
 
-    # Redirect to local Listener callback server
-    return redirect(f'http://localhost:9457/callback?code={code}')
+    # Redirect to local Listener callback server - echo state back for CSRF validation
+    state_param = f'&state={state}' if state else ''
+    return redirect(f'http://localhost:9457/callback?code={code}{state_param}')
 
 
 @require_http_methods(['GET'])
@@ -7258,6 +7335,39 @@ def _resolve_api_key_user(request):
     return (row[0], row[1]) if row else None
 
 
+# Minimum supported EldenTracker version.
+# Apps older than this get a 426 response directing them to update.
+_MIN_APP_VERSION = (1, 0, 2)
+_DOWNLOAD_URL = 'https://questlog.casual-heroes.com/ql/soulslike/tracker/'
+
+def _check_app_version(request):
+    """
+    Returns None if version is acceptable, or a JsonResponse(status=426) if outdated/missing.
+    Old builds never sent X-App-Version - they get gated too.
+    """
+    raw = request.headers.get('X-App-Version', '').strip()
+    if not raw:
+        return JsonResponse({
+            'error': 'outdated_version',
+            'message': 'This version of EldenTracker is no longer supported. Please download the latest version.',
+            'download_url': _DOWNLOAD_URL,
+            'min_version': '.'.join(str(x) for x in _MIN_APP_VERSION),
+        }, status=426)
+    try:
+        parts = tuple(int(x) for x in raw.split('.')[:3])
+        if parts < _MIN_APP_VERSION:
+            return JsonResponse({
+                'error': 'outdated_version',
+                'message': f'EldenTracker {raw} is outdated. Please update to {".".join(str(x) for x in _MIN_APP_VERSION)} or newer.',
+                'download_url': _DOWNLOAD_URL,
+                'current_version': raw,
+                'min_version': '.'.join(str(x) for x in _MIN_APP_VERSION),
+            }, status=426)
+    except (ValueError, AttributeError):
+        pass  # Malformed version string - let it through rather than false-gate
+    return None
+
+
 @require_http_methods(['GET'])
 def api_sl_desktop_profile(request):
     """
@@ -7273,6 +7383,8 @@ def api_sl_desktop_profile(request):
 
     Designed for one call on startup - not polled.
     """
+    gate = _check_app_version(request)
+    if gate: return gate
     user = _resolve_api_key_user(request)
     if not user:
         return JsonResponse({'error': 'Invalid or missing API key'}, status=401)
@@ -7463,6 +7575,8 @@ def api_sl_builds_desktop(request):
     import json as _json
     import secrets as _sec
 
+    gate = _check_app_version(request)
+    if gate: return gate
     user = _resolve_api_key_user(request)
     if not user:
         return JsonResponse({'error': 'Invalid or missing API key'}, status=401)

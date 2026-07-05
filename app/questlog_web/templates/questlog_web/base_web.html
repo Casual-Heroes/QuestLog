@@ -16,26 +16,26 @@
       </div>
 
       <!-- Desktop nav links -->
-      <nav class="hidden lg:flex items-center gap-1 text-sm flex-1 justify-center">
-        <a href="{% url 'questlog_web_discover' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+      <nav class="hidden lg:flex items-center gap-0.5 text-sm flex-1 justify-center">
+        <a href="{% url 'questlog_web_discover' %}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium whitespace-nowrap">
           <i class="fas fa-compass text-xs"></i> Discover
         </a>
-        <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+        <a href="{% url 'questlog_web_lfg_browse' %}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium whitespace-nowrap">
           <i class="fas fa-users text-xs"></i> Find Groups
         </a>
-        <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
+        <a href="{% url 'questlog_web_communities' %}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium whitespace-nowrap">
           <i class="fas fa-shield-alt text-xs"></i> Communities
         </a>
-        <a href="/soulslike/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-amber-500 hover:text-amber-400 hover:bg-amber-900/20 transition text-xs font-medium">
+        <a href="/soulslike/" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-amber-500 hover:text-amber-400 hover:bg-amber-900/20 transition text-xs font-medium whitespace-nowrap">
           <i class="fas fa-skull text-xs"></i> SoulsLike Hub
         </a>
-        <a href="{% url 'aboutus' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium">
-          <i class="fas fa-info-circle text-xs"></i> About Us
-        </a>
-        <a href="{% url 'questlog_web_getting_started' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-emerald-600 hover:text-emerald-400 hover:bg-neutral-800 transition text-xs font-medium">
+        <a href="{% url 'questlog_web_getting_started' %}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-emerald-600 hover:text-emerald-400 hover:bg-neutral-800 transition text-xs font-medium whitespace-nowrap">
           <i class="fas fa-rocket text-xs"></i> Get Started
         </a>
-        <a href="{% url 'questlog_web_whats_new' %}" class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-yellow-500 hover:text-yellow-400 hover:bg-neutral-800 transition text-xs font-medium">
+        <a href="{% url 'aboutus' %}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium whitespace-nowrap">
+          <i class="fas fa-info-circle text-xs"></i> About Us
+        </a>
+        <a href="{% url 'questlog_web_whats_new' %}" class="relative flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-yellow-500 hover:text-yellow-400 hover:bg-neutral-800 transition text-xs font-medium whitespace-nowrap">
           <i class="fas fa-bullhorn text-xs"></i> What's New
           <span id="navWhatsNewBadge" class="hidden ml-0.5 text-[9px] font-bold bg-yellow-400 text-neutral-900 px-1.5 py-0.5 rounded-full leading-none">NEW</span>
         </a>
@@ -85,8 +85,8 @@
           </div>
         </div>
         {% else %}
-        <a href="{% url 'questlog_web_login' %}?next={{ request.path|urlencode }}" class="text-gray-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-800 transition">Sign In</a>
-        <a href="{% url 'questlog_web_register' %}?next={{ request.path|urlencode }}" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">Join Free</a>
+        <a href="/login/?next={{ request.path|urlencode }}" class="text-gray-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-800 transition">Sign In</a>
+        <a href="/register/?next={{ request.path|urlencode }}" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">Join Free</a>
         {% endif %}
 
         <!-- Mobile hamburger - opens sidebar drawer on phone, dropdown on tablet -->
@@ -134,10 +134,10 @@
       </div>
       {% else %}
       <div class="border-t border-neutral-800 pt-2 mt-2 space-y-1">
-        <a href="{% url 'questlog_web_register' %}" class="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition text-sm font-semibold">
+        <a href="/register/" class="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition text-sm font-semibold">
           Join Free
         </a>
-        <a href="{% url 'questlog_web_login' %}" class="flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm font-medium">
+        <a href="/login/" class="flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-neutral-800 transition text-sm font-medium">
           Sign In
         </a>
       </div>
@@ -151,11 +151,21 @@
 <!-- Break out of base.html's max-w-7xl centered container to fill full viewport -->
 <div style="margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); width: 100vw; position: relative;">
 {% if web_user and not web_user.email_verified %}
-<div id="ql-email-banner" class="lg:ml-64 bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between gap-4 text-sm">
-  <span class="text-amber-300"><i class="fas fa-envelope mr-2"></i>Please verify your email to unlock all features. Check your inbox - and your spam folder - for a link from us.</span>
-  <form method="post" action="resend-verification/" class="shrink-0">
+<div id="ql-email-banner" class="lg:ml-64 bg-amber-500/20 border-b-2 border-amber-500/60 px-5 py-3.5 flex items-center justify-between gap-4 flex-wrap">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-full bg-amber-500/30 flex items-center justify-center flex-shrink-0">
+      <i class="fas fa-envelope text-amber-400 text-sm"></i>
+    </div>
+    <div>
+      <p class="text-amber-200 font-bold text-sm leading-tight">One step left - verify your email</p>
+      <p class="text-amber-400/80 text-xs mt-0.5">Check your inbox or spam for a link from trocco@casual-heroes.com &nbsp;&bull;&nbsp; Saving builds, tracking runs, LFG and leaderboards unlock after verification.</p>
+    </div>
+  </div>
+  <form method="post" action="/resend-verification/" class="shrink-0">
     {% csrf_token %}
-    <button type="submit" class="text-amber-400 hover:text-amber-200 underline whitespace-nowrap">Resend email</button>
+    <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-neutral-900 text-sm font-bold rounded-lg transition whitespace-nowrap shadow-lg shadow-amber-900/30">
+      Resend Email
+    </button>
   </form>
 </div>
 {% endif %}
@@ -934,6 +944,42 @@ document.addEventListener('keydown', function(e) {
 });
 </script>
 {% endblock %}
+
+<!-- Verify Email Modal - shown when ?verify_required=1 is in URL -->
+<div id="verify-email-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-black/70 px-4">
+  <div class="bg-neutral-900 border border-amber-500/40 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
+    <div class="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+      <i class="fas fa-envelope text-amber-400 text-xl"></i>
+    </div>
+    <h3 class="text-white font-bold text-base mb-2">Verify your email first</h3>
+    <p class="text-gray-400 text-sm mb-5">Check your inbox for a verification link from <span class="text-amber-400">trocco@casual-heroes.com</span>. You must verify before using this feature.</p>
+    <div class="flex gap-2 justify-center">
+      <form method="post" action="/resend-verification/">
+        {% csrf_token %}
+        <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-neutral-900 text-sm font-bold rounded-lg transition">
+          Resend Email
+        </button>
+      </form>
+      <button onclick="closeVerifyModal()" class="px-4 py-2 bg-neutral-700 hover:bg-neutral-600 text-white text-sm font-bold rounded-lg transition">
+        OK
+      </button>
+    </div>
+  </div>
+</div>
+<script>
+(function() {
+  if (new URLSearchParams(window.location.search).get('verify_required') === '1') {
+    document.getElementById('verify-email-modal').classList.remove('hidden');
+    // Clean URL without reloading
+    var url = new URL(window.location);
+    url.searchParams.delete('verify_required');
+    history.replaceState(null, '', url.toString());
+  }
+})();
+function closeVerifyModal() {
+  document.getElementById('verify-email-modal').classList.add('hidden');
+}
+</script>
 
 {% block footer_community_link %}
 {% if web_user and web_user.primary_community_platform == 'discord' %}
