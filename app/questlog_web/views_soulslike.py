@@ -555,9 +555,14 @@ def api_sl_session_status(request, token):
             elapsed = now - game_stopped_at
             grace_remaining = max(0, 180 - elapsed)
             in_grace = grace_remaining > 0
-        # Session time - app is authoritative when connected
+        # Session time - app is authoritative when connected, zero when nothing active
         has_app_timers = game_active and (app_session_sec or 0) > 0
-        listener_sec = (app_session_sec or 0) if has_app_timers else (listener_session_sec or 0)
+        if has_app_timers:
+            listener_sec = app_session_sec or 0
+        elif listener_connected and game_active:
+            listener_sec = listener_session_sec or 0
+        else:
+            listener_sec = 0  # nothing active - don't show stale DB value
 
         # Current streak - app is authoritative when connected, else server calculates
         app_streak  = getattr(session, 'app_streak_sec',  None) or 0

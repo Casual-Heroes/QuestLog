@@ -642,19 +642,19 @@ function loadStatus() {
         }
         _localSeeded = true;
       } else if (!shouldTick && !_localGameRunning) {
-        // Not ticking and wasn't ticking - server is authoritative, show server values
-        _localSessionSec  = serverSessionSec;
-        _localSurvivalSec = serverSurvivalSec;
+        // Not ticking and wasn't ticking - nothing active, show zeros
+        _localSessionSec  = 0;
+        _localSurvivalSec = 0;
         _localSeeded      = true;
-        document.getElementById('stat-session-time').textContent = d.session_time_fmt  || '00:00:00';
-        document.getElementById('stat-surv-time').textContent    = d.survival_time_fmt || '00:00:00';
+        document.getElementById('stat-session-time').textContent = '00:00:00';
+        document.getElementById('stat-surv-time').textContent    = '00:00:00';
       } else if (!shouldTick && _localGameRunning) {
-        // Was ticking, now stopped - sync final value from server
+        // Was ticking, now stopped - reset both to zero
         _localGameRunning = false;
-        _localSessionSec  = serverSessionSec;
-        _localSurvivalSec = serverSurvivalSec;
-        document.getElementById('stat-session-time').textContent = d.session_time_fmt  || '00:00:00';
-        document.getElementById('stat-surv-time').textContent    = d.survival_time_fmt || '00:00:00';
+        _localSessionSec  = 0;
+        _localSurvivalSec = 0;
+        document.getElementById('stat-session-time').textContent = '00:00:00';
+        document.getElementById('stat-surv-time').textContent    = '00:00:00';
       }
       // While ticking: JS owns display, server poll does NOT touch timers
 
