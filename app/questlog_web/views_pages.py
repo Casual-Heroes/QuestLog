@@ -5814,7 +5814,7 @@ def api_tracker_download(request):
     from app.db import get_db_session as _gds
     from sqlalchemy import text as _t
 
-    platform = (request.POST.get('platform') or request.GET.get('platform') or 'unknown')[:20]
+    platform = (request.POST.get('platform') or request.GET.get('platform') or 'windows')[:20]
     ip = request.META.get('HTTP_CF_CONNECTING_IP') or request.META.get('REMOTE_ADDR', '')
 
     try:
