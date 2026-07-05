@@ -555,9 +555,14 @@ def api_sl_session_status(request, token):
             elapsed = now - game_stopped_at
             grace_remaining = max(0, 180 - elapsed)
             in_grace = grace_remaining > 0
-        # Session time - app is authoritative when connected
+        # Session time - app is authoritative when connected, zero when nothing active
         has_app_timers = game_active and (app_session_sec or 0) > 0
-        listener_sec = (app_session_sec or 0) if has_app_timers else (listener_session_sec or 0)
+        if has_app_timers:
+            listener_sec = app_session_sec or 0
+        elif listener_connected and game_active:
+            listener_sec = listener_session_sec or 0
+        else:
+            listener_sec = 0  # nothing active - don't show stale DB value
 
         # Current streak - app is authoritative when connected, else server calculates
         app_streak  = getattr(session, 'app_streak_sec',  None) or 0
@@ -1171,6 +1176,56 @@ def api_sl_manual_start(request, token):
 
 @csrf_exempt
 @ratelimit(key='user_or_ip', rate='20/m', block=True)
+@require_http_methods(['POST'])
+def api_sl_test_hollow(request, token):
+    """
+    POST /api/soulslike/session/<token>/test-hollow/
+    Owner only. Temporarily sets rage to 100 (HOLLOW) in DB so the polling
+    overlay picks it up. Auto-reverts after 5 seconds.
+    """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    with get_db_session() as db:
+        session = db.execute(text(
+            "SELECT id, rage_pct, rage_name, hollow_streak FROM sl_collection_sessions "
+            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
+        if not session:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        sid              = session[0]
+        orig_rage_pct    = session[1] or 0
+        orig_rage_name   = session[2] or "Maiden's Grace"
+        hollow_streak    = session[3] or 0
+
+        # Set to HOLLOW so next poll picks it up
+        db.execute(text(
+            "UPDATE sl_collection_sessions SET rage_pct=100, rage_name='HOLLOW', "
+            "hollow_entered_at=COALESCE(hollow_entered_at, :now) WHERE id=:sid"
+        ), {'sid': sid, 'now': int(time.time())})
+        db.commit()
+
+    # Revert after 5 seconds in background thread
+    import threading
+    def revert():
+        import time as _t
+        _t.sleep(5)
+        try:
+            with get_db_session() as _db:
+                _db.execute(text(
+                    "UPDATE sl_collection_sessions SET rage_pct=:pct, rage_name=:name, "
+                    "hollow_entered_at=NULL WHERE id=:sid"
+                ), {'pct': orig_rage_pct, 'name': orig_rage_name, 'sid': sid})
+                _db.commit()
+        except Exception as e:
+            logger.error("test_hollow revert failed sid=%s: %s", sid, e)
+    threading.Thread(target=revert, daemon=True).start()
+
+    return JsonResponse({'ok': True, 'message': 'Test hollow active for 5 seconds - check your overlay'})
+
+
+@csrf_exempt
 @require_http_methods(['POST'])
 def api_sl_test_hollow(request, token):
     """
