@@ -228,16 +228,26 @@
       <a href="{% url 'questlog_web_password_reset' %}" style="color: #6b7280;">Forgot your password?</a>
     </p>
 
+    <!-- Always visible Join Free link -->
+    <div style="margin-top: 20px; border-top: 1px solid #1f2937; padding-top: 18px; text-align: center;">
+      <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 10px;">New here?</p>
+      <a href="{% url 'questlog_web_register' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display: inline-block; width: 100%; padding: 11px; background: #4f46e5; color: #fff; font-size: 0.9rem; font-weight: 700; border-radius: 10px; text-decoration: none; transition: background 0.15s;"
+         onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+        🎮 Join Free - Create your account
+      </a>
+    </div>
+
     {% if logins_disabled %}
-    <!-- Invite code quick-entry - only shown when logins are locked -->
-    <div style="margin-top: 20px; border-top: 1px solid #1f2937; padding-top: 18px;">
-      <p style="font-size: 0.8rem; color: #6b7280; text-align: center; margin-bottom: 10px;">Don't have an account? Enter your invite code to register:</p>
+    <!-- Invite code quick-entry - shown when logins are locked -->
+    <div style="margin-top: 16px;">
+      <p style="font-size: 0.8rem; color: #6b7280; text-align: center; margin-bottom: 10px;">Have an invite code?</p>
       <form method="get" action="register/" style="display: flex; gap: 8px;">
         <input type="text" name="invite" placeholder="XXXXXXXXXX"
                style="flex: 1; padding: 9px 12px; background: #111827; border: 1px solid #1f2937; border-radius: 8px; color: #e5e7eb; font-size: 0.85rem; outline: none; text-transform: uppercase; letter-spacing: 0.1em;"
                oninput="this.value = this.value.toUpperCase()">
         <button type="submit"
-                style="padding: 9px 16px; background: #4f46e5; color: #fff; font-size: 0.82rem; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+                style="padding: 9px 16px; background: #374151; color: #fff; font-size: 0.82rem; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
           Register
         </button>
       </form>
