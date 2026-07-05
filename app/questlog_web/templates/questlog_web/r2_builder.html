@@ -1030,6 +1030,7 @@ function resetBuild() {
   document.getElementById('build-description').value = '';
   document.getElementById('build-public').checked = false;
   buildTraitList();
+  updateTraitBar();
   updateStats();
   ['slot-arch-primary','slot-arch-secondary','slot-skill-primary','slot-skill-secondary',
    'slot-helm','slot-torso','slot-legs','slot-gloves','slot-relic','slot-prism',
@@ -1038,7 +1039,11 @@ function resetBuild() {
    'slot-weapon-main','slot-mod-main','slot-mutator-main',
    'slot-weapon-secondary','slot-mod-secondary','slot-mutator-secondary',
    'slot-weapon-melee','slot-mod-melee','slot-mutator-melee',
-  ].forEach(function(id) { var el=document.getElementById(id); if(el){el.classList.remove('filled');} });
+  ].forEach(function(id) { renderSlot(id, null); });
+  // Reset mod slots to correct unlocked state
+  ['main','secondary','melee'].forEach(function(slot) { renderModSlot(slot, null, false, slot==='melee'); });
+  // Reset perks display
+  var pd = document.getElementById('perks-display'); if(pd) pd.style.display='none';
 }
 
 function saveBuild() {

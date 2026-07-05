@@ -316,8 +316,8 @@
 function triggerDownload() {
   fetch('/ql/api/tracker/download/?platform=windows', {method: 'GET'}).catch(() => {});
   const link = document.createElement('a');
-  link.href = '/static/downloads/EldenTracker-latest-1.0.2a.zip';
-  link.download = 'EldenTracker-latest-1.0.2a.zip';
+  link.href = '/static/downloads/EldenTracker-1.0.2b.zip';
+  link.download = 'EldenTracker-1.0.2b.zip';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

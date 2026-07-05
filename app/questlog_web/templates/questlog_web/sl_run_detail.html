@@ -334,8 +334,11 @@
     <button onclick="undoLastDeath()" class="btn-sm" title="Undo last death (F10)">
       <i class="fas fa-undo"></i> Undo
     </button>
-    <button onclick="resetDeaths()" class="btn-sm" title="Reset session">
-      <i class="fas fa-rotate-right"></i> Reset
+    <button onclick="stopSession()" class="btn-sm" id="stop-session-btn" style="display:none" title="Stop manual session - resets timers, keeps total deaths and boss progress">
+      <i class="fas fa-square"></i> Stop Session
+    </button>
+    <button onclick="resetDeaths()" class="btn-sm" title="Full reset - clears all deaths, timers, and bosses">
+      <i class="fas fa-rotate-right"></i> Full Reset
     </button>
     {% else %}
     <button onclick="logHcDeath()" class="btn-die bg-red-900 hover:bg-red-800">
@@ -504,7 +507,8 @@ var IS_ACTIVE   = {% if is_active %}true{% else %}false{% endif %};
 var IS_OWNER    = {% if is_owner %}true{% else %}false{% endif %};
 var GAME        = '{{ game|escapejs }}' || 'elden_ring';
 var GAME_MODE   = '{{ game_mode|escapejs }}' || 'vanilla';
-var TIMING_MODE = '{{ timing_mode|escapejs }}';
+var TIMING_MODE      = '{{ timing_mode|escapejs }}';
+var SESSION_STARTED  = {% if session_started %}true{% else %}false{% endif %};
 var IS_HARDCORE = {% if is_hardcore %}true{% else %}false{% endif %};
 
 var allItems         = [];
@@ -530,6 +534,8 @@ var currentFocusBoss = '';
 // Manual timing state
 var manualTimerStart    = null;
 var manualSessionRunning = false;
+var _appTimerActive = false;   // true when app is sending live timer SSE events
+var _appTimerLastTs = 0;       // timestamp of last app timer event
 var manualSessionSec    = 0;
 var manualStreakSec     = 0;
 var lastDeathTime       = null;
@@ -606,11 +612,36 @@ function loadStatus() {
         if (!d.is_active && IS_ACTIVE) { IS_ACTIVE = false; location.reload(); }
       }
 
-      // Timing - listener mode updates from server; manual mode uses local JS timer
-      if (TIMING_MODE !== 'manual') {
+      // Timer sync: local JS tick owns display while running, server seeds initial value
+      var serverSessionSec  = d.listener_session_sec || 0;
+      var serverSurvivalSec = d.total_survival_sec   || 0;
+      var gameRunning       = d.listener_game_running || false;
+      var listenerConnected = d.listener_connected    || false;
+      var sessionStarted    = d.session_started !== undefined ? d.session_started : SESSION_STARTED;
+      // Tick when: app game running, OR manual session active (no app), OR session started manually
+      var shouldTick = gameRunning || (IS_ACTIVE && !listenerConnected && (sessionStarted || manualSessionRunning));
+
+      if (shouldTick && !_localGameRunning) {
+        // Just started ticking - seed from server then JS owns display
+        _localSessionSec  = serverSessionSec;
+        _localSurvivalSec = serverSurvivalSec;
+        _localLastTick    = Date.now();
+        _localGameRunning = true;
+      } else if (!shouldTick && !_localGameRunning) {
+        // Not ticking and wasn't ticking - server is authoritative
+        _localSessionSec  = serverSessionSec;
+        _localSurvivalSec = serverSurvivalSec;
+        document.getElementById('stat-session-time').textContent = d.session_time_fmt  || '00:00:00';
+        document.getElementById('stat-surv-time').textContent    = d.survival_time_fmt || '00:00:00';
+      } else if (!shouldTick && _localGameRunning) {
+        // Was ticking, now stopped - sync final value from server
+        _localGameRunning = false;
+        _localSessionSec  = serverSessionSec;
+        _localSurvivalSec = serverSurvivalSec;
         document.getElementById('stat-session-time').textContent = d.session_time_fmt  || '00:00:00';
         document.getElementById('stat-surv-time').textContent    = d.survival_time_fmt || '00:00:00';
       }
+      // While ticking: JS owns display, server poll does NOT touch timers
 
       // Items
       if ((d.total||0) > 0) {
@@ -696,10 +727,12 @@ function updateListenerBar(d) {
   var actionBtns= document.getElementById('action-btns');
   if (!bar) return;
 
+  var stopBtn = document.getElementById('stop-session-btn');
   if (d.listener_connected) {
-    // Listener is connected - hide Start Session, show action buttons
+    // Listener connected - app handles session stop automatically, hide Stop Session button
     if (startBtn)   startBtn.style.display  = 'none';
     if (actionBtns) actionBtns.style.display = '';
+    if (stopBtn)    stopBtn.style.display    = 'none';
     bar.classList.remove('hidden');
 
     if (d.listener_game_running) {
@@ -720,6 +753,8 @@ function updateListenerBar(d) {
     // No listener - show Start Session (if not already started manually)
     if (startBtn && !manualSessionRunning) startBtn.style.display = '';
     if (actionBtns && !manualSessionRunning) actionBtns.style.display = 'none';
+    // Show Stop Session only for manual (web-only) sessions
+    if (stopBtn) stopBtn.style.display = manualSessionRunning ? '' : 'none';
     // If manual session already running, keep action buttons visible
     if (manualSessionRunning) {
       if (startBtn)   startBtn.style.display  = 'none';
@@ -988,6 +1023,20 @@ function resetDeaths(){
     loadStatus();
   }).catch(function(){});
 }
+function stopSession(){
+  if(!confirm('Stop session - reset your session deaths and timers?')) return;
+  csrfFetch('/api/soulslike/session/'+TOKEN+'/stop-session/',{
+    method:'POST',
+    body: JSON.stringify({}),
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      _localGameRunning = false;
+      _localSessionSec = 0;
+      _localSurvivalSec = 0;
+      window.location.reload();
+    }
+  }).catch(function(){});
+}
 function endRun(){
   if(!confirm('End this run?')) return;
   fetch('/api/soulslike/session/'+TOKEN+'/end/',{
@@ -1085,14 +1134,18 @@ function handleSSEEvent(d) {
     document.getElementById('stat-deaths').textContent         = d.deaths || 0;
     document.getElementById('stat-session-deaths').textContent = d.session_deaths || 0;
     updateRage(d.rage_pct || 0, d.rage_name || "Maiden's Grace", d.is_hollow, d.hollow_streak);
-    // Reset streak display immediately on death
+    // Reset survival/streak display and local counter immediately on death
+    _localSurvivalSec = 0;
+    _localLastTick = Date.now(); // restart tick from now
     document.getElementById('stat-surv-time').textContent = '00:00:00';
     // Full status refresh to get death log etc
     loadStatus();
   }
 
   if (d.event === 'timers') {
-    // App pushed real-time timer values - update immediately
+    // App pushed real-time timer values - take ownership of timer display
+    _appTimerActive = true;
+    _appTimerLastTs = Date.now();
     if (TIMING_MODE !== 'manual') {
       document.getElementById('stat-session-time').textContent = fmtSecs(d.session_sec || 0);
       document.getElementById('stat-surv-time').textContent    = fmtSecs(d.streak_sec  || 0);
@@ -1153,10 +1206,32 @@ function updateRage(ragePct, rageName, isHollow, hollowStreak) {
   if (sb && hollowStreak > 0) sb.textContent = 'x'+(hollowStreak+1);
 }
 
+// Local timer state - incremented by JS tick, synced by server poll
+var _localSessionSec  = 0;
+var _localSurvivalSec = 0;
+var _localGameRunning = false;
+var _localLastTick    = 0;
+
+// Smooth 1s tick - increments local timers, never flashes
+setInterval(function() {
+  if (!_localGameRunning) return;
+  var now = Date.now();
+  if (_localLastTick > 0) {
+    var delta = Math.round((now - _localLastTick) / 1000);
+    _localSessionSec  += delta;
+    _localSurvivalSec += delta;
+    var ss = document.getElementById('stat-session-time');
+    var sk = document.getElementById('stat-surv-time');
+    if (ss) ss.textContent = fmtSecs(_localSessionSec);
+    if (sk) sk.textContent = fmtSecs(_localSurvivalSec);
+  }
+  _localLastTick = now;
+}, 1000);
+
 document.addEventListener('DOMContentLoaded',function(){
   loadStatus();
   loadBossRegistry();
-  setInterval(loadStatus, 1000);  // 1s polling
+  setInterval(loadStatus, 3000);  // 3s polling for deaths/bosses/items
 });
 </script>
 {% endif %}{# end is_active else #}

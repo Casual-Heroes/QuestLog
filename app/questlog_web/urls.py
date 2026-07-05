@@ -319,6 +319,7 @@ from .views_profile import (
 from .views_soulslike import (
     api_sl_session_create, api_sl_collect, api_sl_uncollect,
     api_sl_death, api_sl_session_status, api_sl_session_end, api_sl_reset_deaths, api_sl_heartbeat,
+    api_sl_stop_session,
     api_sl_set_deaths, api_sl_test_hollow,
     api_sl_boss_mark, api_sl_boss_unmark, api_sl_seed_bosses, api_sl_set_focus,
     api_sl_manual_start, sl_run_manifest, api_sl_desktop_session_create,
@@ -576,6 +577,7 @@ urlpatterns = [
     path('api/soulslike/session/<str:token>/status/',   api_sl_session_status,  name='api_sl_session_status'),
     path('api/soulslike/session/<str:token>/end/',          api_sl_session_end,    name='api_sl_session_end'),
     path('api/soulslike/session/<str:token>/reset-deaths/', api_sl_reset_deaths,   name='api_sl_reset_deaths'),
+    path('api/soulslike/session/<str:token>/stop-session/', api_sl_stop_session,   name='api_sl_stop_session'),
     path('api/soulslike/session/<str:token>/set-deaths/',   api_sl_set_deaths,     name='api_sl_set_deaths'),
     path('api/soulslike/session/<str:token>/heartbeat/',   api_sl_heartbeat,      name='api_sl_heartbeat'),
     path('api/soulslike/session/<str:token>/boss/mark/',     api_sl_boss_mark,      name='api_sl_boss_mark'),

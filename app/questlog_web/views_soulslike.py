@@ -406,7 +406,10 @@ def api_sl_death(request, token):
         # We use current_life_start only to compute longest life - NOT to add
         # to total_survival (heartbeat already did that second by second).
         life_start_ts = life_start or now
-        life_duration = max(0, now - life_start_ts) if life_start else 0
+        raw_duration = max(0, now - life_start_ts) if life_start else 0
+        # Cap life duration at 12h to prevent stale timestamps inflating survival time
+        MAX_LIFE_SEC = 43200  # 12 hours
+        life_duration = min(raw_duration, MAX_LIFE_SEC)
         new_total_survival = total_survival or 0  # heartbeat owns this, don't touch
         new_longest = max(longest_life or 0, life_duration)
 
@@ -549,7 +552,7 @@ def api_sl_session_status(request, token):
         in_grace = False
         if listener_connected and not game_active and game_stopped_at:
             elapsed = now - game_stopped_at
-            grace_remaining = max(0, 600 - elapsed)
+            grace_remaining = max(0, 180 - elapsed)
             in_grace = grace_remaining > 0
         # Session time - app is authoritative when connected
         has_app_timers = game_active and (app_session_sec or 0) > 0
@@ -649,6 +652,7 @@ def api_sl_session_status(request, token):
         'grace_remaining_sec':   grace_remaining,
         'listener_session_sec':  listener_sec,
         'session_time_fmt':      _fmt_time(listener_sec),
+        'session_started':       bool(session_start),
         # Survival & timing
         # survival_time = current life streak (resets on death, like "days without accident")
         'survival_time_sec':    current_life_sec,
@@ -724,7 +728,7 @@ def api_sl_heartbeat(request, token):
     app_longest_sec  = _safe_timer('longest_sec')
     app_survival_sec = _safe_timer('survival_sec')
 
-    GRACE_PERIOD_SEC = 600  # 10 minutes - covers crashes and alt-tab freezes
+    GRACE_PERIOD_SEC = 180  # 3 minutes - covers crashes and alt-tab freezes
 
     with get_db_session() as db:
         row = db.execute(text(
@@ -777,13 +781,15 @@ def api_sl_heartbeat(request, token):
                 if game_relaunched or game_first_start:
                     session_deaths = 0
             elif game_stopped_at and (now - game_stopped_at) > GRACE_PERIOD_SEC:
-                # Grace period expired, no app timers - reset server timers + session deaths
+                # Grace period expired, game relaunched without app timers - fresh session
                 db.execute(text(
                     "UPDATE sl_collection_sessions "
                     "SET listener_last_ping=:now, listener_game_running=1, "
                     "    game_stopped_at=NULL, "
+                    "    session_start_ts=:now, current_life_start=:now, "
                     "    listener_session_sec=:delta, total_survival_sec=:delta, "
-                    "    session_death_count=0, session_death_baseline=:tdeath "
+                    "    session_death_count=0, session_death_baseline=:tdeath, "
+                    "    app_session_sec=0, app_streak_sec=0, app_longest_sec=0 "
                     "WHERE id=:sid"
                 ), {'now': now, 'delta': delta, 'sid': sid, 'tdeath': total_deaths})
                 session_deaths = 0
@@ -808,14 +814,17 @@ def api_sl_heartbeat(request, token):
                     "WHERE id=:sid"
                 ), {'now': now, 'stopped': now, 'sid': sid})
             elif game_stopped_at and (now - game_stopped_at) > GRACE_PERIOD_SEC:
-                # Grace period expired while game was stopped - reset session time
+                # Grace period expired - reset session timers, keep run-level stats
                 db.execute(text(
                     "UPDATE sl_collection_sessions "
                     "SET listener_last_ping=:now, listener_game_running=0, "
                     "    game_stopped_at=NULL, "
-                    "    listener_session_sec=0, total_survival_sec=0 "
+                    "    session_start_ts=NULL, current_life_start=NULL, "
+                    "    listener_session_sec=0, total_survival_sec=0, "
+                    "    session_death_count=0, session_death_baseline=:tdeath, "
+                    "    app_session_sec=0, app_streak_sec=0, app_longest_sec=0 "
                     "WHERE id=:sid"
-                ), {'now': now, 'sid': sid})
+                ), {'now': now, 'sid': sid, 'tdeath': total_deaths})
             else:
                 # Still in grace period or game never ran - just update ping
                 db.execute(text(
@@ -876,10 +885,12 @@ def api_sl_reset_deaths(request, token):
         result = db.execute(text(
             f"UPDATE sl_collection_sessions SET "
             "death_count=0, last_death_boss=NULL, last_attempted_boss=NULL, "
+            "session_death_count=0, session_death_baseline=0, "
             "rage_pct=0, rage_name='Maiden''s Grace', "
             "hollow_streak=0, time_in_hollow_sec=0, hollow_entered_at=NULL, "
             "total_survival_sec=0, longest_life_sec=0, current_life_start=:now, "
-            "listener_session_sec=0, hollow_boss_kills=0, "
+            "session_start_ts=:now, listener_session_sec=0, hollow_boss_kills=0, "
+            "listener_game_running=0, game_stopped_at=NULL, "
             "reset_count=reset_count+1, "
             "app_session_sec=0, app_streak_sec=0, app_longest_sec=0 "
             f"WHERE {where}"
@@ -1071,6 +1082,58 @@ def api_sl_active_runs(request):
             })
 
     return JsonResponse({'ok': True, 'username': username, 'runs': run_list})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_sl_stop_session(request, token):
+    """
+    POST /api/soulslike/session/<token>/stop-session/
+    Stops the current gaming session - resets session timers and session death count
+    WITHOUT resetting total deaths, bosses, or items. Use when you close the game
+    mid-run and want a clean slate for the next gaming session.
+    """
+    now = int(time.time())
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    with get_db_session() as db:
+        row = db.execute(text(
+            "SELECT id, death_count FROM sl_collection_sessions "
+            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
+        if not row:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        sid, total_deaths = row
+
+        db.execute(text("""
+            UPDATE sl_collection_sessions SET
+                session_death_count    = 0,
+                session_death_baseline = :tdeath,
+                session_start_ts       = NULL,
+                current_life_start     = NULL,
+                total_survival_sec     = 0,
+                listener_session_sec   = 0,
+                listener_game_running  = 0,
+                game_stopped_at        = NULL,
+                app_session_sec        = 0,
+                app_streak_sec         = 0,
+                app_longest_sec        = 0,
+                last_attempted_boss    = NULL,
+                timing_mode            = 'listener'
+            WHERE id=:sid
+        """), {'now': now, 'tdeath': total_deaths or 0, 'sid': sid})
+        db.commit()
+
+    sse_publish(token, {
+        'event': 'session_stopped',
+        'session_deaths': 0,
+        'total_survival': 0,
+        'session_sec': 0,
+        'message': 'Session stopped - timers reset. Total deaths and boss progress kept.',
+    })
+    return JsonResponse({'ok': True, 'message': 'Session stopped'})
 
 
 # ── Set boss focus (for Listener death attribution) ──────────────────────────
@@ -2294,7 +2357,8 @@ def sl_run_detail(request, token):
                    s.hollow_streak, s.time_in_hollow_sec, s.rage_pct,
                    s.is_hardcore, s.hc_score, s.hc_completed, s.is_public,
                    u.username, u.avatar_url, u.is_live, u.live_platform,
-                   u.twitch_username, u.youtube_channel_id, u.is_banned, u.live_url
+                   u.twitch_username, u.youtube_channel_id, u.is_banned, u.live_url,
+                   s.session_start_ts
             FROM sl_collection_sessions s
             JOIN web_users u ON u.id = s.user_id
             WHERE s.session_token=:tok
@@ -2392,6 +2456,7 @@ def sl_run_detail(request, token):
         'session_type': session[9] or 'run',
         'game_mode':   session[10] or 'vanilla',
         'timing_mode': session[11] or 'listener',
+        'session_started': bool(session[30]),
         'is_hardcore': bool(session[18]),
         'hc_score':    session[19] or 0,
         'hc_completed': bool(session[20]),
