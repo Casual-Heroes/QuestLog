@@ -5819,11 +5819,20 @@ def api_tracker_download(request):
 
     try:
         with _gds() as db:
-            db.execute(_t("""
-                INSERT INTO web_tracker_download_stats (platform, ip_hash, created_at)
-                VALUES (:p, SHA2(:ip, 256), :ts)
-            """), {'p': platform, 'ip': ip, 'ts': int(_time.time())})
-            db.commit()
+            now = int(_time.time())
+            day_start = now - (now % 86400)  # UTC midnight
+            # Dedup: one download per IP per calendar day
+            existing = db.execute(_t("""
+                SELECT id FROM web_tracker_download_stats
+                WHERE ip_hash=SHA2(:ip, 256) AND created_at >= :ds
+                LIMIT 1
+            """), {'ip': ip, 'ds': day_start}).fetchone()
+            if not existing:
+                db.execute(_t("""
+                    INSERT INTO web_tracker_download_stats (platform, ip_hash, created_at)
+                    VALUES (:p, SHA2(:ip, 256), :ts)
+                """), {'p': platform, 'ip': ip, 'ts': now})
+                db.commit()
     except Exception:
         pass
 
