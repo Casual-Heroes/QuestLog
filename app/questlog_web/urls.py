@@ -15,7 +15,9 @@ from .views_auth import (
     password_reset_request, password_reset_confirm,
     steam_link, steam_link_callback, steam_unlink,
     discord_link, discord_link_callback, discord_unlink,
+    discord_sso, discord_sso_callback,
     fluxer_link, fluxer_link_callback, fluxer_unlink,
+    fluxer_sso, fluxer_sso_callback,
     fluxer_dashboard_login, fluxer_dashboard_callback,
     discord_dashboard_login, discord_dashboard_callback,
     twitch_oauth_initiate, twitch_oauth_callback, twitch_disconnect,
@@ -33,7 +35,7 @@ from .views_pages import (
     communities, community_register, community_detail, community_detail_slug, community_guidelines,
     profile, profile_edit, creator_register, settings, getting_started, hero_shop, public_legacy,
     game_servers_ql, api_gameservers_status, api_gameservers_discover_strip,
-    soulslike_hub, soulslike_tracker, soulslike_listener_download, api_tracker_download,
+    soulslike_hub, soulslike_tracker, soulslike_listener_download, api_tracker_download, api_sl_hub_stats,
     soulslike_builder, soulslike_builds_browse, sl_my_builds,
     api_sl_classes, api_sl_stat_caps, api_sl_weapons, api_sl_spells,
     api_sl_talismans, api_sl_aow, api_sl_armor, api_sl_builds,
@@ -83,6 +85,17 @@ from .views_pages import (
     api_admin_feedback_settings,
     page_feedback,
     api_discover_steam_widgets,
+)
+from .views_r2 import (
+    r2_hub, r2_builder, r2_my_builds, r2_runs, r2_run_detail,
+    api_r2_archetypes, api_r2_weapons, api_r2_mods, api_r2_mutators,
+    api_r2_armor, api_r2_rings, api_r2_amulets, api_r2_relics,
+    api_r2_relic_fragments, api_r2_traits, api_r2_bosses,
+    api_r2_prisms, api_r2_legendary_bonuses,
+    api_r2_build_save, api_r2_build_delete, api_r2_build_detail,
+    api_r2_builds_browse,
+    api_r2_run_create, api_r2_boss_mark, api_r2_item_mark,
+    api_r2_death, api_r2_run_end, api_r2_run_status, api_r2_manifest,
 )
 from .views_questchat import (
     qc_auth_token, qc_me,
@@ -375,11 +388,15 @@ urlpatterns = [
     # Discord - optional account linking
     path('auth/discord/link/',          discord_link,          name='questlog_web_discord_link'),
     path('auth/discord/link/callback/', discord_link_callback, name='questlog_web_discord_link_callback'),
+    path('auth/discord/sso/',           discord_sso,           name='questlog_web_discord_sso'),
+    path('auth/discord/sso/callback/',  discord_sso_callback,  name='questlog_web_discord_sso_callback'),
     path('auth/discord/unlink/',        discord_unlink,        name='questlog_web_discord_unlink'),
 
     # Fluxer - optional account linking
-    path('auth/fluxer/link/',          fluxer_link,          name='questlog_web_fluxer_link'),
-    path('auth/fluxer/link/callback/', fluxer_link_callback, name='questlog_web_fluxer_link_callback'),
+    path('auth/fluxer/link/',           fluxer_link,           name='questlog_web_fluxer_link'),
+    path('auth/fluxer/link/callback/', fluxer_link_callback,  name='questlog_web_fluxer_link_callback'),
+    path('auth/fluxer/sso/',           fluxer_sso,            name='questlog_web_fluxer_sso'),
+    path('auth/fluxer/sso/callback/',  fluxer_sso_callback,   name='questlog_web_fluxer_sso_callback'),
     path('auth/fluxer/unlink/',        fluxer_unlink,        name='questlog_web_fluxer_unlink'),
 
     # Fluxer / Discord - standalone dashboard OAuth (no QL account required)
@@ -526,7 +543,8 @@ urlpatterns = [
     path('settings/', settings, name='questlog_web_settings'),
     path('getting-started/', getting_started, name='questlog_web_getting_started'),
     path('gameservers/', game_servers_ql, name='questlog_web_gameservers'),
-    path('soulslike/',          soulslike_hub,      name='questlog_web_soulslike'),
+    path('soulslike/',                    soulslike_hub,      name='questlog_web_soulslike'),
+    path('api/soulslike/hub-stats/',      api_sl_hub_stats,   name='api_sl_hub_stats'),
     path('soulslike/tracker/',  soulslike_tracker,  name='questlog_web_soulslike_tracker'),
     path('soulslike/listener/', soulslike_listener_download, name='questlog_web_soulslike_listener'),
     path('soulslike/builder/',  soulslike_builder,  name='questlog_web_soulslike_builder'),
@@ -606,6 +624,41 @@ urlpatterns = [
     path('api/soulslike/builds/<str:share_token>/', api_sl_build_detail, name='api_sl_build_detail'),
     path('soulslike/builds/',                     soulslike_builds_browse, name='questlog_web_sl_builds_browse'),
     path('soulslike/my-builds/',                  sl_my_builds,            name='questlog_web_sl_my_builds'),
+
+    # ── Remnant 2 ──────────────────────────────────────────────────────────
+    path('soulslike/r2/',                       r2_hub,         name='questlog_web_r2_hub'),
+    path('soulslike/r2/builder/',               r2_builder,     name='questlog_web_r2_builder'),
+    path('soulslike/r2/my-builds/',             r2_my_builds,   name='questlog_web_r2_my_builds'),
+    path('soulslike/r2/runs/',                  r2_runs,        name='questlog_web_r2_runs'),
+    path('soulslike/r2/runs/<str:token>/',      r2_run_detail,  name='questlog_web_r2_run_detail'),
+    # R2 reference APIs
+    path('api/r2/archetypes/',                  api_r2_archetypes,       name='api_r2_archetypes'),
+    path('api/r2/weapons/',                     api_r2_weapons,          name='api_r2_weapons'),
+    path('api/r2/mods/',                        api_r2_mods,             name='api_r2_mods'),
+    path('api/r2/mutators/',                    api_r2_mutators,         name='api_r2_mutators'),
+    path('api/r2/armor/',                       api_r2_armor,            name='api_r2_armor'),
+    path('api/r2/rings/',                       api_r2_rings,            name='api_r2_rings'),
+    path('api/r2/amulets/',                     api_r2_amulets,          name='api_r2_amulets'),
+    path('api/r2/relics/',                      api_r2_relics,           name='api_r2_relics'),
+    path('api/r2/relic-fragments/',             api_r2_relic_fragments,  name='api_r2_relic_fragments'),
+    path('api/r2/traits/',                      api_r2_traits,           name='api_r2_traits'),
+    path('api/r2/bosses/',                      api_r2_bosses,           name='api_r2_bosses'),
+    path('api/r2/prisms/',                      api_r2_prisms,           name='api_r2_prisms'),
+    path('api/r2/legendary-bonuses/',           api_r2_legendary_bonuses,name='api_r2_legendary_bonuses'),
+    # R2 build APIs
+    path('api/r2/builds/',                      api_r2_build_save,       name='api_r2_build_save'),
+    path('api/r2/builds/browse/',               api_r2_builds_browse,    name='api_r2_builds_browse'),
+    path('api/r2/builds/<str:share_token>/',    api_r2_build_detail,     name='api_r2_build_detail'),
+    path('api/r2/builds/<int:build_id>/delete/',api_r2_build_delete,     name='api_r2_build_delete'),
+    # R2 run APIs
+    path('api/r2/runs/create/',                             api_r2_run_create,  name='api_r2_run_create'),
+    path('api/r2/runs/<str:token>/status/',                 api_r2_run_status,  name='api_r2_run_status'),
+    path('api/r2/runs/<str:token>/end/',                    api_r2_run_end,     name='api_r2_run_end'),
+    path('api/r2/runs/<str:token>/death/',                  api_r2_death,       name='api_r2_death'),
+    path('api/r2/runs/<str:token>/boss/',                   api_r2_boss_mark,   name='api_r2_boss_mark'),
+    path('api/r2/runs/<str:token>/item/',                   api_r2_item_mark,   name='api_r2_item_mark'),
+    path('api/r2/manifest/',                                api_r2_manifest,    name='api_r2_manifest'),
+
     path('api/tracker/download/', api_tracker_download, name='questlog_web_api_tracker_download'),
     path('api/gameservers/status/', api_gameservers_status, name='api_gameservers_status'),
     path('api/gameservers/discover-strip/', api_gameservers_discover_strip, name='api_gameservers_discover_strip'),

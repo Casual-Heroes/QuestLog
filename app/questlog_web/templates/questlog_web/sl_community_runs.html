@@ -14,6 +14,8 @@
   </div>
 
   <!-- Header -->
+  {% include "questlog_web/partials/guest_gate.html" with gate_context="community_runs" %}
+
   <div class="flex items-center justify-between mb-4">
     <div>
       <h1 class="text-xl font-black text-white flex items-center gap-2">
@@ -43,13 +45,17 @@
          class="px-3 py-1.5 text-xs rounded-lg border transition {% if game_filter == 'err' %}border-amber-600 text-amber-400 bg-amber-900/20{% else %}border-neutral-700 text-gray-500 hover:text-white hover:border-neutral-600{% endif %}">
         ERR
       </a>
+      <a href="/soulslike/community-runs/?game=remnant2"
+         class="px-3 py-1.5 text-xs rounded-lg border transition {% if game_filter == 'remnant2' %}border-purple-600 text-purple-400 bg-purple-900/20{% else %}border-neutral-700 text-gray-500 hover:text-white hover:border-neutral-600{% endif %}">
+        🌀 R2
+      </a>
     </div>
   </div>
 
   {% if runs %}
   <div class="space-y-2">
     {% for r in runs %}
-    <a href="/soulslike/runs/{{ r.token }}/"
+    <a href="{% if r.game == 'remnant2' %}/soulslike/r2/runs/{{ r.token }}/{% else %}/soulslike/runs/{{ r.token }}/{% endif %}"
        class="group block bg-neutral-900 border rounded-xl p-4 transition
               {% if r.is_active %}border-neutral-700 hover:border-green-700/50{% else %}border-neutral-800 hover:border-neutral-600{% endif %}">
 

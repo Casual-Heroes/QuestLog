@@ -6,13 +6,14 @@ import json
 import hmac
 import logging
 import secrets
+import urllib.parse
 import requests as _requests
 
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib import messages
+from django.contrib import messages, auth
 from django_ratelimit.decorators import ratelimit
 from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.contrib.auth.models import User as DjangoUser
@@ -43,7 +44,9 @@ logger = logging.getLogger(__name__)
 # Uses a dedicated redirect URI separate from the bot-dashboard OAuth flow.
 _DISCORD_CLIENT_ID     = django_settings.DISCORD_CLIENT_ID
 _DISCORD_CLIENT_SECRET = django_settings.DISCORD_CLIENT_SECRET
-_DISCORD_REDIRECT_URI_QL = django_settings.DISCORD_REDIRECT_URI_QL  # e.g. https://casual-heroes.comauth/discord/link/callback/
+_DISCORD_REDIRECT_URI_QL  = django_settings.DISCORD_REDIRECT_URI_QL
+_DISCORD_REDIRECT_URI_SSO = getattr(django_settings, 'DISCORD_REDIRECT_URI_SSO',
+    'https://questlog.casual-heroes.com/auth/discord/sso/callback/')
 _DISCORD_AUTH_URL  = 'https://discord.com/api/oauth2/authorize'
 _DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token'
 _DISCORD_API       = 'https://discord.com/api/v10'
@@ -51,7 +54,9 @@ _DISCORD_API       = 'https://discord.com/api/v10'
 # Fluxer OAuth constants for QuestLog account linking.
 _FLUXER_CLIENT_ID       = django_settings.FLUXER_CLIENT_ID
 _FLUXER_CLIENT_SECRET   = django_settings.FLUXER_CLIENT_SECRET
-_FLUXER_REDIRECT_URI_QL = django_settings.FLUXER_REDIRECT_URI_QL
+_FLUXER_REDIRECT_URI_QL  = django_settings.FLUXER_REDIRECT_URI_QL
+_FLUXER_REDIRECT_URI_SSO = getattr(django_settings, 'FLUXER_REDIRECT_URI_SSO',
+    'https://questlog.casual-heroes.com/auth/fluxer/sso/callback/')
 _FLUXER_AUTH_URL        = 'https://web.fluxer.app/oauth2/authorize'
 _FLUXER_TOKEN_URL       = 'https://api.fluxer.app/v1/oauth2/token'
 _FLUXER_USERINFO_URL    = 'https://api.fluxer.app/v1/oauth2/userinfo'
@@ -102,14 +107,21 @@ def _send_verification_email(request, django_user):
     verify_url = request.build_absolute_uri(f'/verify-email/{token}/')
     try:
         send_mail(
-            subject='Verify your QuestLog account',
+            subject='One click to unlock QuestLog - verify your account',
             message=(
-                f"Hi {django_user.username},\n\n"
-                f"Click the link below to verify your email and activate your account:\n\n"
-                f"{verify_url}\n\n"
-                f"This link expires in 3 days.\n\n"
-                f"If you didn't create this account, you can ignore this email.\n\n"
-                f"- QuestLog at Casual Heroes"
+                f"Hey {django_user.username},\n\n"
+                f"You're almost in. Click the link below to verify your email and unlock everything:\n\n"
+                f"  {verify_url}\n\n"
+                f"Once verified you'll have access to:\n"
+                f"  - SoulsLike run tracker - deaths, bosses, items, stream overlays\n"
+                f"  - Character builder - Elden Ring, ERR, Remnant 2 - save and share builds\n"
+                f"  - Find a Group - LFG for any game on your schedule\n"
+                f"  - Leaderboards - compete with the community\n"
+                f"  - Your gaming profile and legacy score\n\n"
+                f"This link expires in 3 days. After that your account will be removed.\n\n"
+                f"If you didn't create this account, ignore this email.\n\n"
+                f"- The Casual Heroes team\n"
+                f"  questlog.casual-heroes.com"
             ),
             from_email=django_settings.DEFAULT_FROM_EMAIL,
             recipient_list=[django_user.email],
@@ -174,8 +186,8 @@ def _maybe_award_founding_flair(user, db):
 @ratelimit(key='ip', rate='20/m', block=True)
 def ql_login(request, early_access_bypass=False):
     """Site login - username + password via Django auth."""
-    if request.session.get('web_user_id'):
-        return redirect(safe_redirect_url(request.GET.get('next', '')))
+    if request.session.get('web_user_id') and request.web_user:
+        return redirect(safe_redirect_url(request.GET.get('next', '/discover/')))
 
     if not early_access_bypass:
         with get_db_session() as db:
@@ -442,8 +454,8 @@ def api_check_invite(request):
 @ratelimit(key='ip', rate='60/h', method='GET', block=True)
 def ql_register(request):
     """Account registration - username + password via Django auth."""
-    if request.session.get('web_user_id'):
-        return redirect('/')
+    if request.session.get('web_user_id') and request.web_user:
+        return redirect('/discover/')
 
     # Check for invite code bypass (from ?invite=CODE query param on GET, or invite_code field on POST)
     if request.method == 'GET':
@@ -909,6 +921,340 @@ def steam_unlink(request):
 
     messages.success(request, "Steam account disconnected.")
     return redirect('questlog_web_settings')
+
+
+# ── Discord SSO: create-or-login with Discord ────────────────────────────────
+
+def discord_sso(request):
+    """Initiate Discord OAuth for account creation/login (no existing account required)."""
+    if not _DISCORD_CLIENT_ID:
+        messages.error(request, "Discord SSO is not configured.")
+        return redirect('questlog_web_register')
+    state = secrets.token_urlsafe(32)
+    request.session['ql_discord_sso_state'] = state
+    request.session['ql_discord_sso_ts'] = int(time.time())
+    next_url = request.GET.get('next', '')
+    if next_url:
+        request.session['ql_discord_sso_next'] = next_url
+    request.session.modified = True
+    request.session.save()
+    params = urllib.parse.urlencode({
+        'client_id':     _DISCORD_CLIENT_ID,
+        'redirect_uri':  _DISCORD_REDIRECT_URI_SSO,
+        'response_type': 'code',
+        'scope':         'identify email',
+        'state':         state,
+        'prompt':        'none',
+    })
+    return redirect(f"{_DISCORD_AUTH_URL}?{params}")
+
+
+def discord_sso_callback(request):
+    """Discord redirects here after SSO. Create account if needed, then log in."""
+    error = request.GET.get('error')
+    if error:
+        messages.error(request, f"Discord authorisation failed: {error}")
+        return redirect('questlog_web_register')
+
+    code  = request.GET.get('code',  '')
+    state = request.GET.get('state', '')
+    stored_state = request.session.pop('ql_discord_sso_state', None)
+    stored_ts    = request.session.pop('ql_discord_sso_ts', 0)
+    next_url     = request.session.pop('ql_discord_sso_next', None)
+
+    if not state or not stored_state or not hmac.compare_digest(state, stored_state):
+        messages.error(request, "Invalid OAuth state. Please try again.")
+        return redirect('questlog_web_register')
+    if int(time.time()) - stored_ts > 600:
+        messages.error(request, "OAuth session expired. Please try again.")
+        return redirect('questlog_web_register')
+    if not code:
+        messages.error(request, "No authorisation code received.")
+        return redirect('questlog_web_register')
+
+    # Exchange code for token
+    try:
+        token_resp = _requests.post(_DISCORD_TOKEN_URL, data={
+            'client_id':     _DISCORD_CLIENT_ID,
+            'client_secret': _DISCORD_CLIENT_SECRET,
+            'grant_type':    'authorization_code',
+            'code':          code,
+            'redirect_uri':  _DISCORD_REDIRECT_URI_SSO,
+        }, headers={'Content-Type': 'application/x-www-form-urlencoded'}, timeout=10)
+        token_resp.raise_for_status()
+        access_token = token_resp.json().get('access_token')
+    except Exception as e:
+        logger.error(f"discord_sso_callback: token exchange failed: {e}")
+        messages.error(request, "Failed to connect to Discord. Please try again.")
+        return redirect('questlog_web_register')
+
+    # Get Discord user info
+    try:
+        user_resp = _requests.get(f"{_DISCORD_API}/users/@me",
+                                   headers={'Authorization': f'Bearer {access_token}'},
+                                   timeout=10)
+        user_resp.raise_for_status()
+        discord_data = user_resp.json()
+    except Exception as e:
+        logger.error(f"discord_sso_callback: user fetch failed: {e}")
+        messages.error(request, "Failed to retrieve Discord profile. Please try again.")
+        return redirect('questlog_web_register')
+
+    discord_id       = str(discord_data.get('id', ''))
+    discord_username = discord_data.get('global_name') or discord_data.get('username', '')
+    discord_email    = discord_data.get('email', '')
+    avatar_hash      = discord_data.get('avatar', '')
+    if not discord_id:
+        messages.error(request, "Could not read Discord ID. Please try again.")
+        return redirect('questlog_web_register')
+
+    avatar_url = None
+    if avatar_hash:
+        ext = 'gif' if avatar_hash.startswith('a_') else 'png'
+        avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.{ext}?size=256"
+
+    now = int(time.time())
+
+    with get_db_session() as db:
+        # 1. Existing account linked to this Discord ID - just log in
+        existing = db.query(WebUser).filter_by(discord_id=discord_id).first()
+        if existing:
+            _sso_login(request, existing)
+            messages.success(request, f"Welcome back, {existing.display_name or existing.username}!")
+            return redirect(safe_redirect_url(request, next_url) or '/discover/')
+
+        # 2. No Discord-linked account - check if email matches an existing account
+        if discord_email:
+            email_match = db.query(WebUser).filter_by(email=discord_email).first()
+            if email_match:
+                # Merge: link Discord to their existing account
+                email_match.discord_id       = discord_id
+                email_match.discord_username = discord_username
+                email_match.updated_at       = now
+                if avatar_url and not email_match.avatar_url:
+                    email_match.avatar_url = avatar_url
+                db.commit()
+                _sso_login(request, email_match)
+                messages.success(request, f"Welcome back, {email_match.display_name or email_match.username}! Your Discord account has been linked.")
+                return redirect(safe_redirect_url(request, next_url) or '/discover/')
+
+        # 3. Brand new user - create account
+        # Store a hint in session so they can link their old account later from Settings
+        request.session['sso_new_account_hint'] = 'discord'
+        base = re.sub(r'[^a-zA-Z0-9_-]', '', discord_username)[:20] or 'gamer'
+        username = _unique_username(db, base)
+
+        try:
+            with transaction.atomic():
+                django_user = DjangoUser.objects.create_user(
+                    username=username,
+                    email=discord_email or f"{discord_id}@discord.sso",
+                    password=secrets.token_urlsafe(32),
+                )
+        except IntegrityError:
+            username = _unique_username(db, base + str(int(time.time()))[-4:])
+            django_user = DjangoUser.objects.create_user(
+                username=username,
+                email=f"{discord_id}@discord.sso",
+                password=secrets.token_urlsafe(32),
+            )
+
+        user = WebUser(
+            username=django_user.username,
+            display_name=discord_username or django_user.username,
+            email=discord_email or '',
+            email_verified=True,
+            discord_id=discord_id,
+            discord_username=discord_username,
+            avatar_url=avatar_url,
+            created_at=now,
+            updated_at=now,
+            last_login_at=now,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        _sso_login(request, user)
+
+    messages.success(request, f"Welcome to QuestLog, {discord_username}! Your account has been created.")
+    messages.info(request, "Already had an account with a different email? Sign in with that account then link Discord in Settings to merge them.")
+    return redirect(safe_redirect_url(request, next_url) or '/discover/')
+
+
+# ── Fluxer SSO: create-or-login with Fluxer ──────────────────────────────────
+
+def fluxer_sso(request):
+    """Initiate Fluxer OAuth for account creation/login."""
+    if not _FLUXER_CLIENT_ID:
+        messages.error(request, "Fluxer SSO is not configured.")
+        return redirect('questlog_web_register')
+    state = secrets.token_urlsafe(32)
+    request.session['ql_fluxer_sso_state'] = state
+    request.session['ql_fluxer_sso_ts'] = int(time.time())
+    next_url = request.GET.get('next', '')
+    if next_url:
+        request.session['ql_fluxer_sso_next'] = next_url
+    request.session.modified = True
+    request.session.save()
+    params = urllib.parse.urlencode({
+        'client_id':     _FLUXER_CLIENT_ID,
+        'redirect_uri':  _FLUXER_REDIRECT_URI_SSO,
+        'response_type': 'code',
+        'scope':         'identify email',
+        'state':         state,
+    })
+    return redirect(f"{_FLUXER_AUTH_URL}?{params}")
+
+
+def fluxer_sso_callback(request):
+    """Fluxer redirects here after SSO. Create account if needed, then log in."""
+    error = request.GET.get('error')
+    if error:
+        messages.error(request, f"Fluxer authorisation failed: {error}")
+        return redirect('questlog_web_register')
+
+    code  = request.GET.get('code',  '')
+    state = request.GET.get('state', '')
+    stored_state = request.session.pop('ql_fluxer_sso_state', None)
+    stored_ts    = request.session.pop('ql_fluxer_sso_ts', 0)
+    next_url     = request.session.pop('ql_fluxer_sso_next', None)
+
+    if not state or not stored_state or not hmac.compare_digest(state, stored_state):
+        messages.error(request, "Invalid OAuth state. Please try again.")
+        return redirect('questlog_web_register')
+    if int(time.time()) - stored_ts > 600:
+        messages.error(request, "OAuth session expired. Please try again.")
+        return redirect('questlog_web_register')
+    if not code:
+        messages.error(request, "No authorisation code received.")
+        return redirect('questlog_web_register')
+
+    try:
+        token_resp = _requests.post(_FLUXER_TOKEN_URL, data={
+            'grant_type':    'authorization_code',
+            'code':          code,
+            'redirect_uri':  _FLUXER_REDIRECT_URI_SSO,
+            'client_id':     _FLUXER_CLIENT_ID,
+            'client_secret': _FLUXER_CLIENT_SECRET,
+        }, timeout=10)
+        token_resp.raise_for_status()
+        access_token = token_resp.json().get('access_token')
+    except Exception as e:
+        logger.error(f"fluxer_sso_callback: token exchange failed: {e}")
+        messages.error(request, "Failed to connect to Fluxer. Please try again.")
+        return redirect('questlog_web_register')
+
+    try:
+        user_resp = _requests.get(_FLUXER_USERINFO_URL,
+                                   headers={'Authorization': f'Bearer {access_token}'},
+                                   timeout=10)
+        user_resp.raise_for_status()
+        fluxer_data = user_resp.json()
+    except Exception as e:
+        logger.error(f"fluxer_sso_callback: user info fetch failed: {e}")
+        messages.error(request, "Failed to retrieve Fluxer profile. Please try again.")
+        return redirect('questlog_web_register')
+
+    fluxer_id       = str(fluxer_data.get('id', ''))
+    fluxer_username = fluxer_data.get('global_name') or fluxer_data.get('username', '')
+    fluxer_email    = fluxer_data.get('email', '')
+    avatar_url      = fluxer_data.get('avatar_url') or fluxer_data.get('avatar')
+
+    if not fluxer_id:
+        messages.error(request, "Could not read Fluxer ID. Please try again.")
+        return redirect('questlog_web_register')
+
+    now = int(time.time())
+    with get_db_session() as db:
+        # 1. Existing account linked to this Fluxer ID - just log in
+        existing = db.query(WebUser).filter_by(fluxer_id=fluxer_id).first()
+        if existing:
+            _sso_login(request, existing)
+            messages.success(request, f"Welcome back, {existing.display_name or existing.username}!")
+            return redirect(safe_redirect_url(request, next_url) or '/discover/')
+
+        # 2. Email matches existing account - merge
+        if fluxer_email:
+            email_match = db.query(WebUser).filter_by(email=fluxer_email).first()
+            if email_match:
+                email_match.fluxer_id       = fluxer_id
+                email_match.fluxer_username = fluxer_username
+                email_match.updated_at      = now
+                if avatar_url and not email_match.avatar_url:
+                    email_match.avatar_url = avatar_url
+                db.commit()
+                _sso_login(request, email_match)
+                messages.success(request, f"Welcome back, {email_match.display_name or email_match.username}! Your Fluxer account has been linked.")
+                return redirect(safe_redirect_url(request, next_url) or '/discover/')
+
+        # 3. Brand new user - create account
+        request.session['sso_new_account_hint'] = 'fluxer'
+        base = re.sub(r'[^a-zA-Z0-9_-]', '', fluxer_username)[:20] or 'gamer'
+        username = _unique_username(db, base)
+
+        try:
+            with transaction.atomic():
+                django_user = DjangoUser.objects.create_user(
+                    username=username,
+                    email=fluxer_email or f"{fluxer_id}@fluxer.sso",
+                    password=secrets.token_urlsafe(32),
+                )
+        except IntegrityError:
+            username = _unique_username(db, base + str(int(time.time()))[-4:])
+            django_user = DjangoUser.objects.create_user(
+                username=username,
+                email=f"{fluxer_id}@fluxer.sso",
+                password=secrets.token_urlsafe(32),
+            )
+
+        user = WebUser(
+            username=django_user.username,
+            display_name=fluxer_username or django_user.username,
+            email=fluxer_email or '',
+            email_verified=True,
+            fluxer_id=fluxer_id,
+            fluxer_username=fluxer_username,
+            avatar_url=avatar_url,
+            created_at=now,
+            updated_at=now,
+            last_login_at=now,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        _sso_login(request, user)
+
+    messages.success(request, f"Welcome to QuestLog, {fluxer_username}! Your account has been created.")
+    messages.info(request, "Already had an account with a different email? Sign in with that account then link Fluxer in Settings to merge them.")
+    return redirect(safe_redirect_url(request, next_url) or '/discover/')
+
+
+def _unique_username(db, base):
+    """Generate a unique username, appending numbers if needed."""
+    candidate = base[:28]
+    for i in range(1, 1000):
+        exists = db.query(WebUser).filter_by(username=candidate).first()
+        if not exists:
+            return candidate
+        candidate = f"{base[:24]}{i}"
+    return f"{base[:20]}{int(time.time())}"
+
+
+def _sso_login(request, web_user):
+    """Set session for SSO-authenticated user."""
+    try:
+        django_user = DjangoUser.objects.get(username=web_user.username)
+        auth.login(request, django_user)
+    except DjangoUser.DoesNotExist:
+        pass
+    request.session['web_user_id']       = web_user.id
+    request.session['web_user_name']     = web_user.username
+    request.session['web_user_avatar']   = web_user.avatar_url or ''
+    request.session['web_user_is_admin'] = web_user.is_admin or False
+    with get_db_session() as db:
+        web_user.last_login_at = int(time.time())
+        db.merge(web_user)
+        db.commit()
 
 
 # --- Discord linking (optional - connects Discord identity to QuestLog account) ---

@@ -32,7 +32,7 @@
             {% else %}
             <span class="text-[10px] text-gray-600 font-semibold">COMPLETED</span>
             {% endif %}
-            <span class="text-[10px] text-gray-600">{{ run.game|title }}{% if run.game_mode == 'err' %} - ERR{% endif %}</span>
+            <span class="text-[10px] text-gray-600">{% if run.game_mode == 'err' %}Elden Ring Reforged{% elif run.game == 'elden_ring' %}Elden Ring{% else %}{{ run.game|title }}{% endif %}</span>
           </div>
           <div class="text-white font-bold group-hover:text-amber-300 transition truncate">{{ run.build_name }}</div>
           <div class="flex items-center gap-3 mt-1.5 flex-wrap">

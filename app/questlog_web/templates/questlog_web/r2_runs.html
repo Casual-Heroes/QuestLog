@@ -1,0 +1,247 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}My Remnant 2 Runs | QuestLog{% endblock %}
+
+{% block web_content %}
+<div class="max-w-2xl mx-auto px-3 py-4">
+
+  <!-- Breadcrumb -->
+  <div class="flex items-center gap-2 text-xs text-gray-600 mb-2">
+    <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+    <span>/</span>
+    <a href="/soulslike/r2/" class="hover:text-gray-400 transition">Remnant 2</a>
+    <span>/</span>
+    <span class="text-gray-500">My Runs</span>
+  </div>
+
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-black text-white flex items-center gap-2">
+      <i class="fas fa-skull text-purple-400 text-base"></i> My Runs
+    </h1>
+    <button onclick="openNewRunModal()"
+            class="px-4 py-1.5 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded transition">
+      <i class="fas fa-plus mr-1"></i>New Run
+    </button>
+  </div>
+
+  <!-- Active + recent runs -->
+  {% if runs %}
+  <div class="space-y-3 mb-8">
+    {% for run in runs %}
+    <a href="/soulslike/r2/runs/{{ run.token }}/"
+       class="block bg-neutral-900 border border-neutral-800 hover:border-neutral-600 rounded-xl p-4 transition group">
+      <div class="flex items-start justify-between">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1 flex-wrap">
+            {% if run.is_active %}
+            <span class="flex items-center gap-1 text-[10px] text-green-400 font-bold">
+              <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>ACTIVE
+            </span>
+            {% else %}
+            <span class="text-[10px] text-gray-600 font-semibold">COMPLETED</span>
+            {% endif %}
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-gray-400 font-bold">
+              {{ run.run_type|title }}
+            </span>
+            {% if run.is_hardcore %}
+            <span class="text-[10px] text-red-400 font-bold">HC</span>
+            {% endif %}
+            {% if run.zones %}
+            <span class="text-[10px] text-gray-600">{{ run.zones }}</span>
+            {% endif %}
+          </div>
+          <div class="text-white font-bold group-hover:text-purple-300 transition truncate">{{ run.name }}</div>
+          {% if run.build_name %}
+          <div class="text-[11px] text-gray-600 mt-0.5">{{ run.build_name }}</div>
+          {% endif %}
+          <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+            <span class="text-[11px] text-red-400 font-bold">
+              <i class="fas fa-skull mr-0.5 text-[9px]"></i>{{ run.deaths }} deaths
+            </span>
+            <span class="text-[11px] text-amber-600">
+              <i class="fas fa-dragon mr-0.5 text-[9px]"></i>{{ run.bosses_killed }} bosses
+            </span>
+            <span class="text-[11px] text-cyan-600">
+              <i class="fas fa-box-open mr-0.5 text-[9px]"></i>{{ run.items_found }} items
+            </span>
+          </div>
+        </div>
+        <i class="fas fa-chevron-right text-gray-700 group-hover:text-gray-400 transition flex-shrink-0 mt-1"></i>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-12 text-gray-600 mb-8">
+    <i class="fas fa-scroll text-4xl mb-4 block"></i>
+    <p class="text-lg font-semibold mb-2">No runs yet</p>
+    <p class="text-sm mb-6">Start your first Remnant 2 run to track bosses and items.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- New Run Modal -->
+<div id="new-run-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+  <div class="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+    <h2 class="text-white font-bold text-base mb-4 flex items-center gap-2">
+      <i class="fas fa-skull text-purple-400 text-sm"></i>Start New Run
+    </h2>
+
+    <!-- Name -->
+    <div class="mb-4">
+      <label class="text-xs text-gray-500 uppercase tracking-wider block mb-1.5">Run Name</label>
+      <input type="text" id="nr-name" value="My Run" maxlength="200"
+             class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white outline-none focus:border-purple-600">
+    </div>
+
+    <!-- Campaign / Adventure -->
+    <div class="mb-4">
+      <label class="text-xs text-gray-500 uppercase tracking-wider block mb-1.5">Run Type</label>
+      <div class="flex gap-2">
+        <button class="nr-type-btn flex-1 py-2 text-xs rounded-lg border border-neutral-700 text-gray-400 hover:border-purple-600 hover:text-white transition active-type" data-type="campaign">
+          <i class="fas fa-map mr-1"></i>Campaign
+        </button>
+        <button class="nr-type-btn flex-1 py-2 text-xs rounded-lg border border-neutral-700 text-gray-400 hover:border-purple-600 hover:text-white transition" data-type="adventure">
+          <i class="fas fa-compass mr-1"></i>Adventure
+        </button>
+      </div>
+    </div>
+
+    <!-- Worlds -->
+    <div class="mb-4">
+      <label class="text-xs text-gray-500 uppercase tracking-wider block mb-1.5">Worlds Rolled <span class="text-gray-600 normal-case">(select all that apply)</span></label>
+      <div class="grid grid-cols-2 gap-2">
+        {% for world in worlds %}
+        <label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-neutral-800 hover:border-neutral-600 transition">
+          <input type="checkbox" name="world" value="{{ world.name }}" class="nr-world-check rounded">
+          <span class="text-xs text-gray-300 font-semibold">{{ world.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Hardcore -->
+    <div class="mb-4">
+      <label class="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg border border-neutral-700 hover:border-red-800/50 transition" onclick="toggleNrHc()">
+        <div class="flex-1">
+          <p class="text-white text-xs font-semibold">Hardcore Mode</p>
+          <p class="text-gray-600 text-[10px]">Track as a hardcore attempt</p>
+        </div>
+        <div id="nr-hc-indicator" class="w-9 h-5 rounded-full bg-neutral-700 relative transition-colors duration-200 flex-shrink-0">
+          <div id="nr-hc-knob" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-neutral-500 transition-transform duration-200"></div>
+        </div>
+      </label>
+    </div>
+
+    <!-- Public -->
+    <div class="mb-4">
+      <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-400">
+        <input type="checkbox" id="nr-public" class="rounded"> Make this run public
+      </label>
+    </div>
+
+    <!-- Import from previous run -->
+    {% if previous_runs %}
+    <div class="mb-5">
+      <label class="text-xs text-gray-500 uppercase tracking-wider block mb-1.5">
+        Import from Previous Run <span class="text-gray-600 normal-case">(pre-marks found items)</span>
+      </label>
+      <select id="nr-import" class="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-gray-300 outline-none focus:border-purple-600">
+        <option value="">-- Start fresh --</option>
+        {% for prev in previous_runs %}
+        <option value="{{ prev.token }}">{{ prev.name }} - {{ prev.bosses_killed }}B / {{ prev.items_found }}I</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="flex gap-2 justify-end">
+      <button onclick="closeNewRunModal()" class="px-4 py-2 text-xs text-gray-400 hover:text-white transition">Cancel</button>
+      <button id="nr-confirm" onclick="confirmNewRun()"
+              class="px-5 py-2 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded-lg transition">
+        <i class="fas fa-play mr-1"></i>Start Run
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+.nr-type-btn.active-type { border-color: #7c3aed; color: #fff; background: rgba(124,58,237,0.15); }
+</style>
+
+<script>
+var _nrType = 'campaign';
+var _nrHc = false;
+
+function openNewRunModal() {
+  document.getElementById('new-run-modal').classList.remove('hidden');
+}
+function closeNewRunModal() {
+  document.getElementById('new-run-modal').classList.add('hidden');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.nr-type-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _nrType = this.dataset.type;
+      document.querySelectorAll('.nr-type-btn').forEach(function(b) {
+        b.classList.toggle('active-type', b.dataset.type === _nrType);
+      });
+    });
+  });
+});
+
+function toggleNrHc() {
+  _nrHc = !_nrHc;
+  var ind  = document.getElementById('nr-hc-indicator');
+  var knob = document.getElementById('nr-hc-knob');
+  if (_nrHc) {
+    ind.classList.replace('bg-neutral-700','bg-red-700');
+    knob.classList.replace('bg-neutral-500','bg-white');
+    knob.style.transform = 'translateX(16px)';
+  } else {
+    ind.classList.replace('bg-red-700','bg-neutral-700');
+    knob.classList.replace('bg-white','bg-neutral-500');
+    knob.style.transform = 'translateX(0)';
+  }
+}
+
+function confirmNewRun() {
+  var btn = document.getElementById('nr-confirm');
+  btn.disabled = true; btn.textContent = 'Starting...';
+
+  var zones = [];
+  document.querySelectorAll('.nr-world-check:checked').forEach(function(cb) {
+    zones.push(cb.value);
+  });
+
+  var importToken = '';
+  var importEl = document.getElementById('nr-import');
+  if (importEl) importToken = importEl.value;
+
+  csrfFetch('/api/r2/runs/create/', {
+    method: 'POST',
+    body: JSON.stringify({
+      name:        document.getElementById('nr-name').value,
+      run_type:    _nrType,
+      is_hardcore: _nrHc ? 1 : 0,
+      is_public:   document.getElementById('nr-public').checked ? 1 : 0,
+      zones:       zones,
+      import_from: importToken,
+    }),
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      window.location.href = d.run_url;
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start Run';
+      alert(d.error || 'Failed to start run');
+    }
+  }).catch(function() {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play mr-1"></i>Start Run';
+  });
+}
+</script>
+{% endblock %}

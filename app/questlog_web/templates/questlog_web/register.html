@@ -203,6 +203,16 @@
           <p style="color:#6b7280;font-size:0.8rem;line-height:1.5;">Browse gaming communities on Fluxer and Discord. Find your people or list your own for free.</p>
         </div>
       </div>
+      <a href="/soulslike/" style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(180,83,9,0.1);border:1px solid rgba(217,119,6,0.3);border-radius:12px;text-decoration:none;margin-top:4px;transition:border-color 0.15s;" onmouseover="this.style.borderColor='rgba(217,119,6,0.6)'" onmouseout="this.style.borderColor='rgba(217,119,6,0.3)'">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(180,83,9,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span style="font-size:1.1rem;">💀</span>
+        </div>
+        <div>
+          <p style="color:#fbbf24;font-weight:700;font-size:0.875rem;margin-bottom:2px;">SoulsLike Hub <span style="font-size:0.65rem;background:#92400e;color:#fcd34d;padding:1px 6px;border-radius:10px;margin-left:4px;">NEW</span></p>
+          <p style="color:#6b7280;font-size:0.78rem;line-height:1.4;">Boss tracker, character builder, death tracker, leaderboards and community guides for Elden Ring, ERR and more SoulsLike games.</p>
+        </div>
+        <span style="color:#92400e;margin-left:auto;flex-shrink:0;">›</span>
+      </a>
     </div>
 
   </div>
@@ -213,6 +223,26 @@
     <div class="ql-login-logo">🎮</div>
     <h1 class="ql-login-title">Create your account</h1>
     <p class="ql-login-subtitle">Join the Casual Heroes community</p>
+
+    <!-- SSO buttons -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <a href="{% url 'questlog_web_discord_sso' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:#5865f2;color:#fff;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none;transition:background 0.15s"
+         onmouseover="this.style.background='#4752c4'" onmouseout="this.style.background='#5865f2'">
+        <i class="fab fa-discord" style="font-size:18px"></i> Continue with Discord
+      </a>
+      <a href="{% url 'questlog_web_fluxer_sso' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:#7c3aed;color:#fff;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none;transition:background 0.15s"
+         onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'">
+        <img src="/static/img/siteassets/fluxer-favicon.png" alt="" style="width:18px;height:18px;border-radius:3px"> Continue with Fluxer
+      </a>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="flex:1;height:1px;background:#1f2937"></div>
+      <span style="color:#4b5563;font-size:12px;font-weight:600">OR SIGN UP WITH EMAIL</span>
+      <div style="flex:1;height:1px;background:#1f2937"></div>
+    </div>
 
     {% if messages %}
     <div class="ql-messages">
@@ -289,15 +319,6 @@
       </div>
 
       {% if early_access_mode %}
-      <div class="ql-field">
-        <label for="id_invite_code">Invite Code</label>
-        <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"
-          placeholder="XXXXXXXXXX" autocomplete="off" maxlength="16"
-          style="text-transform: uppercase; letter-spacing: 0.15em; font-family: monospace; font-size: 1.05rem;">
-        <div class="ql-field-hint">Required during Early Access - get yours in our Fluxer or Discord community.</div>
-      </div>
-      {% endif %}
-
       <div class="ql-field">
         <label for="id_invite_code">Invite Code</label>
         <input type="text" id="id_invite_code" name="invite_code" value="{{ invite_code|default:'' }}"

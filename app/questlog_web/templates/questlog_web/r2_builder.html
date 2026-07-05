@@ -1,0 +1,1162 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Remnant 2 Builder | QuestLog{% endblock %}
+{% block og_title %}Remnant 2 Build Planner | QuestLog{% endblock %}
+{% block og_description %}Plan your Remnant 2 build. Pick archetypes, gear, traits, weapons and mods. Share with the community.{% endblock %}
+
+{% block extra_css %}
+<style>
+/* R2 Builder - all sizes scaled up 3% from previous */
+.sl-panel {
+  background: rgba(8,6,14,0.95);
+  border: 1px solid rgba(124,58,237,0.25);
+  border-radius: 7px;
+}
+.sl-panel-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #9d71f0;
+  padding: 0.72rem 0.88rem;
+  border-bottom: 1px solid rgba(124,58,237,0.2);
+}
+.sl-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.38rem 0.78rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.sl-stat-row:last-child { border-bottom: none; }
+.sl-stat-label {
+  width: 5.6rem;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.sl-stat-val {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #f3f4f6;
+}
+.sl-search-input {
+  width: 100%;
+  padding: 0.46rem 0.68rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  color: #e5e7eb;
+  font-size: 0.86rem;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.sl-search-input:focus { border-color: rgba(124,58,237,0.5); }
+.sl-tag-btn {
+  padding: 4px 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #9ca3af;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.sl-tag-btn:hover { border-color: #7c3aed; color: #c4b5fd; }
+.sl-tag-btn.active { border-color: #7c3aed; color: #c4b5fd; background: rgba(124,58,237,0.15); }
+
+/* Slot styling */
+.r2-slot {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px;
+  padding: 8px 6px; min-height: 78px;
+  text-align: center;
+}
+.r2-slot:hover { border-color: rgba(124,58,237,0.5); background: rgba(124,58,237,0.06); }
+.r2-slot.filled { border-color: rgba(124,58,237,0.5); background: rgba(124,58,237,0.08); }
+.r2-slot img { width: 52px; height: 52px; object-fit: contain; border-radius: 4px; }
+.r2-slot-label { font-size: 12px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.r2-slot-name  { font-size: 12px; color: #d1d5db; font-weight: 700; line-height: 1.2; max-width: 84px; }
+
+/* Item picker */
+.r2-picker { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.85); overflow-y: auto; }
+.r2-picker.open { display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+.r2-picker-inner { background: #0d0b14; border: 1px solid rgba(124,58,237,0.3); border-radius: 9px; width: 100%; max-width: 900px; padding: 24px; }
+.r2-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; max-height: 520px; overflow-y: auto; }
+.r2-picker-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 14px 10px 11px; cursor: pointer; text-align: center; transition: border-color 0.1s; position: relative; }
+.r2-picker-item:hover { border-color: rgba(124,58,237,0.5); }
+.r2-picker-item img { width: 68px; height: 68px; object-fit: contain; display: block; margin: 0 auto 6px; border-radius: 5px; }
+.r2-picker-item-name { font-size: 12px; color: #d1d5db; font-weight: 600; line-height: 1.3; }
+/* Global floating tooltip */
+#r2-tooltip {
+  display: none; position: fixed; z-index: 500;
+  background: #0d0b14; border: 1px solid rgba(124,58,237,0.5); border-radius: 7px;
+  padding: 10px 13px; max-width: 240px; font-size: 12px; color: #d1d5db; line-height: 1.6;
+  pointer-events: none; box-shadow: 0 6px 24px rgba(0,0,0,0.7); white-space: normal;
+}
+.r2-picker-item.clear-btn { border-color: rgba(220,38,38,0.3); }
+.r2-picker-item.clear-btn:hover { background: rgba(220,38,38,0.08); }
+.r2-weapon-block { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 10px; margin-bottom: 7px; }
+.r2-weapon-label { font-size: 10px; color: #9d71f0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 7px; }
+</style>
+{% endblock %}
+
+{% block web_content %}
+<div style="max-width:1400px;margin:0 auto;padding:12px 16px">
+
+  <!-- WIP Banner -->
+  <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:8px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:12px;color:#fcd34d">
+    <i class="fas fa-hard-hat" style="flex-shrink:0"></i>
+    <span><strong>Work in Progress</strong> - The Remnant 2 builder is actively being developed. Item data, stats, and descriptions may be incomplete or inaccurate. <a href="/soulslike/" style="color:#fbbf24;text-decoration:underline">Back to SoulsLike Hub</a></span>
+  </div>
+
+  <!-- Header row - matches ER builder exactly -->
+  <div class="flex items-center gap-3 mb-3 flex-wrap">
+
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-1.5 text-[11px] text-gray-600 mr-2">
+      <a href="/soulslike/" class="hover:text-gray-400 transition">SoulsLike Hub</a>
+      <span>/</span>
+      <span class="text-gray-500">Builder</span>
+    </div>
+
+    <!-- Game selector matching ER builder style -->
+    <div class="relative" id="r2-game-selector-wrap">
+      <button onclick="document.getElementById('r2-game-menu').classList.toggle('hidden')"
+              class="flex items-center gap-1.5 text-xs font-semibold text-gray-300 bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 hover:border-purple-700/50 px-3 py-1.5 rounded transition" id="r2-game-selector-btn">
+        <span>Remnant 2</span>
+        <i class="fas fa-chevron-down text-gray-500 text-[10px]"></i>
+      </button>
+      <div id="r2-game-menu" class="hidden absolute top-full left-0 mt-1 bg-neutral-900 border border-neutral-700 rounded shadow-xl z-50 min-w-[200px]">
+        <a href="/soulslike/builder/?game=elden_ring" class="block px-3 py-2 text-xs text-gray-200 hover:bg-neutral-800 hover:text-white transition">
+          Elden Ring
+        </a>
+        <a href="/soulslike/builder/?game=err" class="block px-3 py-2 text-xs text-gray-200 hover:bg-neutral-800 hover:text-white transition border-t border-neutral-800">
+          Elden Ring Reforged
+        </a>
+        <div class="flex items-center justify-between px-3 py-2 text-xs text-white border-t border-neutral-800 bg-neutral-800/50">
+          Remnant 2 <i class="fas fa-check text-purple-400 text-[10px]"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Build name -->
+    <input id="build-name" type="text" value="My Build" maxlength="200"
+           class="flex-1 min-w-0 bg-transparent border-none outline-none text-white font-black text-base"
+           placeholder="Build Name" style="max-width:300px">
+
+    <div class="flex items-center gap-2 ml-auto">
+      <button onclick="resetBuild()" class="px-2.5 py-1.5 bg-neutral-800 hover:bg-red-900/40 border border-neutral-700 hover:border-red-700/60 text-gray-400 hover:text-red-400 text-xs font-bold rounded transition" title="Reset">
+        <i class="fas fa-rotate-left sm:mr-1"></i><span class="hidden sm:inline">Reset</span>
+      </button>
+      {% if web_user %}
+      <button onclick="saveBuild()" id="save-btn"
+              class="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 border border-purple-600 text-white text-xs font-bold rounded transition">
+        <i class="fas fa-save mr-1"></i>Save Build
+      </button>
+      <a href="/soulslike/my-builds/" class="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-gray-400 hover:text-white text-xs font-bold rounded transition">
+        My Builds
+      </a>
+      {% else %}
+      <a href="/ql/login/?next={{ request.path|urlencode }}"
+         class="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded transition">
+        Sign in to save
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% include "questlog_web/partials/guest_gate.html" with gate_context="builds" %}
+
+  <!-- Main 3-column layout matching ER builder -->
+  <div style="display:grid;grid-template-columns:236px 1fr 420px;gap:10px;align-items:start">
+
+    <!-- LEFT column: Armor + Relic + Rings/Amulet -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+
+      <div class="sl-panel">
+        <div class="sl-panel-title">Armor</div>
+        <div style="padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div class="r2-slot" id="slot-helm"   onclick="openPicker('armor','helm')">
+            <i class="fas fa-hard-hat text-gray-600"></i>
+            <div class="r2-slot-label">Helm</div>
+          </div>
+          <div class="r2-slot" id="slot-torso"  onclick="openPicker('armor','torso')">
+            <i class="fas fa-tshirt text-gray-600"></i>
+            <div class="r2-slot-label">Torso</div>
+          </div>
+          <div class="r2-slot" id="slot-legs"   onclick="openPicker('armor','legs')">
+            <i class="fas fa-socks text-gray-600"></i>
+            <div class="r2-slot-label">Legs</div>
+          </div>
+          <div class="r2-slot" id="slot-gloves" onclick="openPicker('armor','gloves')">
+            <i class="fas fa-hand-paper text-gray-600"></i>
+            <div class="r2-slot-label">Gloves</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sl-panel">
+        <div class="sl-panel-title">Relic + Prism</div>
+        <div style="padding:8px;display:flex;flex-direction:column;gap:6px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div class="r2-slot" id="slot-relic" onclick="openPicker('relic',null)" style="min-height:60px">
+              <i class="fas fa-gem text-purple-700"></i>
+              <div class="r2-slot-label">Relic</div>
+            </div>
+            <div class="r2-slot" id="slot-prism" onclick="openPicker('prism',null)" style="min-height:60px">
+              <i class="fas fa-prism text-cyan-700" style="font-size:18px"></i>
+              <div class="r2-slot-label">Prism</div>
+            </div>
+          </div>
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-top:2px">Relic Fragments</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+            <div class="r2-slot" id="slot-frag-1" onclick="openPicker('fragment',1)" style="min-height:54px">
+              <i class="fas fa-puzzle-piece text-gray-700 text-xs"></i>
+              <div class="r2-slot-label">Frag 1</div>
+            </div>
+            <div class="r2-slot" id="slot-frag-2" onclick="openPicker('fragment',2)" style="min-height:54px">
+              <i class="fas fa-puzzle-piece text-gray-700 text-xs"></i>
+              <div class="r2-slot-label">Frag 2</div>
+            </div>
+            <div class="r2-slot" id="slot-frag-3" onclick="openPicker('fragment',3)" style="min-height:54px">
+              <i class="fas fa-puzzle-piece text-gray-700 text-xs"></i>
+              <div class="r2-slot-label">Frag 3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sl-panel">
+        <div class="sl-panel-title">Rings + Amulet</div>
+        <div style="padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div class="r2-slot" id="slot-ring-1" onclick="openPicker('ring',1)" style="min-height:52px">
+            <i class="fas fa-ring text-yellow-700 text-xs"></i>
+            <div class="r2-slot-label">Ring 1</div>
+          </div>
+          <div class="r2-slot" id="slot-ring-2" onclick="openPicker('ring',2)" style="min-height:52px">
+            <i class="fas fa-ring text-yellow-700 text-xs"></i>
+            <div class="r2-slot-label">Ring 2</div>
+          </div>
+          <div class="r2-slot" id="slot-ring-3" onclick="openPicker('ring',3)" style="min-height:52px">
+            <i class="fas fa-ring text-yellow-700 text-xs"></i>
+            <div class="r2-slot-label">Ring 3</div>
+          </div>
+          <div class="r2-slot" id="slot-ring-4" onclick="openPicker('ring',4)" style="min-height:52px">
+            <i class="fas fa-ring text-yellow-700 text-xs"></i>
+            <div class="r2-slot-label">Ring 4</div>
+          </div>
+          <div class="r2-slot" id="slot-amulet" onclick="openPicker('amulet',null)" style="min-height:52px;grid-column:span 2;flex-direction:row;justify-content:flex-start;gap:8px;padding:8px 10px">
+            <i class="fas fa-medal text-amber-700 text-xs"></i>
+            <div class="r2-slot-label">Amulet</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CENTER: Archetypes + Stats + Weapons -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+
+      <!-- Archetypes -->
+      <div class="sl-panel">
+        <div class="sl-panel-title">Archetypes</div>
+        <div style="padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Primary</div>
+            <div class="r2-slot" id="slot-arch-primary" onclick="openPicker('archetype','primary')" style="min-height:80px">
+              <i class="fas fa-user-circle text-purple-800 text-2xl"></i>
+              <div class="r2-slot-label">Primary</div>
+            </div>
+            <div class="r2-slot mt-1" id="slot-skill-primary" onclick="openPicker('skill','primary')" style="min-height:48px">
+              <i class="fas fa-bolt text-yellow-700 text-xs"></i>
+              <div class="r2-slot-label">Skill</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Secondary</div>
+            <div class="r2-slot" id="slot-arch-secondary" onclick="openPicker('archetype','secondary')" style="min-height:80px">
+              <i class="fas fa-user-circle text-blue-800 text-2xl"></i>
+              <div class="r2-slot-label">Secondary</div>
+            </div>
+            <div class="r2-slot mt-1" id="slot-skill-secondary" onclick="openPicker('skill','secondary')" style="min-height:48px">
+              <i class="fas fa-bolt text-blue-700 text-xs"></i>
+              <div class="r2-slot-label">Skill</div>
+            </div>
+          </div>
+        </div>
+        <!-- Perks display (shown when archetype selected) -->
+        <div id="perks-display" style="display:none;padding:0 12px 12px;border-top:1px solid rgba(255,255,255,0.05);margin-top:4px">
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;padding:8px 0 6px;font-weight:700">Perks</div>
+          <div id="perks-list" style="display:flex;flex-direction:column;gap:5px"></div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="sl-panel">
+        <div class="sl-panel-title">Stats</div>
+        <div class="sl-stat-row"><span class="sl-stat-label"><i class="fas fa-heart" style="color:#ef4444;margin-right:4px"></i>Health</span><span class="sl-stat-val" id="stat-health" style="color:#f87171">100</span></div>
+        <div class="sl-stat-row"><span class="sl-stat-label"><i class="fas fa-running" style="color:#eab308;margin-right:4px"></i>Stamina</span><span class="sl-stat-val" id="stat-stamina" style="color:#fbbf24">100</span></div>
+        <div class="sl-stat-row"><span class="sl-stat-label"><i class="fas fa-shield-alt" style="color:#3b82f6;margin-right:4px"></i>Armor</span><span class="sl-stat-val" id="stat-armor" style="color:#60a5fa">0</span></div>
+        <div class="sl-stat-row"><span class="sl-stat-label"><i class="fas fa-weight-hanging" style="color:#6b7280;margin-right:4px"></i>Weight</span><span class="sl-stat-val" id="stat-weight" style="color:#9ca3af">0</span></div>
+        <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.04)">
+          <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Resistances</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center">
+            <div><div style="font-size:10px;color:#6b7280;margin-bottom:2px">Bleed</div><div style="font-size:14px;font-weight:800;color:#f87171" id="res-bleed">0</div></div>
+            <div><div style="font-size:10px;color:#6b7280;margin-bottom:2px">Fire</div><div style="font-size:14px;font-weight:800;color:#fb923c" id="res-fire">0</div></div>
+            <div><div style="font-size:10px;color:#6b7280;margin-bottom:2px">Shock</div><div style="font-size:14px;font-weight:800;color:#facc15" id="res-shock">0</div></div>
+            <div><div style="font-size:10px;color:#6b7280;margin-bottom:2px">Blight</div><div style="font-size:14px;font-weight:800;color:#4ade80" id="res-blight">0</div></div>
+            <div><div style="font-size:10px;color:#6b7280;margin-bottom:2px">Toxin</div><div style="font-size:14px;font-weight:800;color:#c084fc" id="res-toxin">0</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weapons -->
+      <div class="sl-panel">
+        <div class="sl-panel-title">Weapons</div>
+        <div style="padding:8px">
+          {% for slot, icon, label in weapon_slots %}
+          <div class="r2-weapon-block">
+            <div class="r2-weapon-label"><i class="{{ icon }} mr-1"></i>{{ label }}</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">
+              <div class="r2-slot" id="slot-weapon-{{ slot }}" onclick="openPicker('weapon','{{ slot }}')" style="min-height:60px">
+                <i class="fas fa-gun text-gray-600 text-xs"></i>
+                <div class="r2-slot-label">Weapon</div>
+              </div>
+              <div class="r2-slot" id="slot-mod-{{ slot }}" onclick="openPicker('mod','{{ slot }}')" style="min-height:60px">
+                <i class="fas fa-magic text-gray-600 text-xs"></i>
+                <div class="r2-slot-label">Mod</div>
+              </div>
+              <div class="r2-slot" id="slot-mutator-{{ slot }}" onclick="openPicker('mutator','{{ slot }}')" style="min-height:60px">
+                <i class="fas fa-dna text-gray-600 text-xs"></i>
+                <div class="r2-slot-label">Mutator</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT column: Trait allocator -->
+    <div style="display:flex;flex-direction:column;gap:8px;position:sticky;top:8px;max-height:calc(100vh - 80px);overflow-y:auto">
+      <div class="sl-panel" style="flex:1">
+        <div class="sl-panel-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Trait Points</span>
+          <span style="font-size:11.5px;color:#e5e7eb"><span id="trait-used">0</span><span style="color:#6b7280">/85 free</span></span>
+        </div>
+        <div style="padding:6px 10px 2px">
+          <div style="height:5px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden">
+            <div id="trait-bar" style="height:100%;background:#7c3aed;border-radius:2px;transition:width 0.2s;width:0%"></div>
+          </div>
+          <div style="font-size:9.5px;color:#4b5563;margin-top:3px">5 core + 20 archetype auto-assigned. 85 free to allocate.</div>
+        </div>
+        <div id="trait-list" style="max-height:560px;overflow-y:auto;padding:4px 10px"></div>
+      </div>
+
+      <!-- Build Info - below trait panel -->
+      <div class="sl-panel">
+        <div class="sl-panel-title">Build Info</div>
+        <div style="padding:14px;display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Playstyle</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px" id="playstyle-tags">
+              {% for tag, label in playstyle_tags %}
+              <button class="sl-tag-btn {% if tag == 'pve' %}active{% endif %}" data-tag="{{ tag }}" onclick="setTag('{{ tag }}')">{{ label }}</button>
+              {% endfor %}
+            </div>
+          </div>
+          <div>
+            <label style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px">Description</label>
+            <textarea id="build-description" rows="4" placeholder="Describe your build..."
+                      class="sl-search-input" style="resize:vertical;min-height:80px"></textarea>
+          </div>
+          <div>
+            {% if web_user %}
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" id="build-public" class="rounded border-neutral-600">
+              <label for="build-public" style="font-size:13px;color:#9ca3af;cursor:pointer">Share publicly</label>
+            </div>
+            <p style="font-size:11px;color:#6b7280;margin-top:6px;margin-left:22px;line-height:1.5">
+              <i class="fas fa-trophy" style="color:#92400e;margin-right:4px"></i>
+              Public builds appear on community leaderboards when you end a run. Private builds track stats for you only.
+            </p>
+            {% else %}
+            <a href="/login/?next={{ request.path|urlencode }}" style="font-size:12px;color:#818cf8;display:flex;align-items:center;gap:6px;text-decoration:none">
+              <i class="fas fa-sign-in-alt"></i> Sign in to share builds with the community
+            </a>
+            <input type="checkbox" id="build-public" class="hidden">
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Save confirmation banner - matches ER builder -->
+  <div id="save-banner" class="hidden fixed bottom-4 right-4 bg-purple-900/90 border border-purple-700 text-purple-200 text-sm px-4 py-2 rounded-lg shadow-xl z-50">
+    <i class="fas fa-check mr-2"></i>Build saved! <a href="/soulslike/my-builds/" class="text-purple-300 underline ml-1">My Builds</a>
+  </div>
+
+  <!-- Data Sources - matches ER builder layout exactly -->
+  <div class="mt-10 pt-6 border-t border-neutral-800">
+    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Data Sources &amp; Credits</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px]">
+      <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
+        <div style="color:#9d71f0;font-weight:600;margin-bottom:6px">Remnant 2 Toolkit</div>
+        <p class="text-gray-300 leading-relaxed mb-2">
+          Weapon stats, archetype data, mods, rings, armor, and traits sourced from the community toolkit maintained by
+          <span class="text-white font-medium">joshpayette</span> and contributors.
+        </p>
+        <div class="flex gap-2 flex-wrap">
+          <a href="https://github.com/joshpayette/remnant2-toolkit" target="_blank" rel="noopener"
+             style="color:#9d71f0" class="hover:text-purple-300 transition">Original repo ↗</a>
+          <span class="text-neutral-600">·</span>
+          <a href="https://github.com/CasualHeroes/remnant2-data" target="_blank" rel="noopener"
+             style="color:#9d71f0" class="hover:text-purple-300 transition">Our fork ↗</a>
+          <span class="text-neutral-600">·</span>
+          <span class="text-gray-500">GPLv3</span>
+        </div>
+      </div>
+      <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
+        <div style="color:#9d71f0;font-weight:600;margin-bottom:6px">Remnant 2 Wiki</div>
+        <p class="text-gray-300 leading-relaxed mb-2">
+          Boss data, mutator effects, relic descriptions, and trait sources from the community wiki.
+          All credit to the wiki contributors and editors.
+        </p>
+        <a href="https://remnant2.wiki.gg" target="_blank" rel="noopener"
+           style="color:#9d71f0" class="hover:text-purple-300 transition text-xs">remnant2.wiki.gg ↗</a>
+      </div>
+      <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
+        <div style="color:#9d71f0;font-weight:600;margin-bottom:6px">Contributors</div>
+        <p class="text-gray-300 leading-relaxed mb-2">
+          See the full list of community contributors to the remnant2-toolkit project.
+        </p>
+        <a href="https://github.com/joshpayette/remnant2-toolkit/blob/main/CONTRIBUTORS.md" target="_blank" rel="noopener"
+           style="color:#9d71f0" class="hover:text-purple-300 transition text-xs">Full contributors list ↗</a>
+        <p class="text-gray-600 text-[10px] mt-2">Fan-made tool. Not affiliated with Gunfire Games or Perfect World Entertainment. Remnant 2 &copy; Gunfire Games.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Global floating tooltip -->
+<div id="r2-tooltip"></div>
+
+<!-- Item Picker Modal - matches ER builder style -->
+<div id="r2-picker" class="r2-picker" onclick="closePicker(event)">
+  <div class="r2-picker-inner" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div>
+        <h3 id="picker-title" style="color:#fff;font-weight:700;font-size:13px">Select Item</h3>
+        <div id="picker-tabs" style="display:flex;gap:6px;margin-top:6px"></div>
+      </div>
+      <button onclick="closePicker()" style="color:#6b7280;font-size:18px;line-height:1;background:none;border:none;cursor:pointer">&times;</button>
+    </div>
+    <input type="text" id="picker-search" class="sl-search-input" placeholder="Search..." oninput="filterPicker(this.value)" style="margin-bottom:10px">
+    <div id="picker-grid" class="r2-picker-grid"></div>
+  </div>
+</div>
+
+<script>
+var BUILD = {
+  id: null, share_token: '{{ share_token|escapejs }}',
+  archetypes: { primary: null, secondary: null },
+  skills: { primary: null, secondary: null },
+  weapons: {
+    main:      { weapon: null, mod: null, mutator: null },
+    secondary: { weapon: null, mod: null, mutator: null },
+    melee:     { weapon: null, mod: null, mutator: null },
+  },
+  rings: [null, null, null, null],
+  armor: { helm: null, torso: null, legs: null, gloves: null },
+  relic: null,
+  prism: null,
+  fragments: [null, null, null],
+  amulet: null,
+  traits: {},
+  playstyle_tag: 'pve',
+};
+
+var LOAD_BUILD = {{ load_build|safe }};
+var ALL = { archetypes:[], weapons:[], mods:[], mutators:[], armor:[], rings:[], amulets:[], relics:[], fragments:[], traits:[], prisms:[] };
+var _pickerCtx = null;
+var _typeFilter = '';
+var _dataReady = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+  function safeFetch(url) {
+    return fetch(url).then(function(r) { return r.json(); }).catch(function() { return {}; });
+  }
+
+  Promise.all([
+    safeFetch('/api/r2/archetypes/'),
+    safeFetch('/api/r2/weapons/'),
+    safeFetch('/api/r2/mods/'),
+    safeFetch('/api/r2/mutators/'),
+    safeFetch('/api/r2/armor/'),
+    safeFetch('/api/r2/rings/'),
+    safeFetch('/api/r2/amulets/'),
+    safeFetch('/api/r2/relics/'),
+    safeFetch('/api/r2/relic-fragments/'),
+    safeFetch('/api/r2/traits/'),
+    safeFetch('/api/r2/prisms/'),
+  ]).then(function(res) {
+    ALL.archetypes = res[0].archetypes || [];
+    ALL.weapons    = res[1].weapons    || [];
+    ALL.mods       = res[2].mods       || [];
+    ALL.mutators   = res[3].mutators   || [];
+    ALL.armor      = res[4].armor      || [];
+    ALL.rings      = res[5].rings      || [];
+    ALL.amulets    = res[6].amulets    || [];
+    ALL.relics     = res[7].relics     || [];
+    ALL.fragments  = res[8].fragments  || [];
+    ALL.traits     = res[9].traits     || [];
+    ALL.prisms     = res[10].prisms    || [];
+    _dataReady = true;
+    buildTraitList();
+    if (LOAD_BUILD) loadBuild(LOAD_BUILD);
+  });
+
+  // Close game menu on outside click
+  document.addEventListener('click', function(e) {
+    var wrap = document.getElementById('r2-game-selector-wrap');
+    if (wrap && !wrap.contains(e.target))
+      document.getElementById('r2-game-menu').classList.add('hidden');
+  });
+});
+
+// ── Trait list ───────────────────────────────────────────────────────────────
+function buildTraitList() {
+  var container = document.getElementById('trait-list');
+  container.innerHTML = '';
+  var cats = { core: 'Core (5 auto)', archetype: 'Archetype (20 auto)', unlockable: 'Unlockable (85 free)' };
+  Object.entries(cats).forEach(function(e) {
+    var cat = e[0], label = e[1];
+    var traits = ALL.traits.filter(function(t) { return t.category === cat; });
+    if (!traits.length) return;
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'font-size:11px;color:#7c3aed;text-transform:uppercase;letter-spacing:0.08em;padding:11px 6px 5px;font-weight:700';
+    hdr.textContent = label;
+    container.appendChild(hdr);
+    traits.forEach(function(t) {
+      var row = document.createElement('div');
+      row.id = 'trait-row-' + t.id;
+      row.style.cssText = 'display:flex;align-items:center;gap:5px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05)';
+      var locked = isTraitLocked(t);
+      row.innerHTML =
+        '<div style="flex:1;min-width:0" title="' + escapeHtml(t.description || '') + '">' +
+          '<span style="font-size:12.5px;color:#e5e7eb;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">' + escapeHtml(t.name) + '</span>' +
+          (t.description ? '<span style="font-size:10px;color:#6b7280;display:block;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(t.description) + '</span>' : '') +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:3px;flex-shrink:0">' +
+          (locked
+            ? '<span style="width:24px;text-align:center;color:#374151;font-size:14px">&#128274;</span>'
+            : '<button onclick="adjTrait(' + t.id + ',-1)" style="width:24px;height:24px;border-radius:3px;background:rgba(255,255,255,0.06);color:#9ca3af;font-size:15px;border:none;cursor:pointer;line-height:1">-</button>'
+          ) +
+          '<span id="tv-' + t.id + '" style="min-width:38px;text-align:center;font-size:12.5px;font-weight:700;color:#fff">0<span style="color:#4b5563;font-size:10.5px">/' + t.max_points + '</span></span>' +
+          (locked
+            ? '<span style="width:24px"></span>'
+            : '<button onclick="adjTrait(' + t.id + ',1)" style="width:24px;height:24px;border-radius:3px;background:rgba(255,255,255,0.06);color:#9ca3af;font-size:15px;border:none;cursor:pointer;line-height:1">+</button>'
+          ) +
+        '</div>';
+      container.appendChild(row);
+    });
+  });
+}
+
+function adjTrait(id, delta) {
+  var t = ALL.traits.find(function(x) { return x.id === id; });
+  if (!t) return;
+  if (isTraitLocked(t)) return; // locked = core or currently equipped archetype trait
+
+  var cur = BUILD.traits[id] || 0;
+  var next = Math.max(0, Math.min(t.max_points, cur + delta));
+
+  // Cap free points at 85 across archetype (when not auto) + unlockable
+  if (delta > 0) {
+    var freeUsed = countFreePoints();
+    if (freeUsed + (next - cur) > 85) return;
+  }
+
+  BUILD.traits[id] = next;
+  updateTraitEl(id, next, t.max_points);
+  updateTraitBar();
+  updateStats();
+}
+
+function countFreePoints() {
+  return Object.entries(BUILD.traits).reduce(function(acc, e) {
+    var tr = ALL.traits.find(function(x){return x.id===parseInt(e[0]);});
+    // Archetype traits auto-assigned by selected archetype don't count as free
+    if (!tr || tr.category === 'core') return acc;
+    if (tr.category === 'archetype') {
+      // Only count if user manually added beyond auto-assigned
+      var autoVal = getAutoArchetypeVal(tr.id);
+      var manual = Math.max(0, (BUILD.traits[tr.id] || 0) - autoVal);
+      return acc + manual;
+    }
+    return acc + (parseInt(e[1]) || 0);
+  }, 0);
+}
+
+function getAutoArchetypeVal(traitId) {
+  // Returns 10 if this trait belongs to an equipped archetype, else 0
+  var t = ALL.traits.find(function(x){return x.id===traitId;});
+  if (!t) return 0;
+  var pa = BUILD.archetypes.primary;
+  var sa = BUILD.archetypes.secondary;
+  if (pa && t.archetype_id === pa.id) return 10;
+  if (sa && t.archetype_id === sa.id) return 10;
+  return 0;
+}
+
+function updateTraitEl(id, val, maxPts) {
+  var el = document.getElementById('tv-' + id);
+  if (!el) return;
+  el.innerHTML = (val > 0 ? '<span style="color:#c4b5fd">' + val + '</span>' : '0')
+               + '<span style="color:#4b5563;font-size:9px">/' + maxPts + '</span>';
+}
+
+function updateTraitBar() {
+  var free = countFreePoints();
+  document.getElementById('trait-used').textContent = free;
+  document.getElementById('trait-bar').style.width = Math.min(100,(free/85)*100) + '%';
+  document.getElementById('trait-bar').style.background = free >= 85 ? '#a78bfa' : '#7c3aed';
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+function updateStats() {
+  var armor=0, weight=0;
+  ['helm','torso','legs','gloves'].forEach(function(s) {
+    var item = BUILD.armor[s]; if (!item) return;
+    armor  += parseFloat(item.armor  || 0);
+    weight += parseFloat(item.weight || 0);
+  });
+
+  // Core traits affect base stats
+  var vigorTrait    = ALL.traits.find(function(t){ return t.name==='Vigor'; });
+  var endurTrait    = ALL.traits.find(function(t){ return t.name==='Endurance'; });
+  var vigorPts      = vigorTrait    ? (BUILD.traits[vigorTrait.id]    || 0) : 0;
+  var endurPts      = endurTrait    ? (BUILD.traits[endurTrait.id]    || 0) : 0;
+  var health        = 100 + (vigorPts * 3);
+  var stamina       = 100 + (endurPts * 3);
+
+  document.getElementById('stat-health').textContent  = health;
+  document.getElementById('stat-stamina').textContent = stamina;
+  document.getElementById('stat-armor').textContent   = armor > 0 ? armor.toFixed(1) : '0';
+  document.getElementById('stat-weight').textContent  = weight > 0 ? weight.toFixed(1) : '0';
+}
+
+// ── Picker ───────────────────────────────────────────────────────────────────
+function openPicker(type, subtype) {
+  if (!_dataReady) {
+    document.getElementById('picker-title').textContent = 'Loading items...';
+    document.getElementById('picker-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:#6b7280;font-size:13px"><i class="fas fa-spinner fa-spin mr-2"></i>Loading item data...</div>';
+    document.getElementById('picker-search').value = '';
+    document.getElementById('r2-picker').classList.add('open');
+    _pickerCtx = { type: type, subtype: subtype };
+    return;
+  }
+  _pickerCtx = { type: type, subtype: subtype };
+  _typeFilter = '';
+  var slotTypeLabels = { main: 'Long Gun', secondary: 'Hand Gun', melee: 'Melee' };
+  var weaponLabel = type === 'weapon' ? ' - ' + (slotTypeLabels[subtype] || '') : '';
+  var mutatorLabel = type === 'mutator' ? ' - ' + (subtype === 'melee' ? 'Melee' : 'Ranged') : '';
+  var titles = {
+    archetype: 'Select Archetype', skill: 'Select Skill',
+    weapon: 'Select Weapon' + weaponLabel,
+    mod: 'Select Mod', mutator: 'Select Mutator' + mutatorLabel,
+    armor: 'Select Armor', ring: 'Select Ring', amulet: 'Select Amulet',
+    relic: 'Select Relic', fragment: 'Select Fragment',
+  };
+  document.getElementById('picker-title').textContent = titles[type] || 'Select';
+  document.getElementById('picker-search').value = '';
+  // No type tabs needed - slots are locked to their type
+  var tabs = document.getElementById('picker-tabs');
+  tabs.innerHTML = '';
+  populatePicker('');
+  document.getElementById('r2-picker').classList.add('open');
+}
+
+function closePicker(e) {
+  if (!e || e.target === document.getElementById('r2-picker'))
+    document.getElementById('r2-picker').classList.remove('open');
+}
+
+function filterPicker(q) { populatePicker(q); }
+
+function getPickerItems() {
+  var t = _pickerCtx.type;
+  if (t === 'archetype') return ALL.archetypes;
+  if (t === 'skill') {
+    var arch = BUILD.archetypes[_pickerCtx.subtype];
+    return arch ? (arch.skills || []) : [];
+  }
+  if (t === 'weapon') {
+    var slotTypeMap = { main: 'long gun', secondary: 'hand gun', melee: 'melee' };
+    var requiredType = slotTypeMap[_pickerCtx.subtype];
+    return requiredType ? ALL.weapons.filter(function(w){ return w.type === requiredType; }) : ALL.weapons;
+  }
+  if (t === 'mod') {
+    var wep = BUILD.weapons[_pickerCtx.subtype] ? BUILD.weapons[_pickerCtx.subtype].weapon : null;
+    if (!wep) return ALL.mods; // no weapon yet - show all mods
+    if (wep.type === 'melee') return []; // melee weapons never accept external mods
+    if (wep.mod_id) return []; // special ranged - locked mod
+    return ALL.mods;
+  }
+  if (t === 'mutator') {
+    var isMeleeSlot = (_pickerCtx.subtype === 'melee');
+    return ALL.mutators.filter(function(m) {
+      return isMeleeSlot ? m.type === 'melee' : m.type === 'ranged';
+    });
+  }
+  if (t === 'armor') return ALL.armor.filter(function(a){ return a.slot === _pickerCtx.subtype; });
+  if (t === 'ring') return ALL.rings;
+  if (t === 'amulet') return ALL.amulets;
+  if (t === 'relic') return ALL.relics;
+  if (t === 'prism') return ALL.prisms;
+  if (t === 'fragment') return ALL.fragments;
+  return [];
+}
+
+function populatePicker(q) {
+  var items = getPickerItems();
+  q = (q||'').toLowerCase();
+  if (_typeFilter && _pickerCtx.type === 'weapon')
+    items = items.filter(function(i){ return i.type === _typeFilter; });
+  if (q) items = items.filter(function(i){ return i.name.toLowerCase().includes(q); });
+
+  var grid = document.getElementById('picker-grid');
+  grid.innerHTML = '';
+
+  var clear = document.createElement('div');
+  clear.className = 'r2-picker-item clear-btn';
+  clear.innerHTML = '<div style="font-size:22px;color:#dc2626;line-height:44px">&#10005;</div><div class="r2-picker-item-name">Clear</div>';
+  clear.onclick = function() { selectItem(null); };
+  grid.appendChild(clear);
+
+  items.forEach(function(item) {
+    var el = document.createElement('div');
+    el.className = 'r2-picker-item';
+    var img = item.image_path
+      ? '<img src="' + escapeHtml(item.image_path) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+      : '<div style="width:68px;height:68px;display:flex;align-items:center;justify-content:center;color:#374151;font-size:18px">&#9632;</div>';
+    el.innerHTML = img + '<div class="r2-picker-item-name">' + escapeHtml(item.name) + '</div>';
+    el.onclick = function() { selectItem(item); };
+    if (item.description) {
+      (function(desc) {
+        el.addEventListener('mouseenter', function(e) { showTooltip(e, desc); });
+        el.addEventListener('mousemove',  function(e) { moveTooltip(e); });
+        el.addEventListener('mouseleave', function()  { hideTooltip(); });
+      })(item.description);
+    }
+    grid.appendChild(el);
+  });
+}
+
+function selectItem(item) {
+  var ctx = _pickerCtx;
+  document.getElementById('r2-picker').classList.remove('open');
+  if (!ctx) return;
+  var t = ctx.type;
+
+  if (t === 'archetype') {
+    // Clear old archetype trait if one was set
+    var oldArch = BUILD.archetypes[ctx.subtype];
+    if (oldArch) autoSetArchetypeTrait(oldArch, 0);
+
+    BUILD.archetypes[ctx.subtype] = item;
+    renderArchSlot('slot-arch-' + ctx.subtype, item, ctx.subtype);
+
+    // Auto-set this archetype's trait to 10 (game auto-assigns at max level)
+    if (item) {
+      autoSetArchetypeTrait(item, 10);
+      if (item.skills && item.skills.length) {
+        BUILD.skills[ctx.subtype] = item.skills[0];
+        renderSlot('slot-skill-' + ctx.subtype, item.skills[0]);
+      }
+    }
+  } else if (t === 'skill') {
+    BUILD.skills[ctx.subtype] = item;
+    renderSlot('slot-skill-' + ctx.subtype, item);
+  } else if (t === 'weapon') {
+    BUILD.weapons[ctx.subtype].weapon = item;
+    renderSlot('slot-weapon-' + ctx.subtype, item);
+    if (!item) {
+      // Cleared weapon - reset mod slot
+      BUILD.weapons[ctx.subtype].mod = null;
+      renderModSlot(ctx.subtype, null, false, false);
+    } else if (item.type === 'melee' && item.mod_id) {
+      // Melee with built-in mod - lock it
+      var mod = ALL.mods.find(function(m){ return m.id === item.mod_id; });
+      BUILD.weapons[ctx.subtype].mod = mod || null;
+      renderModSlot(ctx.subtype, mod || null, true, false);
+    } else if (item.type === 'melee' && !item.mod_id) {
+      // Melee with no mod - slot unavailable entirely
+      BUILD.weapons[ctx.subtype].mod = null;
+      renderModSlot(ctx.subtype, null, true, true); // locked=true, empty=true
+    } else if (item.mod_id) {
+      // Ranged special weapon - locked built-in mod
+      var mod = ALL.mods.find(function(m){ return m.id === item.mod_id; });
+      BUILD.weapons[ctx.subtype].mod = mod || null;
+      renderModSlot(ctx.subtype, mod || null, true, false);
+    } else {
+      // Ranged regular weapon - free mod slot, clear previous
+      BUILD.weapons[ctx.subtype].mod = null;
+      renderModSlot(ctx.subtype, null, false, false);
+    }
+  } else if (t === 'mod') {
+    BUILD.weapons[ctx.subtype].mod = item;
+    renderModSlot(ctx.subtype, item, false);
+  } else if (t === 'mutator') {
+    BUILD.weapons[ctx.subtype].mutator = item;
+    renderSlot('slot-mutator-' + ctx.subtype, item);
+  } else if (t === 'armor') {
+    BUILD.armor[ctx.subtype] = item;
+    renderSlot('slot-' + ctx.subtype, item);
+    updateStats();
+  } else if (t === 'ring') {
+    BUILD.rings[ctx.subtype - 1] = item;
+    renderSlot('slot-ring-' + ctx.subtype, item);
+  } else if (t === 'amulet') {
+    BUILD.amulet = item;
+    renderSlot('slot-amulet', item);
+  } else if (t === 'relic') {
+    BUILD.relic = item;
+    renderSlot('slot-relic', item);
+  } else if (t === 'prism') {
+    BUILD.prism = item;
+    renderSlot('slot-prism', item);
+  } else if (t === 'fragment') {
+    BUILD.fragments[ctx.subtype - 1] = item;
+    renderSlot('slot-frag-' + ctx.subtype, item);
+  }
+}
+
+function renderModSlot(weaponSlot, mod, locked, noMod) {
+  var el = document.getElementById('slot-mod-' + weaponSlot);
+  if (!el) return;
+
+  if (noMod) {
+    // Melee weapon with no mod capability - slot greyed out, unavailable
+    el.onclick = null;
+    el.style.cursor = 'not-allowed';
+    el.style.opacity = '0.35';
+    el.classList.remove('filled');
+    el.innerHTML = '<i class="fas fa-ban" style="font-size:16px;color:#4b5563"></i>'
+                 + '<div class="r2-slot-label" style="color:#374151">No Mod</div>';
+  } else if (locked) {
+    // Built-in locked mod - visible but not clickable
+    el.onclick = null;
+    el.style.cursor = 'default';
+    el.style.opacity = '0.75';
+    el.classList.add('filled');
+    var img = mod && mod.image_path
+      ? '<img src="' + escapeHtml(mod.image_path) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+      : '<i class="fas fa-lock" style="font-size:16px;color:#6b7280"></i>';
+    el.innerHTML = img
+      + '<div class="r2-slot-name">' + (mod ? escapeHtml(mod.name) : '') + '</div>'
+      + '<div style="font-size:9px;color:#7c3aed;margin-top:1px">Built-in</div>';
+  } else {
+    // Free mod slot - clickable
+    el.onclick = function() { openPicker('mod', weaponSlot); };
+    el.style.cursor = 'pointer';
+    el.style.opacity = '1';
+    if (mod) {
+      renderSlot('slot-mod-' + weaponSlot, mod);
+    } else {
+      el.classList.remove('filled');
+      el.innerHTML = '<i class="fas fa-magic text-gray-600 text-xs"></i><div class="r2-slot-label">Mod</div>';
+    }
+  }
+}
+
+function renderArchSlot(slotId, item, side) {
+  var el = document.getElementById(slotId);
+  if (!el) return;
+  if (!item) { el.classList.remove('filled'); return; }
+  el.classList.add('filled');
+  var img = item.image_path
+    ? '<img src="' + escapeHtml(item.image_path) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'" style="width:44px;height:44px;object-fit:contain;border-radius:4px">'
+    : '';
+  var traitName = item.trait_name || '';
+  var perks = item.perks || [];
+  var primePerks = perks.filter(function(p){ return p.perk_type === 'prime'; });
+  var primeName = primePerks.length ? primePerks[0].name : '';
+  el.innerHTML = img
+    + '<div class="r2-slot-name">' + escapeHtml(item.name) + '</div>'
+    + (traitName ? '<div style="font-size:8px;color:#9d71f0;margin-top:1px">' + escapeHtml(traitName) + '</div>' : '')
+    + (primeName ? '<div style="font-size:8px;color:#7c3aed;margin-top:1px">' + escapeHtml(primeName) + '</div>' : '');
+
+  // Rebuild trait list so lock states update
+  buildTraitList();
+  // Restore current trait values after rebuild
+  Object.entries(BUILD.traits).forEach(function(e) {
+    var tr = ALL.traits.find(function(x){return x.id===parseInt(e[0]);});
+    if (tr) updateTraitEl(parseInt(e[0]), parseInt(e[1])||0, tr.max_points);
+  });
+  updateTraitBar();
+  updatePerksDisplay();
+}
+
+function isTraitLocked(t) {
+  // Only lock archetype traits that are auto-assigned by equipped archetypes
+  if (t.category === 'archetype') {
+    var pa = BUILD.archetypes.primary;
+    var sa = BUILD.archetypes.secondary;
+    if (pa && t.archetype_id === pa.id) return true;
+    if (sa && t.archetype_id === sa.id) return true;
+  }
+  return false;
+}
+
+function autoSetArchetypeTrait(arch, value) {
+  if (!arch) return;
+  var trait = ALL.traits.find(function(t) {
+    return t.category === 'archetype' && t.archetype_id === arch.id;
+  });
+  if (!trait && arch.trait_name) {
+    trait = ALL.traits.find(function(t) {
+      return t.category === 'archetype' && t.name === arch.trait_name;
+    });
+  }
+  if (!trait) return;
+  BUILD.traits[trait.id] = value;
+  updateTraitEl(trait.id, value, trait.max_points);
+  updateTraitBar();
+}
+
+function updatePerksDisplay() {
+  var pa = BUILD.archetypes.primary;
+  var sa = BUILD.archetypes.secondary;
+  var display = document.getElementById('perks-display');
+  var list = document.getElementById('perks-list');
+  if (!display || !list) return;
+
+  if (!pa && !sa) { display.style.display = 'none'; return; }
+  display.style.display = 'block';
+
+  var PTYPE_COLORS = { prime:'#c4b5fd', damage:'#f87171', team:'#6ee7b7', utility:'#fbbf24', relic:'#60a5fa' };
+  var PTYPE_LABELS = { prime:'Prime', damage:'DMG', team:'Team', utility:'Util', relic:'Relic' };
+
+  var html = '';
+  ['prime','damage','team','utility','relic'].forEach(function(ptype) {
+    var pA = pa ? (pa.perks||[]).find(function(p){ return p.perk_type===ptype; }) : null;
+    var pS = sa ? (sa.perks||[]).find(function(p){ return p.perk_type===ptype; }) : null;
+    var color = PTYPE_COLORS[ptype] || '#9ca3af';
+    var label = PTYPE_LABELS[ptype] || ptype;
+    html += '<div style="display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05)">';
+    html += '<span style="font-size:10px;color:' + color + ';font-weight:800;width:38px;flex-shrink:0">' + label + '</span>';
+    html += '<div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline">';
+    if (pA) html += '<span style="font-size:12px;color:#e5e7eb;font-weight:600">' + escapeHtml(pA.name) + ' <span style="color:#6b7280;font-size:10px;font-weight:400">(P)</span></span>';
+    if (pS && ptype !== 'prime') html += '<span style="font-size:12px;color:#93c5fd;font-weight:600">' + escapeHtml(pS.name) + ' <span style="color:#6b7280;font-size:10px;font-weight:400">(S)</span></span>';
+    if (pS && ptype === 'prime') html += '<span style="font-size:10px;color:#4b5563;font-style:italic">Prime locked on secondary</span>';
+    html += '</div></div>';
+  });
+  list.innerHTML = html;
+}
+
+// Default icon/label per slot - used when clearing
+var SLOT_DEFAULTS = {
+  'slot-helm':           '<i class="fas fa-hard-hat text-gray-600"></i><div class="r2-slot-label">Helm</div>',
+  'slot-torso':          '<i class="fas fa-tshirt text-gray-600"></i><div class="r2-slot-label">Torso</div>',
+  'slot-legs':           '<i class="fas fa-socks text-gray-600"></i><div class="r2-slot-label">Legs</div>',
+  'slot-gloves':         '<i class="fas fa-hand-paper text-gray-600"></i><div class="r2-slot-label">Gloves</div>',
+  'slot-relic':          '<i class="fas fa-gem text-purple-700"></i><div class="r2-slot-label">Relic</div>',
+  'slot-prism':          '<i class="fas fa-prism text-cyan-700" style="font-size:18px"></i><div class="r2-slot-label">Prism</div>',
+  'slot-amulet':         '<i class="fas fa-medal text-amber-700 text-xs"></i><div class="r2-slot-label">Amulet</div>',
+  'slot-ring-1':         '<i class="fas fa-ring text-yellow-700 text-xs"></i><div class="r2-slot-label">Ring 1</div>',
+  'slot-ring-2':         '<i class="fas fa-ring text-yellow-700 text-xs"></i><div class="r2-slot-label">Ring 2</div>',
+  'slot-ring-3':         '<i class="fas fa-ring text-yellow-700 text-xs"></i><div class="r2-slot-label">Ring 3</div>',
+  'slot-ring-4':         '<i class="fas fa-ring text-yellow-700 text-xs"></i><div class="r2-slot-label">Ring 4</div>',
+  'slot-frag-1':         '<i class="fas fa-puzzle-piece text-gray-700 text-xs"></i><div class="r2-slot-label">Frag 1</div>',
+  'slot-frag-2':         '<i class="fas fa-puzzle-piece text-gray-700 text-xs"></i><div class="r2-slot-label">Frag 2</div>',
+  'slot-frag-3':         '<i class="fas fa-puzzle-piece text-gray-700 text-xs"></i><div class="r2-slot-label">Frag 3</div>',
+  'slot-arch-primary':   '<i class="fas fa-user-circle text-purple-800 text-2xl"></i><div class="r2-slot-label">Primary</div>',
+  'slot-arch-secondary': '<i class="fas fa-user-circle text-blue-800 text-2xl"></i><div class="r2-slot-label">Secondary</div>',
+  'slot-skill-primary':  '<i class="fas fa-bolt text-yellow-700 text-xs"></i><div class="r2-slot-label">Skill</div>',
+  'slot-skill-secondary':'<i class="fas fa-bolt text-blue-700 text-xs"></i><div class="r2-slot-label">Skill</div>',
+};
+
+function weaponSlotDefault(slotId) {
+  if (slotId.startsWith('slot-weapon-')) return '<i class="fas fa-gun text-gray-600 text-xs"></i><div class="r2-slot-label">Weapon</div>';
+  if (slotId.startsWith('slot-mod-'))    return '<i class="fas fa-magic text-gray-600 text-xs"></i><div class="r2-slot-label">Mod</div>';
+  if (slotId.startsWith('slot-mutator-'))return '<i class="fas fa-dna text-gray-600 text-xs"></i><div class="r2-slot-label">Mutator</div>';
+  return SLOT_DEFAULTS[slotId] || '';
+}
+
+function renderSlot(slotId, item) {
+  var el = document.getElementById(slotId);
+  if (!el) return;
+  if (!item) {
+    el.classList.remove('filled');
+    el.style.cursor = 'pointer';
+    el.style.opacity = '1';
+    el.innerHTML = SLOT_DEFAULTS[slotId] || weaponSlotDefault(slotId);
+    return;
+  }
+  el.classList.add('filled');
+  var img = item.image_path
+    ? '<img src="' + escapeHtml(item.image_path) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+    : '';
+  el.innerHTML = img + '<div class="r2-slot-name">' + escapeHtml(item.name) + '</div>';
+}
+
+function setTag(tag) {
+  BUILD.playstyle_tag = tag;
+  document.querySelectorAll('#playstyle-tags .sl-tag-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.tag === tag);
+  });
+}
+
+function resetBuild() {
+  if (!confirm('Reset this build?')) return;
+  BUILD = { id:null, share_token:BUILD.share_token, archetypes:{primary:null,secondary:null}, skills:{primary:null,secondary:null}, weapons:{main:{weapon:null,mod:null,mutator:null},secondary:{weapon:null,mod:null,mutator:null},melee:{weapon:null,mod:null,mutator:null}}, rings:[null,null,null,null], armor:{helm:null,torso:null,legs:null,gloves:null}, relic:null, fragments:[null,null,null], amulet:null, traits:{}, playstyle_tag:'pve' };
+  document.getElementById('build-name').value = 'My Build';
+  document.getElementById('build-description').value = '';
+  document.getElementById('build-public').checked = false;
+  buildTraitList();
+  updateStats();
+  ['slot-arch-primary','slot-arch-secondary','slot-skill-primary','slot-skill-secondary',
+   'slot-helm','slot-torso','slot-legs','slot-gloves','slot-relic','slot-prism',
+   'slot-frag-1','slot-frag-2','slot-frag-3','slot-amulet',
+   'slot-ring-1','slot-ring-2','slot-ring-3','slot-ring-4',
+   'slot-weapon-main','slot-mod-main','slot-mutator-main',
+   'slot-weapon-secondary','slot-mod-secondary','slot-mutator-secondary',
+   'slot-weapon-melee','slot-mod-melee','slot-mutator-melee',
+  ].forEach(function(id) { var el=document.getElementById(id); if(el){el.classList.remove('filled');} });
+}
+
+function saveBuild() {
+  var btn = document.getElementById('save-btn');
+  if (!btn) return;
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  var weapons = ['main','secondary','melee'].map(function(s) {
+    var w = BUILD.weapons[s];
+    return { slot:s, weapon_id: w.weapon?w.weapon.id:null, mod_id: w.mod?w.mod.id:null, mutator_id: w.mutator?w.mutator.id:null };
+  }).filter(function(w){ return w.weapon_id; });
+
+  csrfFetch('/api/r2/builds/', {
+    method: 'POST',
+    body: JSON.stringify({
+      build_id:               BUILD.id,
+      share_token:            BUILD.share_token,
+      name:                   document.getElementById('build-name').value,
+      description:            document.getElementById('build-description').value,
+      is_public:              document.getElementById('build-public').checked ? 1 : 0,
+      playstyle:              BUILD.playstyle_tag,
+      primary_archetype_id:   BUILD.archetypes.primary   ? BUILD.archetypes.primary.id   : null,
+      secondary_archetype_id: BUILD.archetypes.secondary ? BUILD.archetypes.secondary.id : null,
+      primary_skill_id:       BUILD.skills.primary   ? BUILD.skills.primary.id   : null,
+      secondary_skill_id:     BUILD.skills.secondary ? BUILD.skills.secondary.id : null,
+      amulet_id:              BUILD.amulet ? BUILD.amulet.id : null,
+      trait_points:           BUILD.traits,
+      weapons: weapons,
+      rings:   BUILD.rings.map(function(r){ return r ? r.id : null; }),
+      armor:   ['helm','torso','legs','gloves'].map(function(s){
+        return { slot:s, armor_id: BUILD.armor[s] ? BUILD.armor[s].id : null };
+      }).filter(function(a){ return a.armor_id; }),
+    }),
+  }).then(function(r){return r.json();}).then(function(d) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-1"></i>Save Build';
+    if (d.ok) {
+      BUILD.id = d.build_id;
+      BUILD.share_token = d.share_token;
+      history.replaceState(null,'','/soulslike/r2/builder/?load=' + d.share_token);
+      var banner = document.getElementById('save-banner');
+      if (banner) { banner.classList.remove('hidden'); setTimeout(function(){ banner.classList.add('hidden'); }, 3000); }
+    } else if (d.error === 'verify_email') {
+      alert('Please verify your email before saving builds. Check your inbox for a verification link from trocco@casual-heroes.com');
+    } else { alert(d.error || 'Save failed'); }
+  }).catch(function() {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save mr-1"></i>Save Build';
+  });
+}
+
+function loadBuild(b) {
+  if (!b) return;
+  BUILD.id = b.id; BUILD.share_token = b.share_token;
+  document.getElementById('build-name').value = b.name || '';
+  if (b.description) document.getElementById('build-description').value = b.description;
+  document.getElementById('build-public').checked = !!b.is_public;
+  if (b.playstyle) setTag(b.playstyle);
+  if (b.trait_points) {
+    Object.entries(b.trait_points).forEach(function(e) {
+      var id = parseInt(e[0]); var val = parseInt(e[1]);
+      var t = ALL.traits.find(function(x){return x.id===id;});
+      if (!t) return;
+      BUILD.traits[id] = val;
+      updateTraitEl(id, val, t.max_points);
+    });
+    updateTraitBar();
+  }
+  function byId(arr, id) { return arr.find(function(x){return x.id===id;})||null; }
+  if (b.primary_archetype_id)   { var pa=byId(ALL.archetypes,b.primary_archetype_id);   BUILD.archetypes.primary=pa;   renderSlot('slot-arch-primary',pa); }
+  if (b.secondary_archetype_id) { var sa=byId(ALL.archetypes,b.secondary_archetype_id); BUILD.archetypes.secondary=sa; renderSlot('slot-arch-secondary',sa); }
+  if (b.amulet_id) { var am=byId(ALL.amulets,b.amulet_id); BUILD.amulet=am; renderSlot('slot-amulet',am); }
+  if (b.weapons) b.weapons.forEach(function(w){
+    var wep = byId(ALL.weapons, w.weapon_id);
+    var mod = byId(ALL.mods, w.mod_id);
+    var mut = byId(ALL.mutators, w.mutator_id);
+    BUILD.weapons[w.slot] = { weapon: wep, mod: mod, mutator: mut };
+    renderSlot('slot-weapon-' + w.slot, wep);
+    if (!wep) {
+      renderModSlot(w.slot, null, false, false);
+    } else if (wep.type === 'melee' && wep.mod_id) {
+      renderModSlot(w.slot, mod, true, false);   // melee built-in
+    } else if (wep.type === 'melee' && !wep.mod_id) {
+      renderModSlot(w.slot, null, true, true);    // melee no mod
+    } else if (wep.mod_id) {
+      renderModSlot(w.slot, mod, true, false);    // ranged locked
+    } else {
+      renderModSlot(w.slot, mod, false, false);   // ranged free
+    }
+    renderSlot('slot-mutator-' + w.slot, mut);
+  });
+  if (b.rings) b.rings.forEach(function(r){ var ri=byId(ALL.rings,r.ring_id); BUILD.rings[r.slot-1]=ri; renderSlot('slot-ring-'+r.slot,ri); });
+  if (b.armor) b.armor.forEach(function(a){ var ar=byId(ALL.armor,a.armor_id); BUILD.armor[a.slot]=ar; renderSlot('slot-'+a.slot,ar); });
+  updateStats();
+}
+
+// ── Floating tooltip ─────────────────────────────────────────────────────────
+var _tt = null;
+function showTooltip(e, text) {
+  if (!_tt) _tt = document.getElementById('r2-tooltip');
+  _tt.textContent = text;
+  _tt.style.display = 'block';
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  if (!_tt || _tt.style.display === 'none') return;
+  var x = e.clientX + 16;
+  var y = e.clientY + 16;
+  if (x + 260 > window.innerWidth)  x = e.clientX - 256;
+  if (y + 120 > window.innerHeight) y = e.clientY - (_tt.offsetHeight || 80) - 10;
+  _tt.style.left = x + 'px';
+  _tt.style.top  = y + 'px';
+}
+function hideTooltip() {
+  if (_tt) _tt.style.display = 'none';
+}
+
+// Close tooltip if picker closes
+document.getElementById('r2-picker').addEventListener('mouseleave', hideTooltip);
+</script>
+{% endblock %}

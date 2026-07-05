@@ -71,7 +71,7 @@ def safe_int(value, default=1, min_val=None, max_val=None):
     return result
 
 
-def safe_redirect_url(next_url, default='/'):
+def safe_redirect_url(next_url, default='/discover/'):
     """
     Validate a ?next= redirect parameter to prevent open redirect attacks.
     Only allows relative paths on the same host - rejects:
@@ -172,6 +172,8 @@ def get_web_user(request):
     with get_db_session() as db:
         user = db.query(WebUser).filter_by(id=user_id).first()
         if not user:
+            # Account deleted - flush stale session immediately
+            request.session.flush()
             return None
         # OWASP A01: immediately invalidate sessions for banned/disabled accounts
         if user.is_banned or user.is_disabled:
@@ -206,6 +208,22 @@ def api_login_required(view_func):
     return wrapper
 
 
+def require_verified(request):
+    """
+    Call at top of write API views. Returns a JsonResponse(403) if user is not email-verified, else None.
+    Usage:  gate = require_verified(request); if gate: return gate
+    """
+    from django.http import JsonResponse as _JR
+    if not request.web_user:
+        return _JR({'error': 'Login required.'}, status=401)
+    if not request.web_user.email_verified:
+        return _JR({
+            'error': 'verify_email',
+            'message': 'Please verify your email before using this feature. Check your inbox for a verification link.',
+        }, status=403)
+    return None
+
+
 def web_verified_required(view_func):
     """Requires login AND email_verified=True. Returns 403 JSON for API calls, redirect for pages."""
     @wraps(view_func)
@@ -220,9 +238,10 @@ def web_verified_required(view_func):
         if not web_user.email_verified:
             if 'application/json' in request.headers.get('Accept', ''):
                 return _JsonResponse({'error': 'Please verify your email before using this feature.'}, status=403)
-            from django.contrib import messages as _msg
-            _msg.warning(request, "Please verify your email to use this feature.")
-            return redirect('/')
+            # Stay on current page - JS will show verify modal via ?verify_required=1
+            current = request.get_full_path()
+            sep = '&' if '?' in current else '?'
+            return redirect(current + sep + 'verify_required=1')
         request.web_user = web_user
         return view_func(request, *args, **kwargs)
     return wrapper

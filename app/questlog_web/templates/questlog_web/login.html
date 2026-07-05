@@ -150,6 +150,27 @@
     <h1 class="ql-login-title">Sign in to QuestLog</h1>
     <p class="ql-login-subtitle">Your Casual Heroes gaming hub</p>
 
+    {% if not logins_disabled %}
+    <!-- SSO buttons -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <a href="{% url 'questlog_web_discord_sso' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:#5865f2;color:#fff;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none;transition:background 0.15s"
+         onmouseover="this.style.background='#4752c4'" onmouseout="this.style.background='#5865f2'">
+        <i class="fab fa-discord" style="font-size:18px"></i> Continue with Discord
+      </a>
+      <a href="{% url 'questlog_web_fluxer_sso' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;background:#7c3aed;color:#fff;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none;transition:background 0.15s"
+         onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'">
+        <img src="/static/img/siteassets/fluxer-favicon.png" alt="" style="width:18px;height:18px;border-radius:3px"> Continue with Fluxer
+      </a>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <div style="flex:1;height:1px;background:#1f2937"></div>
+      <span style="color:#4b5563;font-size:12px;font-weight:600">OR SIGN IN WITH EMAIL</span>
+      <div style="flex:1;height:1px;background:#1f2937"></div>
+    </div>
+    {% endif %}
+
     {% if logins_disabled %}
     <div style="background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12)); border: 1px solid rgba(99,102,241,0.4); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; text-align: center;">
       <p style="color: #a78bfa; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin: 0 0 6px 0;">Public Beta 6/6/2026</p>
@@ -228,16 +249,26 @@
       <a href="{% url 'questlog_web_password_reset' %}" style="color: #6b7280;">Forgot your password?</a>
     </p>
 
+    <!-- Always visible Join Free link -->
+    <div style="margin-top: 20px; border-top: 1px solid #1f2937; padding-top: 18px; text-align: center;">
+      <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 10px;">New here?</p>
+      <a href="{% url 'questlog_web_register' %}{% if next %}?next={{ next }}{% endif %}"
+         style="display: inline-block; width: 100%; padding: 11px; background: #4f46e5; color: #fff; font-size: 0.9rem; font-weight: 700; border-radius: 10px; text-decoration: none; transition: background 0.15s;"
+         onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+        🎮 Join Free - Create your account
+      </a>
+    </div>
+
     {% if logins_disabled %}
-    <!-- Invite code quick-entry - only shown when logins are locked -->
-    <div style="margin-top: 20px; border-top: 1px solid #1f2937; padding-top: 18px;">
-      <p style="font-size: 0.8rem; color: #6b7280; text-align: center; margin-bottom: 10px;">Don't have an account? Enter your invite code to register:</p>
+    <!-- Invite code quick-entry - shown when logins are locked -->
+    <div style="margin-top: 16px;">
+      <p style="font-size: 0.8rem; color: #6b7280; text-align: center; margin-bottom: 10px;">Have an invite code?</p>
       <form method="get" action="register/" style="display: flex; gap: 8px;">
         <input type="text" name="invite" placeholder="XXXXXXXXXX"
                style="flex: 1; padding: 9px 12px; background: #111827; border: 1px solid #1f2937; border-radius: 8px; color: #e5e7eb; font-size: 0.85rem; outline: none; text-transform: uppercase; letter-spacing: 0.1em;"
                oninput="this.value = this.value.toUpperCase()">
         <button type="submit"
-                style="padding: 9px 16px; background: #4f46e5; color: #fff; font-size: 0.82rem; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+                style="padding: 9px 16px; background: #374151; color: #fff; font-size: 0.82rem; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
           Register
         </button>
       </form>

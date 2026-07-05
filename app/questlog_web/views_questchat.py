@@ -82,6 +82,23 @@ def _verify_token(request) -> int | None:
         return None
 
 
+def _verify_token_verified(request):
+    """Like _verify_token but also checks email_verified. Returns user_id or None."""
+    user_id = _verify_token(request)
+    if not user_id:
+        return None, JsonResponse({'error': 'Unauthorized'}, status=401)
+    with get_db_session() as db:
+        user = db.query(WebUser).filter_by(id=user_id).first()
+        if not user:
+            return None, JsonResponse({'error': 'Unauthorized'}, status=401)
+        if not user.email_verified:
+            return None, JsonResponse({
+                'error': 'verify_email',
+                'message': 'Please verify your email before using this feature.'
+            }, status=403)
+    return user_id, None
+
+
 def _user_dict(user: WebUser) -> dict:
     legacy_labels = {1: 'Recruit', 2: 'Veteran', 3: 'Warden', 4: 'Guardian', 5: 'Legend'}
     return {
@@ -543,9 +560,8 @@ def _check_dm_gate(db, sender_id: int, recipient_id: int) -> str | None:
 @require_http_methods(['POST'])
 @ratelimit(key='ip', rate='30/h', method='POST', block=True)
 def qc_dms_open(request):
-    user_id = _verify_token(request)
-    if not user_id:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user_id, gate = _verify_token_verified(request)
+    if gate: return gate
 
     try:
         data = json.loads(request.body)
@@ -694,9 +710,8 @@ def qc_dm_report(request, dm_id):
 @require_http_methods(['POST'])
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 def qc_friend_request(request):
-    user_id = _verify_token(request)
-    if not user_id:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user_id, gate = _verify_token_verified(request)
+    if gate: return gate
 
     try:
         data = json.loads(request.body)
@@ -753,9 +768,8 @@ def qc_friend_request(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def qc_friend_respond(request):
-    user_id = _verify_token(request)
-    if not user_id:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user_id, gate = _verify_token_verified(request)
+    if gate: return gate
 
     try:
         data = json.loads(request.body)
@@ -877,9 +891,8 @@ def qc_friends(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def qc_friend_remove(request):
-    user_id = _verify_token(request)
-    if not user_id:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user_id, gate = _verify_token_verified(request)
+    if gate: return gate
     try:
         data = json.loads(request.body)
     except ValueError:
@@ -915,9 +928,8 @@ def qc_friend_remove(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def qc_friend_cancel(request):
-    user_id = _verify_token(request)
-    if not user_id:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user_id, gate = _verify_token_verified(request)
+    if gate: return gate
     try:
         data = json.loads(request.body)
     except ValueError:
@@ -954,9 +966,8 @@ def qc_friend_cancel(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def qc_block(request):
-    user_id = _verify_token(request)
-    if not user_id:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user_id, gate = _verify_token_verified(request)
+    if gate: return gate
     try:
         data = json.loads(request.body)
     except ValueError:

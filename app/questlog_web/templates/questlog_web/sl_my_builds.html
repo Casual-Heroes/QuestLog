@@ -78,6 +78,40 @@
   </div>
   {% endif %}
 
+  <!-- Remnant 2 Builds -->
+  {% if r2_builds %}
+  <div class="mt-8">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+      <span>🌀</span> Remnant 2 Builds
+    </h2>
+    <div class="space-y-2">
+      {% for b in r2_builds %}
+      <div class="flex items-center gap-3 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-0.5 flex-wrap">
+            {% if b.primary_arch %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-300 font-bold">{{ b.primary_arch }}</span>{% endif %}
+            {% if b.secondary_arch %}<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-300 font-bold">{{ b.secondary_arch }}</span>{% endif %}
+            {% if b.is_public %}<span class="text-[10px] text-green-700 font-semibold">Public</span>{% else %}<span class="text-[10px] text-gray-700">Private</span>{% endif %}
+          </div>
+          <p class="text-white text-sm font-semibold truncate">{{ b.name }}</p>
+          {% if b.playstyle %}<p class="text-gray-600 text-[11px]">{{ b.playstyle }}</p>{% endif %}
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <a href="/soulslike/r2/builder/?load={{ b.token }}"
+             class="text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1.5 rounded-lg hover:bg-neutral-800">
+            <i class="fas fa-pen"></i>
+          </a>
+          <a href="/soulslike/r2/runs/"
+             class="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded-lg transition">
+            <i class="fas fa-play mr-1"></i>Start Run
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
 <!-- Quick Start Modal -->

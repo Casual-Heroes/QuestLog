@@ -1,0 +1,88 @@
+{% comment %}
+Reusable guest conversion gate. Include with:
+  {% include "questlog_web/partials/guest_gate.html" with gate_context="soulslike" %}
+
+gate_context options: soulslike | ffxiv | discover | community_runs | builds
+{% endcomment %}
+{% if not web_user %}
+<div style="background:linear-gradient(135deg,rgba(99,102,241,0.10),rgba(124,58,237,0.08));border:1px solid rgba(99,102,241,0.3);border-radius:14px;padding:20px 24px;margin:16px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+  <div style="flex:1;min-width:260px">
+
+    {% if gate_context == "soulslike" %}
+    <p style="color:#a5b4fc;font-weight:800;font-size:15px;margin:0 0 8px 0">
+      <i class="fas fa-skull" style="color:#f87171;margin-right:8px"></i>You're missing the full experience
+    </p>
+    <p style="color:#9ca3af;font-size:13px;margin:0 0 10px 0">Signed-in players get the complete SoulsLike toolkit:</p>
+    <ul style="margin:0;padding-left:18px;color:#9ca3af;font-size:13px;line-height:1.9">
+      <li><span style="color:#c4b5fd">Track your runs</span> - death counts, bosses killed, items collected, live overlays</li>
+      <li><span style="color:#c4b5fd">Save your builds</span> - share them with the community, get upvotes</li>
+      <li><span style="color:#c4b5fd">Leaderboards</span> - compete for longest life, most bosses, Deaths/HR</li>
+      <li><span style="color:#c4b5fd">Find a group</span> - post LFG for any zone or boss</li>
+    </ul>
+
+    {% elif gate_context == "ffxiv" %}
+    <p style="color:#a5b4fc;font-weight:800;font-size:15px;margin:0 0 8px 0">
+      <i class="fas fa-dragon" style="color:#818cf8;margin-right:8px"></i>You're using FFXIV Tools as a guest
+    </p>
+    <p style="color:#9ca3af;font-size:13px;margin:0 0 10px 0">Create a free account to unlock:</p>
+    <ul style="margin:0;padding-left:18px;color:#9ca3af;font-size:13px;line-height:1.9">
+      <li><span style="color:#c4b5fd">Save your progress</span> - hunt marks, collectibles, timers</li>
+      <li><span style="color:#c4b5fd">Community guides</span> - write and share FFXIV guides</li>
+      <li><span style="color:#c4b5fd">Find a static</span> - post LFG for raids, trials, and hunts</li>
+      <li><span style="color:#c4b5fd">Your gaming profile</span> - show off your clears and achievements</li>
+    </ul>
+
+    {% elif gate_context == "community_runs" %}
+    <p style="color:#a5b4fc;font-weight:800;font-size:15px;margin:0 0 8px 0">
+      <i class="fas fa-eye" style="color:#22d3ee;margin-right:8px"></i>You're watching - now start playing
+    </p>
+    <p style="color:#9ca3af;font-size:13px;margin:0 0 10px 0">Join the community and track your own runs:</p>
+    <ul style="margin:0;padding-left:18px;color:#9ca3af;font-size:13px;line-height:1.9">
+      <li><span style="color:#c4b5fd">Your run on this feed</span> - share live with the community</li>
+      <li><span style="color:#c4b5fd">Stream overlays</span> - death tracker, boss progress, rage meter</li>
+      <li><span style="color:#c4b5fd">Leaderboards</span> - prove you're the best</li>
+      <li><span style="color:#c4b5fd">Find a group</span> - LFG for any boss or zone</li>
+    </ul>
+
+    {% elif gate_context == "builds" %}
+    <p style="color:#a5b4fc;font-weight:800;font-size:15px;margin:0 0 8px 0">
+      <i class="fas fa-shield-halved" style="color:#f59e0b;margin-right:8px"></i>You can plan builds for free - but you're missing the good stuff
+    </p>
+    <p style="color:#9ca3af;font-size:13px;margin:0 0 10px 0">A free account unlocks everything:</p>
+    <ul style="margin:0;padding-left:18px;color:#9ca3af;font-size:13px;line-height:1.9">
+      <li><span style="color:#c4b5fd">Save your builds</span> - refresh or close the browser and they're gone without an account</li>
+      <li><span style="color:#c4b5fd">Searchable by the community</span> - get your build discovered and upvoted</li>
+      <li><span style="color:#c4b5fd">Favorites and loadouts</span> - save other players' builds to swap between</li>
+      <li><span style="color:#c4b5fd">Public or private</span> - share a link or keep it for yourself</li>
+      <li><span style="color:#c4b5fd">Start a run from your build</span> - track deaths, bosses, items live</li>
+    </ul>
+
+    {% else %}{# discover / generic #}
+    <p style="color:#a5b4fc;font-weight:800;font-size:15px;margin:0 0 8px 0">
+      <i class="fas fa-gamepad" style="color:#34d399;margin-right:8px"></i>You're missing out - here's what's free
+    </p>
+    <p style="color:#9ca3af;font-size:13px;margin:0 0 10px 0">QuestLog is a social platform built for gamers. Create a free account and get:</p>
+    <ul style="margin:0;padding-left:18px;color:#9ca3af;font-size:13px;line-height:1.9">
+      <li><span style="color:#c4b5fd">SoulsLike run tracker</span> - deaths, bosses, overlays, leaderboards</li>
+      <li><span style="color:#c4b5fd">Build planner</span> - Elden Ring, ERR, Remnant 2 - save and share</li>
+      <li><span style="color:#c4b5fd">Find a Group</span> - LFG for any game, any role, any time</li>
+      <li><span style="color:#c4b5fd">Gaming profile</span> - your moments, your builds, your stats</li>
+      <li><span style="color:#c4b5fd">Community</span> - posts, guides, communities, Discord + Fluxer</li>
+    </ul>
+    {% endif %}
+
+  </div>
+  <div style="flex-shrink:0;display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:150px">
+    <a href="/ql/register/{% if request.path %}?next={{ request.path|urlencode }}{% endif %}"
+       style="display:block;text-align:center;padding:12px 20px;background:#4f46e5;color:#fff;font-weight:800;font-size:14px;border-radius:10px;text-decoration:none;transition:background 0.15s"
+       onmouseover="this.style.background='#4338ca'" onmouseout="this.style.background='#4f46e5'">
+      🎮 Join Free
+    </a>
+    <a href="/ql/login/{% if request.path %}?next={{ request.path|urlencode }}{% endif %}"
+       style="display:block;text-align:center;padding:9px 20px;background:rgba(255,255,255,0.05);color:#9ca3af;font-weight:600;font-size:13px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,0.1);transition:all 0.15s"
+       onmouseover="this.style.color='#fff';this.style.borderColor='rgba(255,255,255,0.3)'" onmouseout="this.style.color='#9ca3af';this.style.borderColor='rgba(255,255,255,0.1)'">
+      Sign In
+    </a>
+  </div>
+</div>
+{% endif %}

@@ -70,6 +70,9 @@ def api_sl_session_create(request):
     POST /api/soulslike/session/create/
     Web session auth + CSRF. For desktop app use /api/soulslike/desktop/session/create/ instead.
     """
+    from .helpers import require_verified
+    gate = require_verified(request)
+    if gate: return gate
     try:
         data = json.loads(request.body)
     except Exception:
@@ -1788,10 +1791,40 @@ def sl_community_runs(request):
     now      = int(time.time())
     cutoff   = now - (7 * 24 * 3600)  # last 7 days for completed runs
 
+    # R2 runs live in a separate table - handle separately
+    if game == 'remnant2':
+        with get_db_session() as db:
+            r2_rows = db.execute(text("""
+                SELECT r.token, r.name, r.run_type, r.is_hardcore, r.is_active,
+                       r.death_count, r.bosses_killed, r.items_found,
+                       r.created_at, r.completed_at,
+                       u.username, u.avatar_url,
+                       GROUP_CONCAT(z.world ORDER BY z.world SEPARATOR ', ') as zones
+                FROM r2_runs r
+                JOIN web_users u ON r.user_id = u.id
+                LEFT JOIN r2_run_zones z ON z.run_id = r.id
+                WHERE r.is_public = 1 AND u.is_banned = 0
+                GROUP BY r.id
+                ORDER BY r.is_active DESC, r.created_at DESC LIMIT 50
+            """)).fetchall()
+        r2_runs_list = [{
+            'token': r[0], 'build_name': r[1], 'game': 'remnant2',
+            'game_mode': r[2], 'game_label': 'Remnant 2',
+            'deaths': r[3] or 0, 'is_active': bool(r[4]),
+            'bosses_killed': r[6] or 0, 'items_collected': r[7] or 0,
+            'username': r[10], 'avatar': r[11], 'zones': r[12] or '',
+            'is_hardcore': bool(r[3]),
+        } for r in r2_rows]
+        return render(request, 'questlog_web/sl_community_runs.html', {
+            'web_user': request.web_user, 'active_page': 'sl_community_runs',
+            'runs': r2_runs_list, 'active_count': sum(1 for r in r2_runs_list if r['is_active']),
+            'game_filter': game,
+        })
+
     with get_db_session() as db:
         filters = "WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
         params  = {}
-        ALLOWED_GAME_FILTERS = {'elden_ring', 'err'}  # extend as new games added
+        ALLOWED_GAME_FILTERS = {'elden_ring', 'err'}
         if game == 'err':
             filters += " AND s.game_mode='err'"
         elif game == 'elden_ring':
@@ -1800,7 +1833,6 @@ def sl_community_runs(request):
             filters += " AND s.game=:game"
             params['game'] = game
         elif game:
-            # Unknown game filter - return empty result rather than query with arbitrary value
             return render(request, 'questlog_web/sl_community_runs.html', {
                 'web_user': request.web_user, 'active_page': 'sl_community_runs',
                 'runs': [], 'active_count': 0, 'game_filter': game,
@@ -2465,6 +2497,9 @@ def api_sl_desktop_session_create(request):
     Same as web session create but authenticated via API key for the desktop app.
     No CSRF needed - API key is the auth.
     """
+    from .views_pages import _check_app_version
+    gate = _check_app_version(request)
+    if gate: return gate
     api_key = request.headers.get('X-Listener-Key', '').strip()
     if not api_key or not api_key.startswith('ql_'):
         return JsonResponse({'error': 'Missing or invalid API key'}, status=401)

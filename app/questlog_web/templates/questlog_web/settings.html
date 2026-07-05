@@ -20,6 +20,62 @@
 </div>
 
 <div class="max-w-4xl mx-auto px-4 pb-8 space-y-6">
+
+  <!-- Linked Accounts - top of settings for discoverability -->
+  <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
+    <h2 class="text-lg font-semibold text-white mb-1">
+      <i class="fas fa-link text-indigo-400 mr-2"></i>Linked Accounts
+    </h2>
+    <p class="text-xs text-gray-500 mb-5">Link your Discord or Fluxer account to sign in with one click - and to merge any accounts you may have created separately.</p>
+    <div class="space-y-3">
+
+      <!-- Discord -->
+      <div class="flex items-center justify-between p-3 bg-neutral-800/60 rounded-lg border border-neutral-700">
+        <div class="flex items-center gap-3">
+          <i class="fab fa-discord text-2xl text-indigo-400"></i>
+          <div>
+            <div class="text-sm font-semibold text-white">Discord</div>
+            {% if web_user.discord_id %}
+            <div class="text-xs text-green-400"><i class="fas fa-check-circle mr-1"></i>Connected as {{ web_user.discord_username }}</div>
+            {% else %}
+            <div class="text-xs text-gray-500">Not connected - click to link and enable one-click sign in</div>
+            {% endif %}
+          </div>
+        </div>
+        {% if web_user.discord_id %}
+        <a href="{% url 'questlog_web_discord_unlink' %}" class="text-xs text-red-400 hover:text-red-300 transition px-3 py-1.5 rounded border border-red-900/40 hover:border-red-700">Unlink</a>
+        {% else %}
+        <a href="{% url 'questlog_web_discord_link' %}" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-1.5 rounded transition">Connect Discord</a>
+        {% endif %}
+      </div>
+
+      <!-- Fluxer -->
+      <div class="flex items-center justify-between p-3 bg-neutral-800/60 rounded-lg border border-neutral-700">
+        <div class="flex items-center gap-3">
+          <img src="/static/img/siteassets/fluxer-favicon.png" alt="Fluxer" style="width:24px;height:24px;border-radius:4px">
+          <div>
+            <div class="text-sm font-semibold text-white">Fluxer</div>
+            {% if web_user.fluxer_id %}
+            <div class="text-xs text-green-400"><i class="fas fa-check-circle mr-1"></i>Connected as {{ web_user.fluxer_username }}</div>
+            {% else %}
+            <div class="text-xs text-gray-500">Not connected - click to link and enable one-click sign in</div>
+            {% endif %}
+          </div>
+        </div>
+        {% if web_user.fluxer_id %}
+        <a href="{% url 'questlog_web_fluxer_unlink' %}" class="text-xs text-red-400 hover:text-red-300 transition px-3 py-1.5 rounded border border-red-900/40 hover:border-red-700">Unlink</a>
+        {% else %}
+        <a href="{% url 'questlog_web_fluxer_link' %}" class="text-xs bg-purple-700 hover:bg-purple-600 text-white font-bold px-4 py-1.5 rounded transition">Connect Fluxer</a>
+        {% endif %}
+      </div>
+
+    </div>
+    <p class="text-xs text-gray-600 mt-4">
+      <i class="fas fa-info-circle mr-1"></i>
+      Created two accounts by accident? Sign out, sign into your original account with email, then connect Discord or Fluxer here to merge them.
+    </p>
+  </div>
+
   <!-- Profile Picture -->
   <div class="bg-neutral-900/50 rounded-lg border border-neutral-800 p-6">
     <h2 class="text-lg font-semibold text-white mb-4">
