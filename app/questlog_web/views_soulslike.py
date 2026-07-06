@@ -1164,11 +1164,10 @@ def api_sl_manual_start(request, token):
         baseline = row[0] if row else 0
         db.execute(text(
             "UPDATE sl_collection_sessions SET timing_mode='manual', "
-            "session_start_ts=COALESCE(session_start_ts, :now), "
-            "current_life_start=COALESCE(current_life_start, :now), "
+            "session_start_ts=:now, "
+            "current_life_start=:now, "
             "session_death_count=0, session_death_baseline=:baseline "
-            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL "
-            "AND timing_mode != 'listener'"
+            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
         ), {'tok': token, 'uid': uid, 'now': now, 'baseline': baseline})
         db.commit()
     return JsonResponse({'ok': True})

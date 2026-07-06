@@ -413,7 +413,8 @@
     <div id="death-log" class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>
   </div>
 
-  <!-- ── Streaming Overlays ── -->
+  <!-- ── Streaming Overlays - owner only, never shown to community viewers ── -->
+  {% if is_owner %}
   <details class="section-card mb-3">
     <summary class="section-header cursor-pointer list-none">
       <div class="flex items-center justify-between w-full">
@@ -460,6 +461,7 @@
       {% endif %}
     </div>
   </details>
+  {% endif %}
 
 </div><!-- /max-w -->
 
@@ -532,9 +534,9 @@ var bossSearch       = '';
 var currentFilter    = 'all';
 var currentFocusBoss = '';
 
-// Manual timing state
-var manualTimerStart    = null;
-var manualSessionRunning = false;
+// Manual timing state - seed from server on load so refresh doesn't kill active session
+var manualTimerStart    = SESSION_STARTED ? Date.now() : null;
+var manualSessionRunning = SESSION_STARTED;  // first poll corrects if listener takes over
 var _appTimerActive = false;   // true when app is sending live timer SSE events
 var _appTimerLastTs = 0;       // timestamp of last app timer event
 var manualSessionSec    = 0;
@@ -563,6 +565,12 @@ function startManualSession() {
   manualTimerStart     = Date.now();
   lastDeathTime        = Date.now();
   manualSessionRunning = true;
+  // Seed unified ticker immediately - don't wait for next poll
+  _localSessionSec  = 0;
+  _localSurvivalSec = 0;
+  _localLastTick    = Date.now();
+  _localGameRunning = true;
+  _localSeeded      = true;
 
   // Swap Start button for status bar, show action buttons
   var startBtn = document.getElementById('start-session-btn');
@@ -578,17 +586,7 @@ function startManualSession() {
     body:JSON.stringify({started_at: Math.floor(Date.now()/1000)}),
   }).catch(function(){});
 
-  // Start local tick
-  setInterval(function() {
-    if (!manualSessionRunning) return;
-    var now = Date.now();
-    manualSessionSec = Math.floor((now - manualTimerStart) / 1000);
-    manualStreakSec  = lastDeathTime ? Math.floor((now - lastDeathTime) / 1000) : manualSessionSec;
-    var ss = document.getElementById('stat-session-time');
-    var sk = document.getElementById('stat-surv-time');
-    if (ss) ss.textContent = fmtSecs(manualSessionSec);
-    if (sk) sk.textContent = fmtSecs(manualStreakSec);
-  }, 1000);
+  // Unified ticker (_localGameRunning) takes over on next poll via shouldTick
 }
 
 // ── Status polling ────────────────────────────────────────────────────────────
@@ -622,41 +620,36 @@ function loadStatus() {
       var gameRunning       = d.listener_game_running || false;
       var listenerConnected = d.listener_connected    || false;
       var sessionStarted    = d.session_started !== undefined ? d.session_started : SESSION_STARTED;
-      // Tick when: app game running, OR manual session explicitly started (button pressed or boss clicked)
-      // sessionStarted alone is NOT enough - user must have actively started this session
+      // Only clear manualSessionRunning if server explicitly cleared session_start_ts (Stop Session was called)
+      // sessionStarted=true means server has an active session - keep manualSessionRunning alive
+      if (sessionStarted) manualSessionRunning = true;
+      else if (!listenerConnected) manualSessionRunning = false;
       var shouldTick = gameRunning || (IS_ACTIVE && !listenerConnected && manualSessionRunning);
 
       if (shouldTick && !_localGameRunning) {
-        // Just started ticking - seed from server then JS owns display
+        // Transition: idle -> running. Seed once from server, then JS owns display.
         _localSessionSec  = serverSessionSec;
         _localSurvivalSec = serverSurvivalSec;
         _localLastTick    = Date.now();
         _localGameRunning = true;
         _localSeeded      = true;
       } else if (shouldTick && _localGameRunning) {
-        // Already ticking - re-seed if values are stale (refresh case)
-        if (!_localSeeded) {
-          _localSessionSec  = serverSessionSec;
-          _localSurvivalSec = serverSurvivalSec;
-          _localLastTick    = Date.now();
-        }
-        _localSeeded = true;
-      } else if (!shouldTick && !_localGameRunning) {
-        // Not ticking and wasn't ticking - nothing active, show zeros
+        // Already running - JS owns display, do NOT touch timers or display.
+        // _localSeeded stays true, ticker keeps going uninterrupted.
+      } else if (!shouldTick && _localGameRunning) {
+        // Transition: running -> stopped. Zero everything.
+        _localGameRunning = false;
+        _localSeeded      = false;
         _localSessionSec  = 0;
         _localSurvivalSec = 0;
-        _localSeeded      = true;
         document.getElementById('stat-session-time').textContent = '00:00:00';
         document.getElementById('stat-surv-time').textContent    = '00:00:00';
-      } else if (!shouldTick && _localGameRunning) {
-        // Was ticking, now stopped - reset both to zero
-        _localGameRunning = false;
-        _localSessionSec  = 0;
-        _localSurvivalSec = 0;
+      } else {
+        // Not ticking, wasn't ticking - show zeros.
         document.getElementById('stat-session-time').textContent = '00:00:00';
         document.getElementById('stat-surv-time').textContent    = '00:00:00';
       }
-      // While ticking: JS owns display, server poll does NOT touch timers
+      // While ticking: JS owns display completely, poll never writes timer elements.
 
       // Items
       if ((d.total||0) > 0) {
@@ -1044,8 +1037,9 @@ function resetDeaths(){
   fetch('/api/soulslike/session/'+TOKEN+'/reset-deaths/',{
     method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
   }).then(function(){
+    _localLongestSec = 0;
     ['stat-deaths','stat-death-rate','stat-longest'].forEach(function(id){
-      var el=document.getElementById(id); if(el) el.textContent=id.includes('rate')?'0.0':'0';
+      var el=document.getElementById(id); if(el) el.textContent=id.includes('rate')?'--':'0';
     });
     document.getElementById('death-log').innerHTML='<div class="text-gray-700 text-xs text-center py-4">No deaths recorded</div>';
     loadStatus();
@@ -1246,19 +1240,12 @@ var _localSeeded      = false;  // don't tick until server has seeded values
 // Longest life is run-scoped: server is truth, seeded on load
 setInterval(function() {
   if (!_localGameRunning || !_localSeeded) return;
-  var now = Date.now();
-  if (_localLastTick > 0) {
-    var elapsed = now - _localLastTick;
-    var secs = Math.round(elapsed / 1000);
-    if (secs < 1) { _localLastTick = now; return; }
-    _localSessionSec  += secs;
-    _localSurvivalSec += secs;
-    var ss = document.getElementById('stat-session-time');
-    var sk = document.getElementById('stat-surv-time');
-    if (ss) ss.textContent = fmtSecs(_localSessionSec);
-    if (sk) sk.textContent = fmtSecs(_localSurvivalSec);
-  }
-  _localLastTick = now;
+  _localSessionSec  += 1;
+  _localSurvivalSec += 1;
+  var ss = document.getElementById('stat-session-time');
+  var sk = document.getElementById('stat-surv-time');
+  if (ss) ss.textContent = fmtSecs(_localSessionSec);
+  if (sk) sk.textContent = fmtSecs(_localSurvivalSec);
 }, 1000);
 
 // Run Duration - always ticking wall clock from run creation, never resets

@@ -513,11 +513,10 @@
           <i class="fas fa-gem text-gray-400 group-hover:text-purple-400"></i>
           <span>Hero Shop</span>
         </a>
-        <a href="{% url 'questlog_web_hero_subscribe' %}"
-           class="nav-item {% if active_page == 'hero' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-shield-alt text-gray-400 group-hover:text-amber-400"></i>
-          <span>{% if web_user.is_hero %}Champion{% else %}Become a Champion{% endif %}</span>
-          {% if not web_user.is_hero %}<span class="ml-auto text-[10px] bg-amber-600/30 text-amber-400 px-1.5 py-0.5 rounded font-semibold">$6.99</span>{% endif %}
+        <a href="{% url 'questlog_web_giveaways' %}"
+           class="nav-item {% if active_page == 'giveaways' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+          <i class="fas fa-gift text-gray-400 group-hover:text-indigo-400"></i>
+          <span>Giveaways</span>
         </a>
         {% if web_user.is_hero %}
         <form method="post" action="{% url 'questlog_web_hero_portal' %}">
@@ -529,11 +528,6 @@
           </button>
         </form>
         {% endif %}
-        <a href="{% url 'questlog_web_giveaways' %}"
-           class="nav-item {% if active_page == 'giveaways' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
-          <i class="fas fa-gift text-gray-400 group-hover:text-indigo-400"></i>
-          <span>Giveaways</span>
-        </a>
 
       </div>
     </div>
@@ -553,8 +547,8 @@
     {% endif %}
     </script>
 
-    {% if web_user.is_hero or web_user.is_admin %}
-    <!-- Early Access - collapsible -->
+    {% if False %}
+    <!-- Early Access - hidden until ready -->
     <div>
       <button onclick="toggleEarlyAccess()" class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-neutral-800 transition group">
         <span class="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
