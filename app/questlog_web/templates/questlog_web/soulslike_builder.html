@@ -3432,8 +3432,8 @@ function renderPickerResults() {
       // Infusable badge - both ER and ERR have unique-skill weapons that can't be infused
       // is_locked_skill = AoW cannot be swapped (unique skill)
       // is_infusable = affinity (Heavy/Blood/etc) can be applied
-      const lockedBadge   = w.is_locked_skill ? `<span class="text-[9px] text-gray-500 border border-neutral-700/50 rounded px-1">Locked Skill</span>` : '';
-      const infusableBadge = !w.is_infusable ? `<span class="text-[9px] text-gray-600 border border-neutral-700/40 rounded px-1">No Infuse</span>` : '';
+      const lockedBadge   = w.is_locked_skill ? `<span class="text-[9px] text-amber-300 bg-amber-900/30 border border-amber-700/50 rounded px-1">Locked Skill</span>` : '';
+      const infusableBadge = !w.is_infusable ? `<span class="text-[9px] text-gray-300 bg-neutral-700 border border-neutral-500 rounded px-1">No Infuse</span>` : '';
       const skillLine = w.default_skill
         ? `<div class="text-[10px] text-amber-700/80 truncate">Skill: ${escapeHtml(w.default_skill)}</div>`
         : '';

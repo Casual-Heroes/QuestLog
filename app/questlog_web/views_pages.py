@@ -5460,6 +5460,9 @@ def api_submit_feedback(request):
         ],
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(now)),
     }
+    if media_url:
+        full_media_url = media_url if media_url.startswith('http') else f'https://questlog.casual-heroes.com{media_url}'
+        embed['image'] = {'url': full_media_url}
 
     # Send to Fluxer channel via pending broadcasts queue
     if fluxer_channel_id:
@@ -5530,7 +5533,10 @@ def api_admin_feedback(request):
                 'category': f.category,
                 'subject': f.subject,
                 'body': f.body,
+                'media_url': f.media_url or '',
+                'media_type': f.media_type or '',
                 'status': f.status,
+                'admin_note': f.admin_note or '',
                 'created_at': f.created_at,
                 'author': (f.user.display_name or f.user.username) if f.user else 'Anonymous',
             }
