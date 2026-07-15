@@ -25,7 +25,7 @@ from django.core.mail import send_mail
 from django.conf import settings as django_settings
 
 from sqlalchemy import text as sa_text
-from .models import WebUser, WebCreatorProfile, WebReferral, WebSiteConfig, WebFlair, WebUserFlair, WebEarlyAccessCode, WebXpEvent, WebHeroPointEvent, WebCommunityMember
+from .models import WebUser, WebCreatorProfile, WebReferral, WebSiteConfig, WebFlair, WebUserFlair, WebEarlyAccessCode, WebXpEvent, WebHeroPointEvent, WebCommunityMember, WebUserTOTP
 from app.db import get_db_session
 from .fluxer_webhooks import notify_member_signup_log as _log_new_member
 from .helpers import (
@@ -303,6 +303,18 @@ def ql_login(request, early_access_bypass=False):
 
             _maybe_award_founding_flair(user, db)
 
+            totp = db.query(WebUserTOTP).filter_by(user_id=user.id, is_enabled=True).first()
+            if totp:
+                # Don't write web_user_id yet - hold the login pending until
+                # totp_verify confirms the second factor, or the password alone
+                # would be sufficient to reach a full session.
+                django_logout(request)
+                request.session['web_2fa_pending_user_id'] = user.id
+                request.session['web_2fa_pending_is_admin'] = bool(user.is_admin)
+                request.session['web_2fa_pending_next'] = safe_redirect_url(next_url)
+                request.session.modified = True
+                return redirect('2fa/verify/')
+
             request.session['web_user_id']       = user.id
             request.session['web_user_name']     = user.username
             request.session['web_user_avatar']   = user.avatar_url or ''
@@ -410,6 +422,15 @@ def ql_admin_login(request):
             db.commit()
             db.refresh(user)
 
+            totp = db.query(WebUserTOTP).filter_by(user_id=user.id, is_enabled=True).first()
+            if totp:
+                django_logout(request)
+                request.session['web_2fa_pending_user_id'] = user.id
+                request.session['web_2fa_pending_is_admin'] = True
+                request.session['web_2fa_pending_next'] = 'admin/'
+                request.session.modified = True
+                return redirect('2fa/verify/')
+
             request.session['web_user_id']       = user.id
             request.session['web_user_name']     = user.username
             request.session['web_user_avatar']   = user.avatar_url or ''
@@ -454,21 +475,8 @@ def api_check_invite(request):
 @ratelimit(key='ip', rate='60/h', method='GET', block=True)
 def ql_register(request):
     """Account registration - username + password via Django auth."""
-    if request.session.get('web_user_id') and request.web_user:
+    if request.session.get('web_user_id') and get_web_user(request):
         return redirect('/discover/')
-
-    # Check for invite code bypass (from ?invite=CODE query param on GET, or invite_code field on POST)
-    if request.method == 'GET':
-        invite_param = request.GET.get('invite', '').strip().upper()
-    else:
-        invite_param = request.POST.get('invite_code', '').strip().upper()
-    invite_bypass = False
-    if invite_param:
-        with get_db_session() as db:
-            pre_check = db.query(WebEarlyAccessCode).filter_by(
-                code=invite_param, is_revoked=False
-            ).filter(WebEarlyAccessCode.used_by_user_id == None).first()
-            invite_bypass = bool(pre_check)
 
     # Check for invite code bypass (from ?invite=CODE query param on GET, or invite_code field on POST)
     if request.method == 'GET':

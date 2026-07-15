@@ -1,0 +1,200 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Palworld - Survival Hub - Casual Heroes{% endblock %}
+{% block og_title %}Palworld - Survival Hub - Casual Heroes{% endblock %}
+{% block og_description %}Best Pals leaderboard, top catchers, highest levels, and guild rosters for our Palworld server.{% endblock %}
+
+{% block web_content %}
+
+<!-- Hero -->
+<div class="relative w-full overflow-hidden" style="height:240px">
+  <img src="{% static 'img/games/survivalgames/headerpic.jpg' %}" alt="Palworld"
+       class="w-full h-full object-cover object-center">
+  <div class="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/50 to-transparent"></div>
+  <div class="absolute inset-0 flex items-end">
+    <div class="p-8 sm:p-12 max-w-5xl mx-auto w-full flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <a href="/survival/" class="inline-flex items-center gap-2 text-xs text-neutral-400 hover:text-neutral-200 transition mb-3">
+          <i class="fas fa-chevron-left text-[10px]"></i>Survival Hub
+        </a>
+        <h1 class="text-3xl sm:text-4xl font-black text-white leading-tight flex items-center gap-3" style="text-shadow:0 2px 20px rgba(0,0,0,0.8)">
+          <span>🐾</span>Palworld
+        </h1>
+      </div>
+      {% if snapshot %}
+      <span class="text-xs text-gray-300" style="text-shadow:0 1px 8px rgba(0,0,0,0.9)">Last updated {{ snapshot.snapshot_date }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  {% if not snapshot %}
+  <div class="bg-neutral-900/60 border-2 border-dashed border-amber-500/30 rounded-xl p-8 text-center">
+    <i class="fas fa-triangle-exclamation text-2xl text-amber-500/70 mb-3"></i>
+    <p class="text-amber-300/80 text-sm font-semibold">No snapshot data yet</p>
+    <p class="text-neutral-500 text-xs mt-1">Check back after the next daily snapshot runs.</p>
+  </div>
+  {% else %}
+
+  <!-- Tab Bar -->
+  <div class="flex gap-1 mb-6 bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 ring-1 ring-white/5 rounded-xl p-1 flex-wrap">
+    <button onclick="switchPalworldTab('best-pals')" id="pw-tab-best-pals"
+      class="pw-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all bg-emerald-500/20 text-emerald-300">
+      <i class="fas fa-trophy mr-1.5"></i>Best Pals
+    </button>
+    <button onclick="switchPalworldTab('top-catchers')" id="pw-tab-top-catchers"
+      class="pw-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+      <i class="fas fa-circle-dot mr-1.5"></i>Top Catchers
+    </button>
+    <button onclick="switchPalworldTab('top-levels')" id="pw-tab-top-levels"
+      class="pw-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+      <i class="fas fa-ranking-star mr-1.5"></i>Highest Level
+    </button>
+    <button onclick="switchPalworldTab('community')" id="pw-tab-community"
+      class="pw-tab flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-neutral-400 hover:text-white hover:bg-neutral-700">
+      <i class="fas fa-heart-pulse mr-1.5"></i>Community Health
+    </button>
+  </div>
+
+  <!-- Tab: Best Pals -->
+  <div id="pw-tab-content-best-pals" class="pw-tab-content">
+    <p class="text-gray-500 text-xs mb-4">Ranked by total IVs (HP + Shot + Defense talents, max 300) - the best-rolled Pals on the server.</p>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-2xl overflow-hidden">
+      {% for pal in best_pals %}
+      <div class="flex items-center gap-4 px-4 py-3 {% if not forloop.last %}border-b border-neutral-800{% endif %} {% if forloop.counter <= 3 %}bg-amber-950/10{% endif %}">
+        <div class="w-8 text-center font-black text-lg
+          {% if forloop.counter == 1 %}text-amber-400{% elif forloop.counter == 2 %}text-gray-300{% elif forloop.counter == 3 %}text-amber-700{% else %}text-gray-600{% endif %}">
+          {{ forloop.counter }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-white font-semibold text-sm">{{ pal.species }}</span>
+            <span class="text-gray-500 text-xs">Lv.{{ pal.level }}</span>
+            {% if pal.is_boss %}<span class="px-1.5 py-0.5 bg-rose-600/20 text-rose-300 text-[10px] font-bold uppercase rounded-full">Boss</span>{% endif %}
+            {% if pal.is_rare_pal %}<span class="px-1.5 py-0.5 bg-purple-600/20 text-purple-300 text-[10px] font-bold uppercase rounded-full">Rare</span>{% endif %}
+            <span class="text-gray-600 text-xs">{{ pal.gender }}</span>
+          </div>
+          <div class="text-gray-500 text-xs mt-0.5">Owned by <span class="text-gray-400">{{ pal.owner_name }}</span></div>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <div class="text-emerald-400 font-black text-lg">{{ pal.iv_total }}</div>
+          <div class="text-gray-600 text-[10px]">HP {{ pal.talent_hp }} / Shot {{ pal.talent_shot }} / Def {{ pal.talent_defense }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="text-center text-gray-500 text-sm py-8">No Pal data yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Tab: Top Catchers -->
+  <div id="pw-tab-content-top-catchers" class="pw-tab-content hidden">
+    <p class="text-gray-500 text-xs mb-4">Most Pals captured, all-time.</p>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-2xl overflow-hidden">
+      {% for player in top_catchers %}
+      <div class="flex items-center gap-4 px-4 py-3 {% if not forloop.last %}border-b border-neutral-800{% endif %}">
+        <div class="w-8 text-center font-black text-lg
+          {% if forloop.counter == 1 %}text-amber-400{% elif forloop.counter == 2 %}text-gray-300{% elif forloop.counter == 3 %}text-amber-700{% else %}text-gray-600{% endif %}">
+          {{ forloop.counter }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <span class="text-white font-semibold text-sm">{{ player.player_name }}</span>
+          {% if player.guild_name %}<span class="text-gray-500 text-xs ml-2">{{ player.guild_name }}</span>{% endif %}
+          <div class="text-gray-500 text-xs mt-0.5">{{ player.species_discovered }} species discovered{% if player.favorite_species %} - most caught: {{ player.favorite_species }}{% endif %}</div>
+        </div>
+        <div class="text-emerald-400 font-black text-lg flex-shrink-0">{{ player.total_captures }}</div>
+      </div>
+      {% empty %}
+      <div class="text-center text-gray-500 text-sm py-8">No capture data yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Tab: Highest Level -->
+  <div id="pw-tab-content-top-levels" class="pw-tab-content hidden">
+    <p class="text-gray-500 text-xs mb-4">The server's most experienced survivors.</p>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-2xl overflow-hidden">
+      {% for player in top_levels %}
+      <div class="flex items-center gap-4 px-4 py-3 {% if not forloop.last %}border-b border-neutral-800{% endif %}">
+        <div class="w-8 text-center font-black text-lg
+          {% if forloop.counter == 1 %}text-amber-400{% elif forloop.counter == 2 %}text-gray-300{% elif forloop.counter == 3 %}text-amber-700{% else %}text-gray-600{% endif %}">
+          {{ forloop.counter }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <span class="text-white font-semibold text-sm">{{ player.player_name }}</span>
+          {% if player.guild_name %}<span class="text-gray-500 text-xs ml-2">{{ player.guild_name }}</span>{% endif %}
+          <div class="text-gray-500 text-xs mt-0.5">{{ player.boss_kills|default:0 }} bosses defeated</div>
+        </div>
+        <div class="text-indigo-400 font-black text-lg flex-shrink-0">Lv.{{ player.level }}</div>
+      </div>
+      {% empty %}
+      <div class="text-center text-gray-500 text-sm py-8">No player data yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Tab: Community Health -->
+  <div id="pw-tab-content-community" class="pw-tab-content hidden">
+    <p class="text-gray-500 text-xs mb-4">Server-wide snapshot from {{ snapshot.snapshot_date }}.</p>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-emerald-400">{{ snapshot.total_players }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Players</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-amber-400">{{ snapshot.total_pals }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Pals</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-indigo-400">{{ snapshot.total_guilds }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Guilds</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-rose-400">{{ snapshot.avg_level }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Avg. Level</div>
+      </div>
+    </div>
+
+    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Guild Rosters</h3>
+    <div class="bg-neutral-900/60 border border-neutral-800 rounded-2xl overflow-hidden">
+      {% for guild in guilds %}
+      <div class="flex items-center gap-4 px-4 py-3 {% if not forloop.last %}border-b border-neutral-800{% endif %}">
+        <div class="flex-1 min-w-0">
+          <span class="text-white font-semibold text-sm">{{ guild.guild_name }}</span>
+          <div class="text-gray-500 text-xs mt-0.5">Avg. level {{ guild.avg_level }}{% if guild.base_camp_level %} - Base camp Lv.{{ guild.base_camp_level }}{% endif %}</div>
+        </div>
+        <div class="text-gray-400 font-bold text-sm flex-shrink-0">{{ guild.member_count }} member{{ guild.member_count|pluralize }}</div>
+      </div>
+      {% empty %}
+      <div class="text-center text-gray-500 text-sm py-8">No guild data yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% endif %}
+
+</div>
+
+<script>
+function switchPalworldTab(tab) {
+  document.querySelectorAll('.pw-tab-content').forEach(c => c.classList.add('hidden'));
+  document.querySelectorAll('.pw-tab').forEach(b => {
+    b.classList.remove('bg-emerald-500/20', 'text-emerald-300');
+    b.classList.add('text-neutral-400');
+  });
+  const content = document.getElementById('pw-tab-content-' + tab);
+  if (content) content.classList.remove('hidden');
+  const btn = document.getElementById('pw-tab-' + tab);
+  if (btn) { btn.classList.remove('text-neutral-400'); btn.classList.add('bg-emerald-500/20', 'text-emerald-300'); }
+  if (history.replaceState) history.replaceState(null, '', '#' + tab);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const hash = location.hash.slice(1);
+  const valid = ['best-pals', 'top-catchers', 'top-levels', 'community'];
+  if (hash && valid.includes(hash)) switchPalworldTab(hash);
+});
+</script>
+
+{% endblock %}

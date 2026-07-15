@@ -11,7 +11,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings as django_settings
 from django_ratelimit.decorators import ratelimit
-from sqlalchemy import or_, and_, text
+from sqlalchemy import or_, and_, text, bindparam
 
 from .models import (
     WebCreatorProfile, PlatformType, WebLFGGroup, WebLFGMember,
@@ -2473,7 +2473,7 @@ def game_servers_ql(request):
                 db.query(SiteActivityGame)
                 .filter(
                     SiteActivityGame.is_active == True,
-                    SiteActivityGame.display_on.in_(['gameservers', 'both']),
+                    SiteActivityGame.display_on.in_(['hosted', 'both']),
                 )
                 .order_by(SiteActivityGame.sort_order)
                 .all()
@@ -2567,7 +2567,7 @@ def game_servers_ql(request):
 
     context = {
         'web_user': request.web_user,
-        'active_page': 'game_servers',
+        'active_page': 'hosted_games',
         'games': hosted_games,
         'active_poll': active_poll,
     }
@@ -2590,7 +2590,7 @@ def api_gameservers_status(request):
                 db.query(SiteActivityGame)
                 .filter(
                     SiteActivityGame.is_active == True,
-                    SiteActivityGame.display_on.in_(['gameservers', 'both']),
+                    SiteActivityGame.display_on.in_(['hosted', 'both']),
                 )
                 .order_by(SiteActivityGame.sort_order)
                 .all()
@@ -5679,6 +5679,87 @@ def _sanitize_rune_inventory(raw_runes: list) -> list:
         })
     return sanitized
 
+
+_ENKINDLE_RARITIES = {'common', 'rare', 'legendary'}
+_ENKINDLE_RARITY_TIER = {'common': 1, 'rare': 2, 'legendary': 3}
+
+
+def _sanitize_enkindling(aow_name, affix_name, rarity):
+    """
+    Validates one weapon slot's Enkindling selection before saving. Rejects (returns
+    None, None) if the affix isn't actually eligible for that AoW (per
+    sl_err_aow_eligible_affixes) or the rarity is invalid - prevents a client sending
+    an arbitrary affix name to get an effect that AoW was never meant to grant.
+    Returns (affix_name, rarity) both normalized, or (None, None) to store nothing.
+    """
+    if not aow_name or not affix_name or not rarity:
+        return None, None
+    rarity = str(rarity).strip().lower()
+    if rarity not in _ENKINDLE_RARITIES:
+        return None, None
+    affix_name = sanitize_text(str(affix_name)[:64])
+    try:
+        with get_db_session() as db:
+            row = db.execute(text("""
+                SELECT 1 FROM sl_err_aow_eligible_affixes e
+                JOIN sl_err_aow_skills s ON s.id = e.aow_id
+                JOIN sl_err_enkindling_affixes a ON a.id = e.affix_id
+                WHERE s.name = :aow AND a.name = :affix
+            """), {'aow': str(aow_name)[:200], 'affix': affix_name}).fetchone()
+    except Exception:
+        logger.warning("_sanitize_enkindling: DB unavailable, rejecting")
+        return None, None
+    if not row:
+        return None, None
+    return affix_name, rarity
+
+
+_ENKINDLE_SLOTS = ('rh1', 'rh2', 'rh3', 'lh1', 'lh2', 'lh3')
+
+
+def _build_enkindling_save_data(data, game):
+    """
+    Validates all 6 weapon slots' Enkindling selections (ERR only) against
+    sl_err_aow_eligible_affixes, keyed by each slot's already-equipped aow_name.
+    Returns a dict of {'<slot>_enk_affix': val, '<slot>_enk_rarity': val, ...} ready
+    to splice into a params dict - vanilla ER always gets all-None (system doesn't
+    exist there).
+    """
+    out = {}
+    for slot in _ENKINDLE_SLOTS:
+        if game != 'err':
+            out[f'{slot}_enk_affix'] = None
+            out[f'{slot}_enk_rarity'] = None
+            continue
+        aow_name = data.get(f'{slot}_aow_name')
+        affix = data.get(f'{slot}_enkindle_affix')
+        rarity = data.get(f'{slot}_enkindle_rarity')
+        v_affix, v_rarity = _sanitize_enkindling(aow_name, affix, rarity)
+        out[f'{slot}_enk_affix'] = v_affix
+        out[f'{slot}_enk_rarity'] = v_rarity
+    return out
+
+
+_ENKINDLE_SET_CLAUSE = ", ".join(
+    f"{slot}_enkindle_affix=:{slot}_enk_affix, {slot}_enkindle_rarity=:{slot}_enk_rarity"
+    for slot in _ENKINDLE_SLOTS
+)
+_ENKINDLE_INSERT_COLS = ", ".join(
+    f"{slot}_enkindle_affix, {slot}_enkindle_rarity" for slot in _ENKINDLE_SLOTS
+)
+_ENKINDLE_INSERT_VALS = ", ".join(
+    f":{slot}_enk_affix, :{slot}_enk_rarity" for slot in _ENKINDLE_SLOTS
+)
+
+
+def _enkindle_select_cols(table):
+    """SELECT-clause fragment for enkindling columns - real columns for sl_err_builds,
+    NULL placeholders for sl_er_builds (vanilla ER doesn't have this system/columns)."""
+    if table == 'sl_err_builds':
+        return ", ".join(f"b.{slot}_enkindle_affix, b.{slot}_enkindle_rarity" for slot in _ENKINDLE_SLOTS)
+    return ", ".join(f"NULL as {slot}_enkindle_affix, NULL as {slot}_enkindle_rarity" for slot in _ENKINDLE_SLOTS)
+
+
 @ensure_csrf_cookie
 @add_web_user_context
 def soulslike_hub(request):
@@ -5710,50 +5791,188 @@ def soulslike_hub(request):
 
 
 def api_sl_hub_stats(request):
-    """GET /api/soulslike/hub-stats/?game=all|elden_ring|err|remnant2"""
+    """GET /api/soulslike/hub-stats/?game=all|elden_ring|err"""
     game = request.GET.get('game', 'all')[:16]
+    if game not in {'all', 'elden_ring', 'err'}:
+        return JsonResponse({'error': 'unsupported game'}, status=404)
     stats = {}
     try:
         with get_db_session() as db:
-            if game == 'remnant2':
-                stats['total_runs']      = db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                stats['active_runs']     = db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1 AND is_active=1')).scalar() or 0
-                stats['total_deaths']    = db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                stats['bosses_killed']   = db.execute(text('SELECT COALESCE(SUM(bosses_killed),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                stats['items_collected'] = db.execute(text('SELECT COALESCE(SUM(items_found),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                stats['total_builds']    = db.execute(text('SELECT COUNT(*) FROM r2_builds WHERE is_public=1')).scalar() or 0
-                stats['leaderboard']     = db.execute(text('SELECT COUNT(DISTINCT user_id) FROM r2_leaderboard')).scalar() or 0
-            else:
-                PUBLIC = "JOIN web_users u ON u.id = s.user_id WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
-                game_filter = ''
-                if game == 'elden_ring':
-                    game_filter = " AND s.game='elden_ring' AND (s.game_mode IS NULL OR s.game_mode != 'err')"
-                elif game == 'err':
-                    game_filter = " AND s.game_mode='err'"
-                stats['total_runs']      = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC}{game_filter}')).scalar() or 0
-                stats['active_runs']     = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC}{game_filter} AND s.ended_at IS NULL')).scalar() or 0
-                stats['total_deaths']    = db.execute(text(f'SELECT COALESCE(SUM(s.death_count),0) FROM sl_collection_sessions s {PUBLIC}{game_filter}')).scalar() or 0
-                stats['bosses_killed']   = db.execute(text(f'SELECT COUNT(*) FROM sl_session_bosses sb JOIN sl_collection_sessions s ON s.id=sb.session_id {PUBLIC}{game_filter} AND sb.is_defeated=1')).scalar() or 0
-                stats['items_collected'] = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_item_status si JOIN sl_collection_sessions s ON s.id=si.session_id {PUBLIC}{game_filter} AND si.is_collected=1')).scalar() or 0
-                if game == 'all':
-                    stats['total_runs']      += db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                    stats['active_runs']     += db.execute(text('SELECT COUNT(*) FROM r2_runs WHERE is_public=1 AND is_active=1')).scalar() or 0
-                    stats['total_deaths']    += db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                    stats['bosses_killed']   += db.execute(text('SELECT COALESCE(SUM(bosses_killed),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                    stats['items_collected'] += db.execute(text('SELECT COALESCE(SUM(items_found),0) FROM r2_runs WHERE is_public=1')).scalar() or 0
-                if game == 'elden_ring':
-                    stats['total_builds'] = db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0
-                elif game == 'err':
-                    stats['total_builds'] = db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0
-                else:  # all
-                    er_builds  = db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0
-                    err_builds = db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0
-                    r2_builds  = db.execute(text('SELECT COUNT(*) FROM r2_builds WHERE is_public=1')).scalar() or 0
-                    stats['total_builds'] = er_builds + err_builds + r2_builds
-                stats['leaderboard']  = db.execute(text('SELECT COUNT(DISTINCT user_id) FROM sl_leaderboard_entries')).scalar() or 0
+            PUBLIC = "JOIN web_users u ON u.id = s.user_id WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
+            game_filter = ''
+            if game == 'elden_ring':
+                game_filter = " AND s.game='elden_ring' AND (s.game_mode IS NULL OR s.game_mode != 'err')"
+            elif game == 'err':
+                game_filter = " AND s.game_mode='err'"
+            stats['total_runs']      = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC}{game_filter}')).scalar() or 0
+            stats['active_runs']     = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_sessions s {PUBLIC}{game_filter} AND s.ended_at IS NULL')).scalar() or 0
+            stats['total_deaths']    = db.execute(text(f'SELECT COALESCE(SUM(s.death_count),0) FROM sl_collection_sessions s {PUBLIC}{game_filter}')).scalar() or 0
+            stats['bosses_killed']   = db.execute(text(f'SELECT COUNT(*) FROM sl_session_bosses sb JOIN sl_collection_sessions s ON s.id=sb.session_id {PUBLIC}{game_filter} AND sb.is_defeated=1')).scalar() or 0
+            stats['items_collected'] = db.execute(text(f'SELECT COUNT(*) FROM sl_collection_item_status si JOIN sl_collection_sessions s ON s.id=si.session_id {PUBLIC}{game_filter} AND si.is_collected=1')).scalar() or 0
+            if game == 'elden_ring':
+                stats['total_builds'] = db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0
+            elif game == 'err':
+                stats['total_builds'] = db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0
+            else:  # all enabled games
+                er_builds  = db.execute(text('SELECT COUNT(*) FROM sl_er_builds WHERE is_public=1')).scalar() or 0
+                err_builds = db.execute(text('SELECT COUNT(*) FROM sl_err_builds WHERE is_public=1')).scalar() or 0
+                stats['total_builds'] = er_builds + err_builds
+            stats['leaderboard']  = db.execute(text('SELECT COUNT(DISTINCT user_id) FROM sl_leaderboard_entries')).scalar() or 0
     except Exception:
         stats = {'total_runs':0,'active_runs':0,'total_deaths':0,'bosses_killed':0,'items_collected':0,'total_builds':0,'leaderboard':0}
     return JsonResponse(stats)
+
+
+# ============================================================================
+# SURVIVAL HUB (Palworld today, other survival games later)
+# ============================================================================
+
+@ensure_csrf_cookie
+@add_web_user_context
+def survival_hub(request):
+    """Survival Hub landing page - umbrella page for survival-game community
+    stats/tools, mirroring soulslike_hub's pattern. Palworld is the only game
+    wired up today; more get added to games_list as their pipelines are built."""
+    stats = {'total_players': 0, 'total_pals': 0, 'total_guilds': 0, 'total_captures': 0}
+    try:
+        with get_db_session() as db:
+            latest_ids = db.execute(text(
+                "SELECT id FROM palworld_snapshots ps "
+                "WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM palworld_snapshots WHERE instance_name = ps.instance_name) "
+                "AND parse_ok = 1"
+            )).fetchall()
+            ids = [r[0] for r in latest_ids]
+            if ids:
+                stats['total_players'] = db.execute(text(
+                    "SELECT COUNT(*) FROM palworld_player_snapshots WHERE snapshot_id IN :ids"
+                ).bindparams(bindparam('ids', expanding=True)), {'ids': ids}).scalar() or 0
+                stats['total_pals'] = db.execute(text(
+                    "SELECT COUNT(*) FROM palworld_pal_snapshots WHERE snapshot_id IN :ids"
+                ).bindparams(bindparam('ids', expanding=True)), {'ids': ids}).scalar() or 0
+                stats['total_guilds'] = db.execute(text(
+                    "SELECT COUNT(DISTINCT guild_id) FROM palworld_player_snapshots WHERE snapshot_id IN :ids AND guild_id IS NOT NULL"
+                ).bindparams(bindparam('ids', expanding=True)), {'ids': ids}).scalar() or 0
+                stats['total_captures'] = db.execute(text(
+                    "SELECT COALESCE(SUM(total_captures), 0) FROM palworld_player_snapshots WHERE snapshot_id IN :ids"
+                ).bindparams(bindparam('ids', expanding=True)), {'ids': ids}).scalar() or 0
+    except Exception as e:
+        logger.warning('survival_hub: stats query failed: %s', e)
+
+    return render(request, 'questlog_web/survival_hub.html', {
+        'web_user': request.web_user,
+        'active_page': 'survival_hub',
+        'stats': stats,
+        'games_list': ['Palworld'],
+    })
+
+
+def _palworld_display_name(character_id: str) -> tuple[str, bool]:
+    """Palworld's raw CharacterID is a CamelCase code (e.g. 'KendoFrog',
+    'BOSS_LeafMomonga') - not something to show a player directly. Splits
+    CamelCase into spaced words and strips the BOSS_ prefix, returning
+    (display_name, is_boss) so the template can badge boss variants instead of
+    showing an ugly raw prefix."""
+    is_boss = character_id.startswith('BOSS_') or character_id.lower().startswith('boss_')
+    name = character_id[5:] if is_boss else character_id
+    # Insert a space before each capital that follows a lowercase letter/digit
+    spaced = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', ' ', name)
+    return spaced, is_boss
+
+
+@ensure_csrf_cookie
+@add_web_user_context
+def survival_palworld(request):
+    """Palworld detail page - Best Pals (IV leaderboard), Top Catcher, Highest
+    Level, then Community Health. Reads the latest daily snapshot only (not
+    historical trends - that's a future addition once there's demand)."""
+    context_data = {
+        'best_pals': [], 'top_catchers': [], 'top_levels': [],
+        'guilds': [], 'snapshot': None,
+    }
+    try:
+        with get_db_session() as db:
+            # Most recent successfully-parsed snapshot per instance - if multiple
+            # Palworld instances exist later, this takes the newest snapshot
+            # across all of them combined (fine while there's only one instance).
+            snapshot_row = db.execute(text(
+                "SELECT id, instance_name, snapshot_date, taken_at, total_players, total_pals, total_guilds "
+                "FROM palworld_snapshots WHERE parse_ok = 1 ORDER BY snapshot_date DESC, taken_at DESC LIMIT 1"
+            )).fetchone()
+
+            if snapshot_row:
+                snapshot_id = snapshot_row[0]
+                context_data['snapshot'] = {
+                    'instance_name': snapshot_row[1], 'snapshot_date': snapshot_row[2],
+                    'taken_at': snapshot_row[3], 'total_players': snapshot_row[4],
+                    'total_pals': snapshot_row[5], 'total_guilds': snapshot_row[6],
+                }
+
+                context_data['snapshot']['avg_level'] = db.execute(text(
+                    "SELECT ROUND(AVG(level)) FROM palworld_player_snapshots WHERE snapshot_id = :sid"
+                ), {'sid': snapshot_id}).scalar() or 0
+
+                best_pals = db.execute(text(
+                    "SELECT pps.species, pps.level, pps.talent_hp, pps.talent_shot, pps.talent_defense, "
+                    "       pps.iv_total, pps.gender, pps.is_rare_pal, plp.player_name "
+                    "FROM palworld_pal_snapshots pps "
+                    "LEFT JOIN palworld_player_snapshots plp "
+                    "       ON pps.owner_player_uid = plp.player_uid AND pps.snapshot_id = plp.snapshot_id "
+                    "WHERE pps.snapshot_id = :sid "
+                    "ORDER BY pps.iv_total DESC LIMIT 10"
+                ), {'sid': snapshot_id}).fetchall()
+                def _pal_row(r):
+                    display_name, is_boss = _palworld_display_name(r[0])
+                    return {'species': display_name, 'is_boss': is_boss, 'level': r[1],
+                            'talent_hp': r[2], 'talent_shot': r[3], 'talent_defense': r[4],
+                            'iv_total': r[5], 'gender': r[6], 'is_rare_pal': bool(r[7]),
+                            'owner_name': r[8] or 'Unowned'}
+                context_data['best_pals'] = [_pal_row(r) for r in best_pals]
+
+                top_catchers = db.execute(text(
+                    "SELECT player_name, guild_name, total_captures, species_discovered, favorite_species "
+                    "FROM palworld_player_snapshots "
+                    "WHERE snapshot_id = :sid AND total_captures IS NOT NULL "
+                    "ORDER BY total_captures DESC LIMIT 10"
+                ), {'sid': snapshot_id}).fetchall()
+                context_data['top_catchers'] = [
+                    {'player_name': r[0], 'guild_name': r[1], 'total_captures': r[2],
+                     'species_discovered': r[3],
+                     'favorite_species': _palworld_display_name(r[4])[0] if r[4] else None}
+                    for r in top_catchers
+                ]
+
+                top_levels = db.execute(text(
+                    "SELECT player_name, level, guild_name, boss_kills "
+                    "FROM palworld_player_snapshots "
+                    "WHERE snapshot_id = :sid "
+                    "ORDER BY level DESC LIMIT 10"
+                ), {'sid': snapshot_id}).fetchall()
+                context_data['top_levels'] = [
+                    {'player_name': r[0], 'level': r[1], 'guild_name': r[2], 'boss_kills': r[3]}
+                    for r in top_levels
+                ]
+
+                guilds = db.execute(text(
+                    "SELECT guild_name, COUNT(*) as member_count, MAX(base_camp_level) as base_camp_level, "
+                    "       ROUND(AVG(level), 1) as avg_level "
+                    "FROM palworld_player_snapshots "
+                    "WHERE snapshot_id = :sid AND guild_id IS NOT NULL "
+                    "GROUP BY guild_id, guild_name "
+                    "ORDER BY member_count DESC, base_camp_level DESC"
+                ), {'sid': snapshot_id}).fetchall()
+                context_data['guilds'] = [
+                    {'guild_name': r[0] or 'Unnamed Guild', 'member_count': r[1],
+                     'base_camp_level': r[2], 'avg_level': r[3]}
+                    for r in guilds
+                ]
+    except Exception as e:
+        logger.warning('survival_palworld: query failed: %s', e)
+
+    return render(request, 'questlog_web/survival_palworld.html', {
+        'web_user': request.web_user,
+        'active_page': 'survival_palworld',
+        **context_data,
+    })
 
 
 @add_web_user_context
@@ -6323,6 +6542,132 @@ def api_sl_err_curios(request):
 
 
 @require_http_methods(['GET'])
+def api_sl_err_enkindling(request):
+    """
+    GET /api/soulslike/err/enkindling/ - ERR Ash of War Enkindling system + all 39 affixes.
+    Each affix has 1/2/3-star display text (effect_1_star etc, for UI) and, where the
+    tier's effect is a static always-on bonus (not a combat trigger/timed buff), a
+    structured static_effect_N JSON the AR/stat calculator can apply directly. NULL
+    static_effect_N means that tier's effect is descriptive-only (shown as text, not
+    factored into any calculated number) - see populate_enkindling_static_effects.py
+    for the full classification rationale.
+
+    static_effect shapes: {"type":"stat_flat","stat":...,"value":N}
+      {"type":"stat_flat_multi","stats":{...}}
+      {"type":"hp_mult"|"fp_mult"|"stamina_mult"|"equip_load_mult","value":N}
+      {"type":"hp_fp_stamina_mult","hp":N,"fp":N,"stamina":N}
+      {"type":"poise_flat","value":N}  {"type":"poise_and_equip_load","poise":N,"equip_load_mult":N}
+      {"type":"damage_mult","damage_type":...,"value":N}
+      {"type":"damage_mult_vs_enemy_type","damage_type":...,"enemy_type":...,"value":N}
+        -- the vs_enemy_type ones are always-on passives conditional on enemy category
+        (Divine/Undead/Dragon), not timed/triggered - intended to power a "vs this
+        enemy type" toggle in the AR display, per user's request, rather than being
+        excluded outright.
+    """
+    with get_db_session() as db:
+        system = db.execute(text(
+            "SELECT section, content FROM sl_err_enkindling_system ORDER BY section"
+        )).fetchall()
+        rows = db.execute(text(
+            "SELECT name, affinity, effect_1_star, effect_2_star, effect_3_star, "
+            "static_effect_1, static_effect_2, static_effect_3 "
+            "FROM sl_err_enkindling_affixes ORDER BY name"
+        )).fetchall()
+
+    def _parse(raw):
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+
+    return JsonResponse({
+        'system_overview': {r[0]: r[1] for r in system},
+        'affixes': [
+            {
+                'name': r[0], 'affinity': r[1],
+                'tiers': [
+                    {'star': 1, 'text': r[2] or '', 'static_effect': _parse(r[5])},
+                    {'star': 2, 'text': r[3] or '', 'static_effect': _parse(r[6])},
+                    {'star': 3, 'text': r[4] or '', 'static_effect': _parse(r[7])},
+                ],
+            }
+            for r in rows
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_err_enkindling_eligible(request):
+    """
+    GET /api/soulslike/err/enkindling/eligible/?aow=<name>
+    Returns the affixes a specific base Ash of War can roll when enkindled, sourced
+    from sl_err_aow_eligible_affixes (per-AoW eligibility, separate from
+    sl_err_enkindled_aow which tracks actual rolled instances). Falls back to "Mundane
+    only" if the AoW has no eligibility rows seeded yet (rather than showing all 39,
+    which would be wrong) - only Mundane is documented as universally available.
+    """
+    aow_name = request.GET.get('aow', '').strip()[:200]
+    if not aow_name:
+        return JsonResponse({'error': 'aow parameter required'}, status=400)
+
+    with get_db_session() as db:
+        # Unknown AoW name (naming mismatch between what a build saved and what's in
+        # sl_err_aow_skills, e.g. a unique-skill variant name or stale/renamed entry) -
+        # degrade to "Mundane only" instead of erroring, since Mundane is documented
+        # as universally available on every Ash of War regardless of eligibility data.
+        aow_row = db.execute(text(
+            "SELECT id FROM sl_err_aow_skills WHERE name=:name"
+        ), {'name': aow_name}).fetchone()
+
+        rows = []
+        if aow_row:
+            rows = db.execute(text("""
+                SELECT a.name, a.affinity, a.effect_1_star, a.effect_2_star, a.effect_3_star,
+                       a.static_effect_1, a.static_effect_2, a.static_effect_3
+                FROM sl_err_aow_eligible_affixes e
+                JOIN sl_err_enkindling_affixes a ON a.id = e.affix_id
+                WHERE e.aow_id = :aow_id
+                ORDER BY a.name
+            """), {'aow_id': aow_row[0]}).fetchall()
+
+        # Degrade to "Mundane only" whenever there are zero eligibility rows - either the
+        # AoW name has no match at all (naming mismatch/stale entry), or it matched but has
+        # no seeded eligibility data (e.g. Shield Strike). Mundane is documented as
+        # universally available on every Ash of War regardless of eligibility data.
+        if not rows:
+            rows = db.execute(text("""
+                SELECT name, affinity, effect_1_star, effect_2_star, effect_3_star,
+                       static_effect_1, static_effect_2, static_effect_3
+                FROM sl_err_enkindling_affixes WHERE name='Mundane'
+            """)).fetchall()
+
+    def _parse(raw):
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+
+    return JsonResponse({
+        'aow': aow_name,
+        'affixes': [
+            {
+                'name': r[0], 'affinity': r[1],
+                'tiers': [
+                    {'star': 1, 'text': r[2] or '', 'static_effect': _parse(r[5])},
+                    {'star': 2, 'text': r[3] or '', 'static_effect': _parse(r[6])},
+                    {'star': 3, 'text': r[4] or '', 'static_effect': _parse(r[7])},
+                ],
+            }
+            for r in rows
+        ],
+    })
+
+
+@require_http_methods(['GET'])
 def api_sl_err_fortunes(request):
     """GET /api/soulslike/err/fortunes/ - all ERR Fortunes grouped by type."""
     with get_db_session() as db:
@@ -6477,6 +6822,60 @@ def api_sl_err_armor_passives(request):
             {'name': r[0], 'note': r[1] or ''} for r in changes
         ],
     })
+
+
+@require_http_methods(['GET'])
+def api_sl_err_weapon_changes(request):
+    """GET /api/soulslike/err/weapon-changes/ - ERR weapon stat/behavior changes from vanilla + passives."""
+    with get_db_session() as db:
+        changes = db.execute(text(
+            "SELECT weapon_name, weapon_class, change_text FROM sl_err_vanilla_weapon_changes "
+            "ORDER BY weapon_class, weapon_name"
+        )).fetchall()
+        passives = db.execute(text(
+            "SELECT weapon_name, passive_effect, fated_effect, acquisition, description "
+            "FROM sl_err_weapon_passives ORDER BY weapon_name"
+        )).fetchall()
+
+    return JsonResponse({
+        'changes': [
+            {'weapon_name': r[0], 'weapon_class': r[1] or '', 'change_text': r[2] or ''}
+            for r in changes
+        ],
+        'passives': [
+            {'weapon_name': r[0], 'passive_effect': r[1] or '', 'fated_effect': r[2] or '',
+             'acquisition': r[3] or '', 'description': r[4] or ''}
+            for r in passives
+        ],
+    })
+
+
+@require_http_methods(['GET'])
+def api_sl_err_spell_changes(request):
+    """GET /api/soulslike/err/spell-changes/ - ERR spell/incantation changes from vanilla."""
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT spell_name, spell_type, school, change_text FROM sl_err_vanilla_spell_changes "
+            "ORDER BY school, spell_name"
+        )).fetchall()
+
+    return JsonResponse({'changes': [
+        {'spell_name': r[0], 'spell_type': r[1] or '', 'school': r[2] or '', 'change_text': r[3] or ''}
+        for r in rows
+    ]})
+
+
+@require_http_methods(['GET'])
+def api_sl_err_character_changes(request):
+    """GET /api/soulslike/err/character-changes/ - ERR character/stat system changes."""
+    with get_db_session() as db:
+        rows = db.execute(text(
+            "SELECT section, content FROM sl_err_character_changes ORDER BY section"
+        )).fetchall()
+
+    return JsonResponse({'changes': [
+        {'section': r[0], 'content': r[1] or ''} for r in rows
+    ]})
 
 
 @require_http_methods(['GET'])
@@ -6750,6 +7149,7 @@ def api_sl_builds(request):
                 "curio_selections=:curio, rune_inventory=:runes, "
                 "fortune_name=:fortune, minor_fortune_name=:mfortune, "
             ) if game == 'err' else ""
+            enk_data = _build_enkindling_save_data(data, game)
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -6768,6 +7168,8 @@ def api_sl_builds(request):
                 "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
                 f"tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
                 f"{err_set}"
+                f"{_ENKINDLE_SET_CLAUSE if game == 'err' else ''}"
+                f"{',' if game == 'err' else ''} "
                 "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
@@ -6797,6 +7199,7 @@ def api_sl_builds(request):
                 **({'curio': curio_sel, 'runes': rune_inv,
                      'fortune': fortune_name, 'mfortune': minor_fortune_name}
                     if game == 'err' else {}),
+                **(enk_data if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -6856,7 +7259,8 @@ def api_sl_builds(request):
         }
 
         if game == 'err':
-            db.execute(text("""
+            enk_data = _build_enkindling_save_data(data, game)
+            db.execute(text(f"""
                 INSERT INTO sl_err_builds
                     (user_id, name, description, class_id,
                      vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane,
@@ -6872,6 +7276,7 @@ def api_sl_builds(request):
                      spells, playstyle_tag, is_public, share_token,
                      spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
                      curio_selections, rune_inventory, fortune_name, minor_fortune_name,
+                     {_ENKINDLE_INSERT_COLS},
                      created_at, updated_at)
                 VALUES
                     (:uid, :name, :desc, :cls,
@@ -6884,8 +7289,9 @@ def api_sl_builds(request):
                      :spells, :tag, :pub, :token,
                      :ash, :ash_upg, :tear1, :tear2, :scadu,
                      :curio, :runes, :fortune, :mfortune,
+                     {_ENKINDLE_INSERT_VALS},
                      :now, :now)
-            """), {**_common, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name})
+            """), {**_common, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name, **enk_data})
         else:
             db.execute(text("""
                 INSERT INTO sl_er_builds
@@ -7001,6 +7407,128 @@ def api_sl_build_delete_desktop(request, build_id):
 
 
 @require_http_methods(['GET'])
+def api_sl_build_detail_desktop(request, build_id):
+    """
+    GET /api/soulslike/desktop/builds/<id>/?game=elden_ring
+    Header: X-Listener-Key: ql_xxx
+    Desktop app build detail - same response shape as api_sl_build_detail (share_token
+    based, session auth) but keyed by build_id + API key auth, since the desktop app
+    only ever has the numeric id from /desktop/builds/ (list), never a share_token.
+    Owner only - no public/share_token access path here (use the web share link for that).
+    """
+    gate = _check_app_version(request)
+    if gate: return gate
+    user = _resolve_api_key_user(request)
+    if not user:
+        return JsonResponse({'error': 'Invalid or missing API key'}, status=401)
+    uid, _ = user
+
+    game  = request.GET.get('game', 'elden_ring')[:32]
+    bid = int(build_id) if str(build_id).isdigit() else 0
+    if not bid:
+        return JsonResponse({'error': 'Invalid build id'}, status=400)
+    _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
+    table = _GAME_TABLES.get(game, 'sl_er_builds')
+
+    with get_db_session() as db:
+        row = db.execute(text(
+            f"SELECT b.id, b.name, b.description, b.class_id, "
+            f"b.vigor, b.mind, b.endurance, b.strength, b.dexterity, b.intelligence, b.faith, b.arcane, "
+            f"b.total_level, "
+            f"b.rh1_weapon_id, b.rh1_aow_name, b.rh1_affinity, b.rh2_weapon_id, b.rh2_aow_name, b.rh2_affinity, b.rh3_weapon_id, b.rh3_aow_name, b.rh3_affinity, "
+            f"b.lh1_weapon_id, b.lh1_aow_name, b.lh1_affinity, b.lh2_weapon_id, b.lh2_aow_name, b.lh2_affinity, b.lh3_weapon_id, b.lh3_aow_name, b.lh3_affinity, "
+            f"b.helm_id, b.chest_id, b.gauntlet_id, b.leg_id, "
+            f"b.talisman_1_id, b.talisman_2_id, b.talisman_3_id, b.talisman_4_id, "
+            f"b.spells, b.playstyle_tag, b.is_public, b.upvotes, b.share_token, b.created_at, "
+            f"u.username, u.avatar_url, "
+            f"b.spirit_ash_name, b.spirit_ash_upgrade, b.tear_1_name, b.tear_2_name, b.scadutree_level, "
+            f"{'b.curio_selections, b.rune_inventory' if table == 'sl_err_builds' else 'NULL as curio_selections, NULL as rune_inventory'}, "
+            f"{'b.fortune_name, b.minor_fortune_name' if table == 'sl_err_builds' else 'NULL as fortune_name, NULL as minor_fortune_name'}, "
+            f"{_enkindle_select_cols(table)} "
+            f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
+            f"WHERE b.id = :bid AND b.user_id = :uid"
+        ), {'bid': bid, 'uid': uid}).mappings().fetchone()
+
+        if not row:
+            return JsonResponse({'error': 'Build not found'}, status=404)
+
+        def _weapon_id_name(wid):
+            if not wid: return None
+            r = db.execute(text("SELECT id, name, weapon_type FROM sl_weapons WHERE id=:id"), {'id': wid}).fetchone()
+            return {'id': r[0], 'name': r[1], 'type': r[2]} if r else None
+
+        def _armor_id_name(aid):
+            if not aid: return None
+            r = db.execute(text("SELECT id, name, armor_type, weight, poise FROM sl_armor WHERE id=:id"), {'id': aid}).fetchone()
+            return {'id': r[0], 'name': r[1], 'type': r[2], 'weight': float(r[3] or 0), 'poise': float(r[4] or 0)} if r else None
+
+        def _talisman_id_name(tid):
+            if not tid: return None
+            r = db.execute(text("SELECT id, name, effect, weight FROM sl_talismans WHERE id=:id"), {'id': tid}).fetchone()
+            return {'id': r[0], 'name': r[1], 'effect': r[2] or '', 'weight': float(r[3] or 0)} if r else None
+
+        spell_ids = json.loads(row.get('spells') or '[]')
+        spell_details = []
+        for sid in spell_ids:
+            if sid >= 10000:
+                real_id = sid - 10000
+                r = db.execute(text("SELECT id, name, spell_type, fp_cost, slots_used FROM sl_err_spells WHERE id=:id"), {'id': real_id}).fetchone()
+                if r:
+                    spell_details.append({'id': sid, 'name': r[1], 'type': r[2], 'fp_cost': r[3] or 0, 'slots': r[4] or 1})
+            else:
+                r = db.execute(text("SELECT id, name, spell_type, fp_cost, slots_required FROM sl_spells WHERE id=:id"), {'id': sid}).fetchone()
+                if r:
+                    spell_details.append({'id': r[0], 'name': r[1], 'type': r[2], 'fp_cost': r[3] or 0, 'slots': r[4] or 1})
+
+        return JsonResponse({
+            'id': row['id'], 'name': row['name'], 'description': row['description'] or '',
+            'author': row['username'], 'author_username': row['username'], 'author_avatar': row['avatar_url'] or '',
+            'level': row['total_level'], 'tag': row['playstyle_tag'],
+            'is_public': bool(row['is_public']), 'upvotes': row['upvotes'],
+            'share_token': row['share_token'],
+            'stats': {s: row[s] for s in ('vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane')},
+            'class_id': row.get('class_id'),
+            'weapons': {
+                'rh1': _weapon_id_name(row.get('rh1_weapon_id')), 'rh1_aow': row.get('rh1_aow_name'), 'rh1_affinity': row.get('rh1_affinity'),
+                'rh1_enkindle_affix': row.get('rh1_enkindle_affix'), 'rh1_enkindle_rarity': row.get('rh1_enkindle_rarity'),
+                'rh2': _weapon_id_name(row.get('rh2_weapon_id')), 'rh2_aow': row.get('rh2_aow_name'), 'rh2_affinity': row.get('rh2_affinity'),
+                'rh2_enkindle_affix': row.get('rh2_enkindle_affix'), 'rh2_enkindle_rarity': row.get('rh2_enkindle_rarity'),
+                'rh3': _weapon_id_name(row.get('rh3_weapon_id')), 'rh3_aow': row.get('rh3_aow_name'), 'rh3_affinity': row.get('rh3_affinity'),
+                'rh3_enkindle_affix': row.get('rh3_enkindle_affix'), 'rh3_enkindle_rarity': row.get('rh3_enkindle_rarity'),
+                'lh1': _weapon_id_name(row.get('lh1_weapon_id')), 'lh1_aow': row.get('lh1_aow_name'), 'lh1_affinity': row.get('lh1_affinity'),
+                'lh1_enkindle_affix': row.get('lh1_enkindle_affix'), 'lh1_enkindle_rarity': row.get('lh1_enkindle_rarity'),
+                'lh2': _weapon_id_name(row.get('lh2_weapon_id')), 'lh2_aow': row.get('lh2_aow_name'), 'lh2_affinity': row.get('lh2_affinity'),
+                'lh2_enkindle_affix': row.get('lh2_enkindle_affix'), 'lh2_enkindle_rarity': row.get('lh2_enkindle_rarity'),
+                'lh3': _weapon_id_name(row.get('lh3_weapon_id')), 'lh3_aow': row.get('lh3_aow_name'), 'lh3_affinity': row.get('lh3_affinity'),
+                'lh3_enkindle_affix': row.get('lh3_enkindle_affix'), 'lh3_enkindle_rarity': row.get('lh3_enkindle_rarity'),
+            },
+            'armor': {
+                'helm':     _armor_id_name(row.get('helm_id')),
+                'chest':    _armor_id_name(row.get('chest_id')),
+                'gauntlet': _armor_id_name(row.get('gauntlet_id')),
+                'leg':      _armor_id_name(row.get('leg_id')),
+            },
+            'talismans': [
+                _talisman_id_name(row.get('talisman_1_id')),
+                _talisman_id_name(row.get('talisman_2_id')),
+                _talisman_id_name(row.get('talisman_3_id')),
+                _talisman_id_name(row.get('talisman_4_id')),
+            ],
+            'spells': spell_details,
+            'created_at': row['created_at'],
+            'spirit_ash_name':    row.get('spirit_ash_name'),
+            'spirit_ash_upgrade': row.get('spirit_ash_upgrade') or 0,
+            'tear_1_name':        row.get('tear_1_name'),
+            'tear_2_name':        row.get('tear_2_name'),
+            'scadutree_level':    row.get('scadutree_level') or 0,
+            'curio_selections':   _safe_json_loads(row.get('curio_selections'), {}),
+            'rune_inventory':     _safe_json_loads(row.get('rune_inventory'), []),
+            'fortune_name':       row.get('fortune_name') or '',
+            'minor_fortune_name': row.get('minor_fortune_name') or '',
+        })
+
+
+@require_http_methods(['GET'])
 def api_sl_builds_browse(request):
     """
     GET /api/soulslike/builds/browse/?game=elden_ring&tag=pve&sort=popular&q=spellsword
@@ -7094,8 +7622,9 @@ def api_sl_build_detail(request, share_token):
             f"b.spells, b.playstyle_tag, b.is_public, b.upvotes, b.share_token, b.created_at, "
             f"u.username, u.avatar_url, "
             f"b.spirit_ash_name, b.spirit_ash_upgrade, b.tear_1_name, b.tear_2_name, b.scadutree_level, "
-            f"b.curio_selections, b.rune_inventory, "
-            f"{'b.fortune_name, b.minor_fortune_name' if table == 'sl_err_builds' else 'NULL as fortune_name, NULL as minor_fortune_name'} "
+            f"{'b.curio_selections, b.rune_inventory' if table == 'sl_err_builds' else 'NULL as curio_selections, NULL as rune_inventory'}, "
+            f"{'b.fortune_name, b.minor_fortune_name' if table == 'sl_err_builds' else 'NULL as fortune_name, NULL as minor_fortune_name'}, "
+            f"{_enkindle_select_cols(table)} "
             f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
             f"WHERE b.share_token = :tok AND (b.is_public = 1 OR b.user_id = :uid)"
         ), {'tok': share_token, 'uid': request.session.get('web_user_id', -1)}).mappings().fetchone()
@@ -7167,11 +7696,17 @@ def api_sl_build_detail(request, share_token):
         'class_id': row.get('class_id'),
         'weapons': {
             'rh1': _weapon_id_name(row.get('rh1_weapon_id')), 'rh1_aow': row.get('rh1_aow_name'), 'rh1_affinity': row.get('rh1_affinity'),
+            'rh1_enkindle_affix': row.get('rh1_enkindle_affix'), 'rh1_enkindle_rarity': row.get('rh1_enkindle_rarity'),
             'rh2': _weapon_id_name(row.get('rh2_weapon_id')), 'rh2_aow': row.get('rh2_aow_name'), 'rh2_affinity': row.get('rh2_affinity'),
+            'rh2_enkindle_affix': row.get('rh2_enkindle_affix'), 'rh2_enkindle_rarity': row.get('rh2_enkindle_rarity'),
             'rh3': _weapon_id_name(row.get('rh3_weapon_id')), 'rh3_aow': row.get('rh3_aow_name'), 'rh3_affinity': row.get('rh3_affinity'),
+            'rh3_enkindle_affix': row.get('rh3_enkindle_affix'), 'rh3_enkindle_rarity': row.get('rh3_enkindle_rarity'),
             'lh1': _weapon_id_name(row.get('lh1_weapon_id')), 'lh1_aow': row.get('lh1_aow_name'), 'lh1_affinity': row.get('lh1_affinity'),
+            'lh1_enkindle_affix': row.get('lh1_enkindle_affix'), 'lh1_enkindle_rarity': row.get('lh1_enkindle_rarity'),
             'lh2': _weapon_id_name(row.get('lh2_weapon_id')), 'lh2_aow': row.get('lh2_aow_name'), 'lh2_affinity': row.get('lh2_affinity'),
+            'lh2_enkindle_affix': row.get('lh2_enkindle_affix'), 'lh2_enkindle_rarity': row.get('lh2_enkindle_rarity'),
             'lh3': _weapon_id_name(row.get('lh3_weapon_id')), 'lh3_aow': row.get('lh3_aow_name'), 'lh3_affinity': row.get('lh3_affinity'),
+            'lh3_enkindle_affix': row.get('lh3_enkindle_affix'), 'lh3_enkindle_rarity': row.get('lh3_enkindle_rarity'),
         },
         'armor': {
             'helm':     _armor_id_name(row.get('helm_id')),
@@ -7701,6 +8236,7 @@ def api_sl_builds_desktop(request):
                 "curio_selections=:curio, rune_inventory=:runes, "
                 "fortune_name=:fortune, minor_fortune_name=:mfortune, "
             ) if game == 'err' else ""
+            enk_data = _build_enkindling_save_data(data, game)
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -7719,6 +8255,8 @@ def api_sl_builds_desktop(request):
                 "spirit_ash_name=:ash, spirit_ash_upgrade=:ash_upg, "
                 f"tear_1_name=:tear1, tear_2_name=:tear2, scadutree_level=:scadu, "
                 f"{err_set_d}"
+                f"{_ENKINDLE_SET_CLAUSE if game == 'err' else ''}"
+                f"{',' if game == 'err' else ''} "
                 "updated_at=:now "
                 f"WHERE id=:bid AND user_id=:uid"
             ), {
@@ -7748,6 +8286,7 @@ def api_sl_builds_desktop(request):
                 **({'curio': curio_sel, 'runes': rune_inv,
                      'fortune': fortune_name, 'mfortune': minor_fortune_name}
                     if game == 'err' else {}),
+                **(enk_data if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
             db.commit()
@@ -7792,7 +8331,8 @@ def api_sl_builds_desktop(request):
 
         if game == 'err':
             # ERR INSERT - includes curio_selections, rune_inventory, fortune_name
-            db.execute(text("""
+            enk_data = _build_enkindling_save_data(data, game)
+            db.execute(text(f"""
                 INSERT INTO sl_err_builds
                     (user_id, name, description, class_id,
                      vigor, mind, endurance, strength, dexterity, intelligence, faith, arcane,
@@ -7808,6 +8348,7 @@ def api_sl_builds_desktop(request):
                      spells, playstyle_tag, is_public, share_token,
                      spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level,
                      curio_selections, rune_inventory, fortune_name, minor_fortune_name,
+                     {_ENKINDLE_INSERT_COLS},
                      created_at, updated_at)
                 VALUES
                     (:uid, :name, :desc, :cls,
@@ -7820,8 +8361,9 @@ def api_sl_builds_desktop(request):
                      :spells, :tag, :pub, :token,
                      :ash, :ash_upg, :tear1, :tear2, :scadu,
                      :curio, :runes, :fortune, :mfortune,
+                     {_ENKINDLE_INSERT_VALS},
                      :now, :now)
-            """), {**_common_params, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name})
+            """), {**_common_params, 'curio': curio_sel, 'runes': rune_inv, 'fortune': fortune_name, 'mfortune': minor_fortune_name, **enk_data})
         else:
             # ER INSERT - no ERR-only columns
             db.execute(text("""

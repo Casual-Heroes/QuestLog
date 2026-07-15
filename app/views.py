@@ -1713,79 +1713,6 @@ def api_activity_counts(request):
     return JsonResponse(result)
 
 
-def game_servers(request):
-    """
-    Public-facing hosted game servers page (casual-heroes.com/gameservers/).
-    Shows games where display_on is 'gameservers' or 'both'.
-    """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    hosted_games = []
-
-    try:
-        from .db import get_db_session
-        from .models import SiteActivityGame
-
-        with get_db_session() as db:
-            db_games = (
-                db.query(SiteActivityGame)
-                .filter(
-                    SiteActivityGame.is_active == True,
-                    SiteActivityGame.display_on.in_(['gameservers', 'both']),
-                )
-                .order_by(SiteActivityGame.sort_order)
-                .all()
-            )
-
-            amp_instances = [
-                g.amp_instance_id
-                for g in db_games
-                if g.amp_instance_id
-            ]
-            amp_data_map = {}
-            if amp_instances:
-                amp_results = loop.run_until_complete(asyncio.gather(
-                    *(fetch_instance_data(name) for name in amp_instances),
-                    return_exceptions=True
-                ))
-                amp_data_map = {g.get('id'): g for g in amp_results if isinstance(g, dict)}
-
-            for db_game in db_games:
-                game_dict = {
-                    'id': db_game.game_key,
-                    'name': db_game.display_name,
-                    'description': db_game.description or '',
-                    'steam_appid': db_game.steam_appid,
-                    'steam_header_url': db_game.steam_header_url,
-                    'custom_img': db_game.custom_img,
-                    'steam_link': db_game.steam_link,
-                    'discord_invite': db_game.discord_invite,
-                    'link_label': db_game.link_label or 'View on Steam',
-                    'online': '-',
-                    'max': '-',
-                    'live_now': False,
-                }
-                amp_data = amp_data_map.get(db_game.amp_instance_id)
-                if amp_data:
-                    game_dict.update({
-                        'source': 'amp',
-                        'online': amp_data.get('online', '-'),
-                        'max': amp_data.get('max', '-'),
-                        'live_now': amp_data.get('live_now', False),
-                        'ip': amp_data.get('ip', 'Unavailable'),
-                        'connect_pw': amp_data.get('connect_pw', ''),
-                        'status_label': amp_data.get('status_label', 'Unknown'),
-                    })
-                hosted_games.append(game_dict)
-
-    except Exception as e:
-        logger.error(f"Failed to load hosted game servers: {e}")
-        hosted_games = []
-
-    return render(request, 'gameservers.html', {'games': hosted_games})
-
-
 # ============================================================================
 # SITE ACTIVITY TRACKER - BOT OWNER ADMIN PANEL
 # ============================================================================
@@ -3810,6 +3737,14 @@ def force_sync_guild(request, guild_id):
     """Force an immediate sync of guild stats from Discord via bot API."""
     from django.http import JsonResponse
 
+    # @discord_required only checks the user is logged in via Discord, not that
+    # they belong to THIS guild - without this, any Discord-authenticated user
+    # could force a sync/cache-invalidation on a guild they have no access to.
+    all_guilds = request.session.get('discord_all_guilds', [])
+    guild = next((g for g in all_guilds if str(g['id']) == str(guild_id)), None)
+    if not guild:
+        return JsonResponse({'success': False, 'error': 'You are not a member of this server.'}, status=403)
+
     try:
         # Call bot API to trigger sync
         bot_api_url = DISCORD_BOT_API_URL
@@ -3840,9 +3775,16 @@ def force_sync_guild(request, guild_id):
 
 
 def invalidate_cache(request, guild_id):
-    """Invalidate Django cache for a guild (called by bot after auto-sync)."""
+    """Invalidate Django cache for a guild (called by bot after auto-sync).
+    Internal-only: requires the same local-IP + shared-secret check used by
+    the rest of the bot-to-web internal API, since this had no auth at all
+    and any unauthenticated caller could invalidate any guild's cache."""
     from django.http import JsonResponse
     from .discord_resources import invalidate_guild_cache
+    from .questlog_web.views_internal import _check_bot_auth
+
+    if not _check_bot_auth(request):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
 
     try:
         invalidate_guild_cache(guild_id)
@@ -4492,128 +4434,6 @@ def guild_trackers(request, guild_id):
         'active_page': 'trackers',
     }
     return render(request, 'questlog/trackers.html', context)
-
-
-_QC_GAME_ICONS = {
-    'V Rising':          ('fa-droplet',   'red'),
-    'Seven Days To Die': ('fa-biohazard', 'orange'),
-    'Enshrouded':        ('fa-cloud',     'purple'),
-    'Valheim':           ('fa-hammer',    'blue'),
-    'Icarus':            ('fa-mountain',  'green'),
-    'Palworld':          ('fa-paw',       'yellow'),
-}
-_QC_DEFAULT_ICON = ('fa-server', 'cyan')
-
-
-# Quest Control Page (Discord)
-
-@discord_required
-def guild_quest_control(request, guild_id):
-    """Quest Control - game server management scoped to a Discord guild."""
-    discord_user = request.session.get('discord_user', {})
-    admin_guilds = request.session.get('discord_admin_guilds', [])
-
-    guild = next((g for g in admin_guilds if g['id'] == guild_id), None)
-    if not guild:
-        messages.error(request, "You don't have admin access to this server.")
-        return redirect('questlog_dashboard')
-
-    import json as _json
-    from app.db import get_engine
-    from sqlalchemy import text as _sa_text
-
-    engine = get_engine()
-
-    # Load Discord channels and roles from cached guild data
-    guild_channels = []
-    guild_roles = []
-    try:
-        from .db import get_db_session
-        from .models import Guild as GuildModel
-        with get_db_session() as db:
-            guild_record = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
-            if guild_record:
-                if guild_record.cached_channels:
-                    raw_channels = _json.loads(guild_record.cached_channels)
-                    guild_channels = [
-                        {'value': str(c['id']), 'label': c['name']}
-                        for c in raw_channels
-                        if c.get('type') == 0 or c.get('type') == 'text'
-                    ]
-                if guild_record.cached_roles:
-                    raw_roles = _json.loads(guild_record.cached_roles)
-                    guild_roles = [
-                        {'value': str(r['id']), 'label': r['name']}
-                        for r in sorted(raw_roles, key=lambda x: -x.get('position', 0))
-                    ]
-    except Exception as e:
-        logger.warning(f"guild_quest_control: could not load cached resources: {e}")
-
-    # Load all configured gamebot instances
-    all_instances = []
-    unconfigured = []
-    try:
-        with engine.connect() as conn:
-            rows = conn.execute(_sa_text(
-                "SELECT * FROM gamebot_configs "
-                "ORDER BY configured DESC, COALESCE(NULLIF(server_display_name,''), instance_name) ASC"
-            )).fetchall()
-            for row in rows:
-                cfg = dict(row._mapping)
-                if cfg.get('configured') and cfg.get('guild_id'):
-                    all_instances.append(cfg)
-                elif not cfg.get('configured') and not cfg.get('guild_id'):
-                    unconfigured.append(cfg)
-    except Exception as e:
-        logger.warning(f"guild_quest_control: gamebot_configs query failed: {e}")
-
-    bots = []
-    for cfg in all_instances:
-        game_type = cfg.get('game_type', 'Unknown')
-        icon, color = _QC_GAME_ICONS.get(game_type, _QC_DEFAULT_ICON)
-        slug = cfg['instance_name']
-        bots.append({
-            'slug':          slug,
-            'name':          cfg.get('server_display_name') or cfg['instance_name'],
-            'game':          game_type,
-            'icon':          icon,
-            'color':         color,
-            'instance_name': cfg['instance_name'],
-            'configured':    bool(cfg.get('configured')),
-            'has_password':  bool(cfg.get('server_password')),
-            'config':        cfg,
-            'channels':      guild_channels,
-            'roles':         guild_roles,
-        })
-
-    unconfigured_bots = []
-    for cfg in unconfigured:
-        game_type = cfg.get('game_type', 'Unknown')
-        icon, color = _QC_GAME_ICONS.get(game_type, _QC_DEFAULT_ICON)
-        unconfigured_bots.append({
-            'instance_name': cfg['instance_name'],
-            'game':          game_type,
-            'icon':          icon,
-            'color':         color,
-        })
-
-    for bot in bots:
-        bot['config_json']   = _json.dumps(bot['config'], default=str)
-        bot['channels_json'] = _json.dumps(bot['channels'])
-        bot['roles_json']    = _json.dumps(bot['roles'])
-
-    context = {
-        'discord_user':     discord_user,
-        'guild':            guild,
-        'admin_guilds':     admin_guilds,
-        'member_guilds':    get_member_guilds(request),
-        'is_admin':         True,
-        'bots':             bots,
-        'unconfigured_bots': unconfigured_bots,
-        'active_bot':       bots[0]['slug'] if bots else None,
-        'active_page':      'quest_control',
-    }
-    return render(request, 'questlog/quest_control.html', context)
 
 
 # Community Spotlight Page
@@ -9031,6 +8851,12 @@ def api_role_bulk_create(request, guild_id):
         logger.error('API error occurred', exc_info=True)
         return JsonResponse({'error': 'An internal error occurred. Please try again later.'}, status=500)
 
+    # XLSX parsing and role-creation were never implemented past the tier-limit
+    # check above - this endpoint previously fell off the end of the function
+    # returning None on every "successful" call, which Django turns into an
+    # opaque 500. Fail explicitly instead until the feature is actually built.
+    return JsonResponse({'error': 'Bulk role creation from file import is not yet available.'}, status=501)
+
 
 @require_http_methods(["GET"])
 @ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
@@ -11069,6 +10895,13 @@ def stripe_transfer_subscription(request, guild_id):
 
         if not new_guild_id:
             return JsonResponse({'error': 'new_guild_id is required'}, status=400)
+
+        # @api_auth_required only verified admin access to the source guild_id -
+        # the target must be independently verified or any admin could hijack
+        # (or wipe) a subscription on a guild they have no access to at all.
+        admin_guilds = request.session.get('discord_admin_guilds', [])
+        if not any(str(g['id']) == str(new_guild_id) for g in admin_guilds):
+            return JsonResponse({'error': 'No admin access to the target guild'}, status=403)
 
         with get_db_session() as db:
             # Get source guild
@@ -22893,7 +22726,7 @@ def sitemap_xml(request):
         ('https://casual-heroes.com/aboutus', '0.5', 'monthly'),
         ('https://casual-heroes.com/faq', '0.5', 'monthly'),
         ('https://casual-heroes.com/gamesweplay', '0.6', 'weekly'),
-        ('https://casual-heroes.com/gameservers', '0.6', 'weekly'),
+        ('https://casual-heroes.com/hosted-games', '0.6', 'weekly'),
     ]
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -27114,6 +26947,14 @@ def api_raid_signup(request, guild_id, raid_id):
         if notes and len(notes) > 500:
             return JsonResponse({'error': 'Notes must be less than 500 characters'}, status=400)
 
+        # api_member_auth_required verifies session['discord_user'] and guild
+        # membership but never sets request.user_id - the actual id lives in
+        # the session, same as every other field read from user_info below.
+        user_info = request.session.get('discord_user', {})
+        discord_user_id = user_info.get('id')
+        if not discord_user_id:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+
         with get_db_session() as db:
             # Verify raid exists
             raid = db.query(RaidScheduleEvent).filter_by(
@@ -27130,25 +26971,23 @@ def api_raid_signup(request, guild_id, raid_id):
             # Check if user already signed up
             existing_signup = db.query(RaidSignup).filter_by(
                 raid_id=raid_id,
-                user_id=request.user_id
+                user_id=discord_user_id
             ).first()
 
             if existing_signup:
                 return JsonResponse({'error': 'You are already signed up for this raid'}, status=400)
 
-            # Get user info from Discord cache
-            user_info = request.session.get('discord_user', {})
             username = user_info.get('username', 'Unknown')
             display_name = user_info.get('global_name') or user_info.get('username', 'Unknown')
             avatar_hash = user_info.get('avatar', '')
-            avatar_url = f"https://cdn.discordapp.com/avatars/{request.user_id}/{avatar_hash}.png" if avatar_hash else None
+            avatar_url = f"https://cdn.discordapp.com/avatars/{discord_user_id}/{avatar_hash}.png" if avatar_hash else None
 
             # Create signup
             current_time = int(time.time())
             signup = RaidSignup(
                 raid_id=raid_id,
                 guild_id=guild_id,
-                user_id=request.user_id,
+                user_id=discord_user_id,
                 username=username,
                 display_name=display_name,
                 avatar_url=avatar_url,
@@ -27164,7 +27003,7 @@ def api_raid_signup(request, guild_id, raid_id):
             db.commit()
             db.refresh(signup)
 
-            logger.info(f"[RAID] User {request.user_id} signed up for raid {raid_id} as {role}")
+            logger.info(f"[RAID] User {discord_user_id} signed up for raid {raid_id} as {role}")
 
             return JsonResponse({
                 'success': True,
@@ -27195,6 +27034,10 @@ def api_raid_leave(request, guild_id, raid_id):
     from .db import get_db_session
     from .models import RaidScheduleEvent, RaidSignup
 
+    discord_user_id = request.session.get('discord_user', {}).get('id')
+    if not discord_user_id:
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+
     try:
         with get_db_session() as db:
             # Verify raid exists
@@ -27209,7 +27052,7 @@ def api_raid_leave(request, guild_id, raid_id):
             # Find user's signup
             signup = db.query(RaidSignup).filter_by(
                 raid_id=raid_id,
-                user_id=request.user_id
+                user_id=discord_user_id
             ).first()
 
             if not signup:
@@ -27219,7 +27062,7 @@ def api_raid_leave(request, guild_id, raid_id):
             db.delete(signup)
             db.commit()
 
-            logger.info(f"[RAID] User {request.user_id} left raid {raid_id}")
+            logger.info(f"[RAID] User {discord_user_id} left raid {raid_id}")
 
             return JsonResponse({
                 'success': True,

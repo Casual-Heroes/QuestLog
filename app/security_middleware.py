@@ -17,21 +17,25 @@ MAINTENANCE_FLAG = os.getenv(
     str(_pathlib.Path(__file__).resolve().parent.parent / '.maintenance')
 )
 
-# Paths that bypass maintenance mode (admin + auth always accessible)
+# Paths that bypass maintenance mode (admin + auth always accessible).
+# request.path always has a leading slash, so every prefix here must too, or
+# the startswith() check below silently never matches (a bare 'admin' does
+# not match '/admin/...') and the path stays blocked during maintenance
+# despite looking exempt.
 MAINTENANCE_EXEMPT_PREFIXES = [
-    'admin',          # admin panel + admin API
-    'api/admin',
-    'admin-login',    # hardened admin-only login (replaces login)
-    'auth',           # OAuth callbacks (Steam etc.)
-    'verify-email',
-    'api/igdb/',      # public read-only game search - no reason to block
+    '/admin',          # admin panel + admin API
+    '/api/admin',
+    '/admin-login',    # hardened admin-only login (replaces login)
+    '/auth',           # OAuth callbacks (Steam etc.)
+    '/verify-email',
+    '/api/igdb/',      # public read-only game search - no reason to block
     # 'login',        # disabled - public login removed in closed-access mode
     # '/login/',          # disabled - public login removed in closed-access mode
     '/logout/',
     '/static/',
     '/media/',
     '/questchat/',
-    'qc/',            # QuestChat bridge API - app stays accessible during maintenance
+    '/qc/',            # QuestChat bridge API - app stays accessible during maintenance
     '/auth/discord/',     # Discord OAuth flow must complete before we can check identity
     '/questlog/login/',   # Discord OAuth entry point - must be reachable to initiate auth
 ]

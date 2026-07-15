@@ -231,6 +231,16 @@ class SteamAPI:
         if 'categories' in game:
             tags.extend([c['description'] for c in game['categories']])
 
+        # Steam's content_descriptor ids that are SPECIFICALLY nudity/sexual content:
+        # 1 = Some Nudity or Sexual Content, 4 = Frequent Nudity or Sexual Content.
+        # NOT included: 2 (violence/gore), 3 (drug use), 5 (general "mature content"
+        # catch-all that fires on horror/violence games with zero sexual content -
+        # confirmed false positives like a straight horror game whose own Steam
+        # description says "no sexual content" still carried id 5). required_age is
+        # also excluded - games are frequently 18+ rated for violence/gore alone.
+        descriptor_ids = (game.get('content_descriptors') or {}).get('ids') or []
+        is_nsfw = bool(set(descriptor_ids) & {1, 4})
+
         return {
             'steam_app_id': game.get('steam_appid'),
             'name': game.get('name'),
@@ -247,6 +257,7 @@ class SteamAPI:
             'is_free': game.get('is_free', False),
             'developers': game.get('developers', []),
             'publishers': game.get('publishers', []),
+            'is_nsfw': is_nsfw,
         }
 
     def filter_games(

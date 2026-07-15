@@ -451,6 +451,7 @@ def run_steam_search_config(config, db):
             existing.genres = json.dumps(genres)
             existing.platforms = json.dumps(platforms)
             existing.steam_tags = json.dumps(genres)
+            existing.is_nsfw = details.get('is_nsfw', False)
             existing.search_config_id = config.id
             existing.updated_at = now
             updated_count += 1
@@ -470,6 +471,7 @@ def run_steam_search_config(config, db):
                 genres=json.dumps(genres),
                 platforms=json.dumps(platforms),
                 steam_tags=json.dumps(genres),
+                is_nsfw=details.get('is_nsfw', False),
                 review_score=None,
                 review_count=0,
                 search_config_id=config.id,

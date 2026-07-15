@@ -185,10 +185,9 @@
 
     <!-- SoulsLike Section -->
     {% with sl_active=active_page|slice:":9" %}
-    {% with r2_active=active_page|slice:":10" %}
-    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' or active_page == 'sl_checklist' %}true{% else %}false{% endif %} }">
+    <div x-data="{ open: {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'sl_checklist' %}true{% else %}false{% endif %} }">
       <button @click="open = !open"
-              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'questlog_web_r2_hub' or active_page == 'questlog_web_r2_builder' or active_page == 'questlog_web_r2_runs' or active_page == 'questlog_web_r2_run_detail' or active_page == 'questlog_web_r2_my_builds' or active_page == 'sl_checklist' %}active{% endif %}">
+              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'soulslike_hub' or active_page == 'soulslike_builder' or active_page == 'soulslike_builds_browse' or active_page == 'soulslike_leaderboards' or active_page == 'soulslike_tracker' or active_page == 'questlog_web_sl_runs' or active_page == 'soulslike_guides' or active_page == 'sl_my_builds' or active_page == 'sl_community_runs' or active_page == 'sl_checklist' %}active{% endif %}">
         <i class="fas fa-skull text-gray-400 group-hover:text-amber-400 w-4 flex-shrink-0"></i>
         <span class="flex-1 text-left">SoulsLike</span>
         <i class="fas fa-chevron-down text-gray-600 text-[10px] transition-transform" :class="open ? 'rotate-180' : ''"></i>
@@ -244,7 +243,28 @@
       </div>
     </div>
     {% endwith %}
-    {% endwith %}
+
+    <!-- Survival Hub Section -->
+    <div x-data="{ open: {% if active_page == 'survival_hub' or active_page == 'survival_palworld' %}true{% else %}false{% endif %} }">
+      <button @click="open = !open"
+              class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'survival_hub' or active_page == 'survival_palworld' %}active{% endif %}">
+        <i class="fas fa-campground text-gray-400 group-hover:text-emerald-400 w-4 flex-shrink-0"></i>
+        <span class="flex-1 text-left">Survival Hub</span>
+        <i class="fas fa-chevron-down text-gray-600 text-[10px] transition-transform" :class="open ? 'rotate-180' : ''"></i>
+      </button>
+      <div x-show="open" x-collapse class="ml-4 mt-0.5 space-y-0.5 border-l border-neutral-800 pl-3">
+        <a href="/survival/"
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'survival_hub' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <i class="fas fa-home w-3.5 text-center"></i>
+          <span>Survival Hub</span>
+        </a>
+        <a href="/survival/palworld/"
+           class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition {% if active_page == 'survival_palworld' %}text-white bg-neutral-800{% else %}text-gray-400 hover:text-white hover:bg-neutral-800{% endif %}">
+          <span class="w-3.5 text-center">🐾</span>
+          <span>Palworld</span>
+        </a>
+      </div>
+    </div>
 
     <!-- LFG Section -->
     <div>
@@ -413,9 +433,9 @@
           </div>
         </div>
         <a href="{% url 'questlog_web_gameservers' %}"
-           class="nav-item {% if active_page == 'game_servers' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
+           class="nav-item {% if active_page == 'hosted_games' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
           <i class="fas fa-server text-gray-400 group-hover:text-indigo-400"></i>
-          <span>Game Servers</span>
+          <span>Hosted Games</span>
         </a>
         <span id="whatsNewBadge" class="hidden"></span>
         <a href="{% url 'content' %}"

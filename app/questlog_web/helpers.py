@@ -18,7 +18,7 @@ from django.urls import reverse
 from django.http import JsonResponse
 from django.contrib import messages
 from django.conf import settings as django_settings
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 
 from .models import (
     WebUser, WebUserBlock, WebNotification, WebLike, WebPost,
@@ -495,8 +495,12 @@ def fluxer_guild_required(view_func):
                 return view_func(request, *args, **kwargs)
 
             # Check 2: user holds one of the configured admin roles
-            # Cache must be fresh (< 5 minutes) - stale cache could grant access after role removal
-            CACHE_MAX_AGE = 300  # 5 minutes
+            # cached_members is refreshed by the bot's periodic full-guild re-sync
+            # every 30 minutes (questlogfluxer/cogs/core.py _periodic_sync_loop,
+            # "port of WardenBot guild_sync_cog.py"), not continuously - a 5-minute
+            # window denied legitimate admins most of the time. 35 min gives a few
+            # minutes of slack past the sync interval.
+            CACHE_MAX_AGE = 35 * 60
             cache_age = int(time.time()) - int(s.updated_at or 0)
             granted = False
             try:
@@ -574,10 +578,18 @@ def discord_guild_required(view_func):
                 messages.error(request, "Access denied.")
                 return redirect('questlog_web_home')
 
+            try:
+                guild_id_int = int(guild_id)
+            except ValueError:
+                if is_json:
+                    return JsonResponse({'error': 'Access denied'}, status=403)
+                messages.error(request, "Access denied.")
+                return redirect('questlog_web_home')
+
             with get_db_session() as db:
                 row = db.execute(
                     text("SELECT owner_id, admin_roles FROM guilds WHERE guild_id = :g LIMIT 1"),
-                    {'g': int(guild_id)}
+                    {'g': guild_id_int}
                 ).fetchone()
 
             if not row:
@@ -592,19 +604,33 @@ def discord_guild_required(view_func):
                 request.discord_id = user_discord_id
                 return view_func(request, *args, **kwargs)
 
-            # Check 2: admin roles
+            # Check 2: admin roles - role membership lives in guilds.cached_members
+            # (a JSON array of {id, username, roles}, synced by WardenBot's Gateway
+            # cache every 30 min via guild_sync_cog), NOT a per-member roles column
+            # on guild_members - that column doesn't exist on this table, so this
+            # previously threw an uncaught OperationalError on every non-owner check.
             granted = False
+            CACHE_MAX_AGE = 35 * 60
             try:
                 admin_role_ids = json.loads(row[1]) if row[1] else []
                 if admin_role_ids:
                     with get_db_session() as db:
-                        member = db.execute(
-                            text("SELECT roles FROM guild_members WHERE guild_id=:g AND user_id=:u LIMIT 1"),
-                            {'g': int(guild_id), 'u': int(user_discord_id)}
+                        guild_row = db.execute(
+                            text("SELECT cached_members, updated_at FROM guilds WHERE guild_id=:g LIMIT 1"),
+                            {'g': guild_id_int}
                         ).fetchone()
-                    if member and member[0]:
-                        user_roles = json.loads(member[0])
-                        granted = any(str(r) in [str(ar) for ar in admin_role_ids] for r in user_roles)
+                    if guild_row and guild_row[0]:
+                        cache_age = int(time.time()) - int(guild_row[1] or 0)
+                        if cache_age <= CACHE_MAX_AGE:
+                            members = json.loads(guild_row[0])
+                            user_data = next((m for m in members if str(m.get('id')) == user_discord_id), None)
+                            if user_data:
+                                user_roles = {str(r) for r in user_data.get('roles', [])}
+                                granted = any(str(ar) in user_roles for ar in admin_role_ids)
+                        else:
+                            logger.warning(
+                                f"DISCORD GUILD CACHE STALE: guild={guild_id} age={cache_age}s - denying admin-role access"
+                            )
             except (json.JSONDecodeError, TypeError, AttributeError, ValueError):
                 granted = False
 

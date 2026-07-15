@@ -16,7 +16,7 @@ from app.db import get_db_session
 from sqlalchemy import text
 
 from django_ratelimit.decorators import ratelimit
-from .helpers import add_web_user_context, web_login_required, safe_int, sanitize_text
+from .helpers import add_web_user_context, web_login_required, web_admin_required, safe_int, sanitize_text
 
 logger = logging.getLogger(__name__)
 
@@ -322,7 +322,8 @@ def api_sl_death(request, token):
     except Exception:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    boss = sanitize_text(str(data.get('boss', ''))[:200])
+    boss     = sanitize_text(str(data.get('boss', ''))[:200])
+    boss_key = sanitize_text(str(data.get('boss_key', ''))[:200])
     area = sanitize_text(str(data.get('area', ''))[:200])
     now  = int(time.time())
 
@@ -331,7 +332,8 @@ def api_sl_death(request, token):
             SELECT id, death_count, current_life_start, total_survival_sec,
                    longest_life_sec, rage_pct, hollow_streak,
                    time_in_hollow_sec, hollow_entered_at, session_start_ts,
-                   last_attempted_boss, is_hardcore, hc_score, session_death_count
+                   last_attempted_boss, is_hardcore, hc_score, session_death_count,
+                   last_attempted_boss_key
             FROM sl_collection_sessions WHERE session_token=:tok AND ended_at IS NULL
         """), {'tok': token}).fetchone()
         if not session:
@@ -339,14 +341,16 @@ def api_sl_death(request, token):
 
         (sid, death_count, life_start, total_survival, longest_life,
          rage_pct, hollow_streak, time_in_hollow, hollow_entered, session_start,
-         last_attempted_boss, is_hardcore, hc_score, session_death_count) = session
+         last_attempted_boss, is_hardcore, hc_score, session_death_count,
+         last_attempted_boss_key) = session
 
         # Only use last_attempted_boss fallback for Listener deaths (source='listener')
         source = sanitize_text(str(data.get('source', 'listener'))[:20])
         if not boss and last_attempted_boss and source == 'listener':
             boss = last_attempted_boss
+            boss_key = boss_key or last_attempted_boss_key
 
-        if (death_count or 0) >= 9999:
+        if (death_count or 0) >= 999999999999:
             return JsonResponse({'error': 'Death count limit reached'}, status=429)
 
         # ── Hardcore mode: first death ends the run ───────────────────────────
@@ -371,9 +375,9 @@ def api_sl_death(request, token):
             # Record the death then immediately end the session
             db.execute(text("""
                 INSERT INTO sl_death_events
-                    (session_id, boss_name, area_name, died_at, life_duration_sec)
-                VALUES (:sid, :boss, :area, :ts, :life)
-            """), {'sid': sid, 'boss': boss or None, 'area': None,
+                    (session_id, boss_name, boss_key, area_name, died_at, life_duration_sec)
+                VALUES (:sid, :boss, :bkey, :area, :ts, :life)
+            """), {'sid': sid, 'boss': boss or None, 'bkey': boss_key or None, 'area': None,
                    'ts': now, 'life': 0})
             db.execute(text("""
                 UPDATE sl_collection_sessions SET
@@ -438,11 +442,13 @@ def api_sl_death(request, token):
         rage_name = _rage_name(new_rage)
 
         # ── Insert death event ────────────────────────────────────────────────
+        # boss_key disambiguates same-named bosses at different locations (e.g. multiple
+        # "Erdtree Avatar" fights) - boss_name alone is ambiguous for per-boss death counts.
         db.execute(text("""
             INSERT INTO sl_death_events
-                (session_id, boss_name, area_name, died_at, life_duration_sec)
-            VALUES (:sid, :boss, :area, :ts, :life)
-        """), {'sid': sid, 'boss': boss or None, 'area': area or None,
+                (session_id, boss_name, boss_key, area_name, died_at, life_duration_sec)
+            VALUES (:sid, :boss, :bkey, :area, :ts, :life)
+        """), {'sid': sid, 'boss': boss or None, 'bkey': boss_key or None, 'area': area or None,
                'ts': now, 'life': life_duration})
 
         # ── Update session ────────────────────────────────────────────────────
@@ -503,6 +509,14 @@ def api_sl_death(request, token):
 
 # ── Session status (overlay polls this) ──────────────────────────────────────
 
+# Minimum played-time (session or lifetime) before a Deaths/Hour rate is considered
+# stable enough to display. Below this, a single early death swings the rate wildly
+# (e.g. 1 death at 3 minutes played = a meaningless "20 deaths/hr") - same reason a
+# car's average speed reads garbage a few seconds after leaving a stoplight. Returns
+# null (not 0 or a wild number) under this threshold; client should render "--" or
+# similar rather than treating null as zero deaths/hour.
+_DEATHS_PER_HOUR_MIN_SEC = 600  # 10 minutes
+
 @csrf_exempt
 @require_http_methods(['GET'])
 def api_sl_session_status(request, token):
@@ -521,7 +535,7 @@ def api_sl_session_status(request, token):
                    last_attempted_boss, listener_game_running, game_stopped_at,
                    app_session_sec, app_streak_sec, app_longest_sec,
                    is_hardcore, hc_score, hc_completed,
-                   session_death_count
+                   session_death_count, lifetime_playtime_sec
             FROM sl_collection_sessions WHERE session_token=:tok
         """), {'tok': token}).fetchone()
         if not session:
@@ -536,7 +550,7 @@ def api_sl_session_status(request, token):
          last_attempted_boss, listener_game_running, game_stopped_at,
          app_session_sec, app_streak_sec, app_longest_sec,
          is_hardcore, hc_score, hc_completed,
-         session_death_count) = session
+         session_death_count, lifetime_playtime_sec) = session
 
         is_active   = ended_at is None
         rage_pct    = rage_pct or 0
@@ -604,19 +618,44 @@ def api_sl_session_status(request, token):
         bosses_defeated = sum(1 for b in boss_rows if b[4])
         bosses_total    = len(boss_rows)
 
-        # Deaths per Boss: meaningful souls metric - how many deaths does it take per boss kill
+        # Deaths per Boss: only deaths that happened while a boss was focused count -
+        # exploring/fall damage/trash mobs don't inflate this. Uses death_events.boss_name,
+        # not the run's total death_count.
+        boss_deaths = db.execute(text(
+            "SELECT COUNT(*) FROM sl_death_events WHERE session_id=:sid AND boss_name IS NOT NULL"
+        ), {'sid': sid}).scalar() or 0
         if bosses_defeated >= 1:
-            true_death_rate = round((death_count or 0) / bosses_defeated, 1)
+            true_death_rate = round(boss_deaths / bosses_defeated, 1)
         else:
             true_death_rate = None  # "--" until first boss killed
+
+        # Boss Deaths vs Everything Else: total death events split by whether a boss
+        # was focused at the time. Boss Deaths = boss_deaths above. Everything Else =
+        # every other logged death (no boss focused - exploring, fall damage, trash mobs).
+        total_death_events = db.execute(text(
+            "SELECT COUNT(*) FROM sl_death_events WHERE session_id=:sid"
+        ), {'sid': sid}).scalar() or 0
+        non_boss_deaths = max(0, total_death_events - boss_deaths)
+
+        # Deaths per individual boss - only counts deaths logged while that boss was focused.
+        # Grouped by boss_key (not boss_name) since multiple bosses share names across
+        # locations (e.g. several "Erdtree Avatar" fights) - name alone can't disambiguate.
+        deaths_by_boss_rows = db.execute(text("""
+            SELECT boss_key, COUNT(*) FROM sl_death_events
+            WHERE session_id=:sid AND boss_key IS NOT NULL
+            GROUP BY boss_key
+        """), {'sid': sid}).fetchall()
+        deaths_by_boss_key = {r[0]: r[1] for r in deaths_by_boss_rows}
+
         bosses = [
             {'name': b[0], 'location': b[1], 'region': b[2], 'tier': b[3],
-             'defeated': bool(b[4]), 'defeated_at': b[5], 'key': b[6]}
+             'defeated': bool(b[4]), 'defeated_at': b[5], 'key': b[6],
+             'deaths': deaths_by_boss_key.get(b[6], 0)}
             for b in boss_rows
         ]
 
         deaths_log = db.execute(text("""
-            SELECT boss_name, area_name, died_at, life_duration_sec
+            SELECT boss_name, area_name, died_at, life_duration_sec, boss_key
             FROM sl_death_events WHERE session_id=:sid
             ORDER BY died_at DESC LIMIT 10
         """), {'sid': sid}).fetchall()
@@ -666,8 +705,27 @@ def api_sl_session_status(request, token):
         'longest_life_sec':     (app_longest_sec or longest_life or 0) if has_app_timers else (longest_life or 0),
         'longest_life_fmt':     _fmt_time((app_longest_sec or longest_life or 0) if has_app_timers else (longest_life or 0)),
         'total_survival_fmt':   _fmt_time(total_survival or 0),
+        # True /played time - never reset, only accumulates while actually playing.
+        # This is what "Run Duration" displays, NOT wall-clock since run creation.
+        'lifetime_playtime_sec': lifetime_playtime_sec or 0,
+        'lifetime_playtime_fmt': _fmt_time(lifetime_playtime_sec or 0),
         'true_death_rate':      true_death_rate,  # None = under 10min threshold
         'death_rate_ready':     true_death_rate is not None,
+        'boss_deaths_total':    boss_deaths,
+        'non_boss_deaths_total': non_boss_deaths,
+        # Deaths/Hour - two separate rates, each divided by its OWN matching played-time
+        # clock (never wall-clock/calendar time, which would silently dilute the rate
+        # during offline periods). Same low-sample gate pattern as true_death_rate above:
+        # null (not 0) under a minimum time threshold, since e.g. 1 death in 3 minutes of
+        # play computes to a meaningless "20 deaths/hr" - not enough data to be a real rate.
+        'session_deaths_per_hour': (
+            round((session_death_count or 0) / (listener_sec / 3600), 1)
+            if listener_sec >= _DEATHS_PER_HOUR_MIN_SEC else None
+        ),
+        'run_deaths_per_hour': (
+            round((death_count or 0) / (lifetime_playtime_sec / 3600), 1)
+            if (lifetime_playtime_sec or 0) >= _DEATHS_PER_HOUR_MIN_SEC else None
+        ),
         # Boss progress (mortality)
         'bosses_defeated':  bosses_defeated,
         'bosses_total':     bosses_total,
@@ -682,7 +740,7 @@ def api_sl_session_status(request, token):
             for i in items
         ],
         'recent_deaths': [
-            {'boss': d[0] or '', 'area': d[1] or '', 'at': d[2], 'life': d[3] or 0}
+            {'boss': d[0] or '', 'area': d[1] or '', 'at': d[2], 'life': d[3] or 0, 'boss_key': d[4] or ''}
             for d in deaths_log
         ],
         # Hardcore
@@ -737,13 +795,13 @@ def api_sl_heartbeat(request, token):
     with get_db_session() as db:
         row = db.execute(text(
             "SELECT id, listener_last_ping, listener_game_running, game_stopped_at, "
-            "       death_count, session_death_count "
+            "       death_count, session_death_count, app_session_sec "
             "FROM sl_collection_sessions "
             "WHERE session_token=:tok AND ended_at IS NULL"
         ), {'tok': token}).fetchone()
         if not row:
             return JsonResponse({'error': 'Session not found'}, status=404)
-        sid, last_ping, was_game_running, game_stopped_at, total_deaths, session_deaths = row
+        sid, last_ping, was_game_running, game_stopped_at, total_deaths, session_deaths, app_session_sec_prev = row
         total_deaths   = total_deaths or 0
         session_deaths = session_deaths or 0
 
@@ -766,6 +824,10 @@ def api_sl_heartbeat(request, token):
                 surv = app_survival_sec if app_survival_sec >= 0 else max(0, app_streak_sec)
                 reset_session = "session_death_count=0, session_death_baseline=:tdeath, " if (game_relaunched or game_first_start) else ""
                 extra_params  = {'tdeath': total_deaths} if (game_relaunched or game_first_start) else {}
+                # Lifetime playtime: true /played time, never reset, only ever grows.
+                # App reports absolute session-so-far seconds each heartbeat, so we add
+                # only the delta since our last recorded app_session_sec (not the whole value).
+                app_delta = max(0, app_session_sec - (app_session_sec_prev or 0)) if not (game_relaunched or game_first_start) else app_session_sec
                 db.execute(text(
                     "UPDATE sl_collection_sessions "
                     "SET listener_last_ping=:now, listener_game_running=1, "
@@ -774,6 +836,7 @@ def api_sl_heartbeat(request, token):
                     "    listener_session_sec=:sess, "
                     "    total_survival_sec=GREATEST(total_survival_sec, :surv), "
                     "    longest_life_sec=GREATEST(longest_life_sec, :longest), "
+                    "    lifetime_playtime_sec=lifetime_playtime_sec+:app_delta, "
                     "    app_session_sec=:sess, app_streak_sec=:streak, app_longest_sec=:longest "
                     "WHERE id=:sid"
                 ), {'now': now, 'sid': sid,
@@ -781,6 +844,7 @@ def api_sl_heartbeat(request, token):
                     'surv':   surv,
                     'streak': max(0, app_streak_sec),
                     'longest': max(0, app_longest_sec),
+                    'app_delta': app_delta,
                     **extra_params})
                 if game_relaunched or game_first_start:
                     session_deaths = 0
@@ -792,6 +856,7 @@ def api_sl_heartbeat(request, token):
                     "    game_stopped_at=NULL, "
                     "    session_start_ts=:now, current_life_start=:now, "
                     "    listener_session_sec=:delta, total_survival_sec=:delta, "
+                    "    lifetime_playtime_sec=lifetime_playtime_sec+:delta, "
                     "    session_death_count=0, session_death_baseline=:tdeath, "
                     "    app_session_sec=0, app_streak_sec=0, app_longest_sec=0 "
                     "WHERE id=:sid"
@@ -804,7 +869,8 @@ def api_sl_heartbeat(request, token):
                     "SET listener_last_ping=:now, listener_game_running=1, "
                     "    game_stopped_at=NULL, "
                     "    listener_session_sec=listener_session_sec+:delta, "
-                    "    total_survival_sec=total_survival_sec+:delta "
+                    "    total_survival_sec=total_survival_sec+:delta, "
+                    "    lifetime_playtime_sec=lifetime_playtime_sec+:delta "
                     "WHERE id=:sid"
                 ), {'now': now, 'delta': delta, 'sid': sid})
         else:
@@ -861,6 +927,7 @@ def api_sl_heartbeat(request, token):
 
 @csrf_exempt
 @ratelimit(key='ip', rate='30/m', block=True)
+@ratelimit(key=lambda g, r: r.resolver_match.kwargs.get('token', 'anon'), rate='10/m', block=True)
 @require_http_methods(['POST'])
 def api_sl_reset_deaths(request, token):
     """
@@ -968,6 +1035,7 @@ def api_sl_set_deaths(request, token):
 
 @csrf_exempt
 @ratelimit(key='ip', rate='60/m', block=True)
+@ratelimit(key=lambda g, r: r.resolver_match.kwargs.get('token', 'anon'), rate='20/m', block=True)
 @require_http_methods(['POST'])
 def api_sl_subtract_death(request, token):
     """
@@ -985,6 +1053,9 @@ def api_sl_subtract_death(request, token):
         if not session:
             return JsonResponse({'error': 'Session not found'}, status=404)
         sid, death_count, rage_pct, hollow_streak, session_death_count = session
+        # Track undo usage for leaderboard transparency (same pattern as reset_count) -
+        # doesn't block anything, just surfaces "this run used undo" so viewers/mods can judge.
+        db.execute(text("UPDATE sl_collection_sessions SET undo_count=undo_count+1 WHERE id=:sid"), {'sid': sid})
         if (death_count or 0) <= 0:
             return JsonResponse({'ok': True, 'deaths': 0, 'session_deaths': 0})
 
@@ -1175,6 +1246,7 @@ def api_sl_manual_start(request, token):
 
 @csrf_exempt
 @ratelimit(key='user_or_ip', rate='20/m', block=True)
+@ratelimit(key=lambda g, r: r.resolver_match.kwargs.get('token', 'anon'), rate='10/m', block=True)
 @require_http_methods(['POST'])
 def api_sl_test_hollow(request, token):
     """
@@ -1225,116 +1297,22 @@ def api_sl_test_hollow(request, token):
 
 
 @csrf_exempt
+@ratelimit(key='ip', rate='60/m', block=True)
 @require_http_methods(['POST'])
-def api_sl_test_hollow(request, token):
-    """
-    POST /api/soulslike/session/<token>/test-hollow/
-    Owner only. Temporarily sets rage to 100 (HOLLOW) in DB so the polling
-    overlay picks it up. Auto-reverts after 5 seconds.
-    """
-    uid = _owner_uid_from_request(request)
-    if not uid:
-        return JsonResponse({'error': 'Authentication required'}, status=401)
-
-    with get_db_session() as db:
-        session = db.execute(text(
-            "SELECT id, rage_pct, rage_name, hollow_streak FROM sl_collection_sessions "
-            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
-        ), {'tok': token, 'uid': uid}).fetchone()
-        if not session:
-            return JsonResponse({'error': 'Session not found'}, status=404)
-        sid              = session[0]
-        orig_rage_pct    = session[1] or 0
-        orig_rage_name   = session[2] or "Maiden's Grace"
-        hollow_streak    = session[3] or 0
-
-        # Set to HOLLOW so next poll picks it up
-        db.execute(text(
-            "UPDATE sl_collection_sessions SET rage_pct=100, rage_name='HOLLOW', "
-            "hollow_entered_at=COALESCE(hollow_entered_at, :now) WHERE id=:sid"
-        ), {'sid': sid, 'now': int(time.time())})
-        db.commit()
-
-    # Revert after 5 seconds in background thread
-    import threading
-    def revert():
-        import time as _t
-        _t.sleep(5)
-        try:
-            with get_db_session() as _db:
-                _db.execute(text(
-                    "UPDATE sl_collection_sessions SET rage_pct=:pct, rage_name=:name, "
-                    "hollow_entered_at=NULL WHERE id=:sid"
-                ), {'pct': orig_rage_pct, 'name': orig_rage_name, 'sid': sid})
-                _db.commit()
-        except Exception as e:
-            logger.error("test_hollow revert failed sid=%s: %s", sid, e)
-    threading.Thread(target=revert, daemon=True).start()
-
-    return JsonResponse({'ok': True, 'message': 'Test hollow active for 5 seconds - check your overlay'})
-
-
-@csrf_exempt
-@require_http_methods(['POST'])
-def api_sl_test_hollow(request, token):
-    """
-    POST /api/soulslike/session/<token>/test-hollow/
-    Owner only. Temporarily sets rage to 100 (HOLLOW) in DB so the polling
-    overlay picks it up. Auto-reverts after 5 seconds.
-    """
-    uid = _owner_uid_from_request(request)
-    if not uid:
-        return JsonResponse({'error': 'Authentication required'}, status=401)
-
-    with get_db_session() as db:
-        session = db.execute(text(
-            "SELECT id, rage_pct, rage_name, hollow_streak FROM sl_collection_sessions "
-            "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
-        ), {'tok': token, 'uid': uid}).fetchone()
-        if not session:
-            return JsonResponse({'error': 'Session not found'}, status=404)
-        sid              = session[0]
-        orig_rage_pct    = session[1] or 0
-        orig_rage_name   = session[2] or "Maiden's Grace"
-        hollow_streak    = session[3] or 0
-
-        # Set to HOLLOW so next poll picks it up
-        db.execute(text(
-            "UPDATE sl_collection_sessions SET rage_pct=100, rage_name='HOLLOW', "
-            "hollow_entered_at=COALESCE(hollow_entered_at, :now) WHERE id=:sid"
-        ), {'sid': sid, 'now': int(time.time())})
-        db.commit()
-
-    # Revert after 5 seconds in background thread
-    import threading
-    def revert():
-        import time as _t
-        _t.sleep(5)
-        try:
-            with get_db_session() as _db:
-                _db.execute(text(
-                    "UPDATE sl_collection_sessions SET rage_pct=:pct, rage_name=:name, "
-                    "hollow_entered_at=NULL WHERE id=:sid"
-                ), {'pct': orig_rage_pct, 'name': orig_rage_name, 'sid': sid})
-                _db.commit()
-        except Exception as e:
-            logger.error("test_hollow revert failed sid=%s: %s", sid, e)
-    threading.Thread(target=revert, daemon=True).start()
-
-    return JsonResponse({'ok': True, 'message': 'Test hollow active for 5 seconds - check your overlay'})
-
-
 def api_sl_set_focus(request, token):
     """
     POST /api/soulslike/session/<token>/set-focus/
-    Body: { "boss_name": "Malenia" }  (empty string to clear)
-    Sets last_attempted_boss so Listener deaths get the right label.
+    Body: { "boss_name": "Malenia", "boss_key": "Malenia (Haligtree)" }  (empty to clear)
+    Sets last_attempted_boss[_key] so Listener deaths get the right label AND the right
+    per-location attribution (boss_key disambiguates same-named bosses at different locations).
+    boss_key is optional for backwards compatibility with older app/web callers.
     """
     try:
         data = json.loads(request.body)
     except Exception:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     boss_name = sanitize_text(str(data.get('boss_name', ''))[:200]) or None
+    boss_key  = sanitize_text(str(data.get('boss_key', ''))[:200]) or None
     # Require owner: web session OR API key
     uid = request.session.get('web_user_id') if hasattr(request, 'session') else None
     if not uid:
@@ -1350,9 +1328,10 @@ def api_sl_set_focus(request, token):
         # Include user_id guard if we resolved an owner; otherwise deny
         if uid:
             db.execute(text(
-                "UPDATE sl_collection_sessions SET last_attempted_boss=:name "
+                "UPDATE sl_collection_sessions SET last_attempted_boss=:name, "
+                "last_attempted_boss_key=:key "
                 "WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
-            ), {'name': boss_name, 'tok': token, 'uid': uid})
+            ), {'name': boss_name, 'key': boss_key, 'tok': token, 'uid': uid})
         else:
             return JsonResponse({'error': 'Authentication required'}, status=401)
         db.commit()
@@ -1620,6 +1599,120 @@ def api_sl_boss_unmark(request, token):
     return JsonResponse({'ok': True, 'boss_key': boss_key})
 
 
+@csrf_exempt
+@ratelimit(key='ip', rate='30/m', block=True)
+@require_http_methods(['POST'])
+def api_sl_boss_clear_deaths(request, token):
+    """
+    POST /api/soulslike/session/<token>/boss/clear-deaths/
+    Body: { "boss_key": "..." }
+    Clears the boss attribution (mis-click correction) on death events logged against
+    this specific boss - does NOT reduce Total Deaths / session deaths, those still
+    happened. Only removes the "this death was against boss X" tag from those events.
+    Owner only.
+    """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    boss_key = sanitize_text(str(data.get('boss_key', ''))[:200])
+    if not boss_key:
+        return JsonResponse({'error': 'boss_key required'}, status=400)
+
+    with get_db_session() as db:
+        session = db.execute(text(
+            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
+        if not session:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        sid = session[0]
+
+        result = db.execute(text(
+            "UPDATE sl_death_events SET boss_name=NULL, boss_key=NULL "
+            "WHERE session_id=:sid AND boss_key=:key"
+        ), {'sid': sid, 'key': boss_key})
+        db.commit()
+
+    return JsonResponse({'ok': True, 'boss_key': boss_key, 'cleared': result.rowcount})
+
+
+# ── Checklist auto-mark (app-driven, from live save file parsing) ────────────
+
+@csrf_exempt
+@ratelimit(key='ip', rate='30/m', block=True)
+@require_http_methods(['POST'])
+def api_sl_checklist_auto_mark(request, token):
+    """
+    POST /api/soulslike/session/<token>/checklist/auto-mark/
+    Body: { "save_item_ids": [1000000, 1030000, ...] }
+    App-driven only - marks checklist items as collected based on numeric item IDs
+    read from a live save file scan. Resolves against sl_checklist_items.save_item_id.
+    IDs with no match are silently skipped (logged, not erred) since the item ID
+    reconciliation table is filled in incrementally. Idempotent - safe to call
+    repeatedly with overlapping ID lists.
+    """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    save_item_ids = data.get('save_item_ids', [])
+    if not isinstance(save_item_ids, list) or not save_item_ids:
+        return JsonResponse({'error': 'save_item_ids required'}, status=400)
+    save_item_ids = [safe_int(i, None) for i in save_item_ids[:2000]]
+    save_item_ids = [i for i in save_item_ids if i is not None]
+    if not save_item_ids:
+        return JsonResponse({'error': 'No valid save_item_ids'}, status=400)
+
+    now = int(time.time())
+
+    with get_db_session() as db:
+        session = db.execute(text(
+            "SELECT id FROM sl_collection_sessions WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL"
+        ), {'tok': token, 'uid': uid}).fetchone()
+        if not session:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        sid = session[0]
+
+        placeholders = ','.join(f':id{i}' for i in range(len(save_item_ids)))
+        params = {f'id{i}': v for i, v in enumerate(save_item_ids)}
+        matched = db.execute(text(
+            f"SELECT id FROM sl_checklist_items WHERE save_item_id IN ({placeholders})"
+        ), params).fetchall()
+        matched_ids = [m[0] for m in matched]
+
+        newly_marked = 0
+        for item_id in matched_ids:
+            result = db.execute(text("""
+                INSERT INTO sl_run_checklist_status
+                    (session_id, checklist_item_id, is_collected, collected_at, collection_method)
+                VALUES (:sid, :iid, 1, :now, 'app_auto')
+                ON DUPLICATE KEY UPDATE
+                    is_collected = 1,
+                    collected_at = IF(is_collected = 0, VALUES(collected_at), collected_at),
+                    collection_method = IF(is_collected = 0, 'app_auto', collection_method)
+            """), {'sid': sid, 'iid': item_id, 'now': now})
+            if result.rowcount == 1:  # 1 = fresh insert, 2 = updated existing row
+                newly_marked += 1
+        db.commit()
+
+    return JsonResponse({
+        'ok': True,
+        'received': len(save_item_ids),
+        'matched': len(matched_ids),
+        'newly_marked': newly_marked,
+    })
+
+
 # ── End session ───────────────────────────────────────────────────────────────
 
 @csrf_exempt
@@ -1634,7 +1727,7 @@ def api_sl_session_end(request, token):
             SELECT id, game, game_mode, death_count, total_survival_sec, longest_life_sec,
                    hollow_streak, time_in_hollow_sec, hollow_entered_at,
                    session_start_ts, session_type, rage_pct,
-                   hollow_boss_kills, reset_count, listener_session_sec
+                   hollow_boss_kills, reset_count, listener_session_sec, undo_count
             FROM sl_collection_sessions
             WHERE session_token=:tok AND user_id=:uid AND ended_at IS NULL
         """), {'tok': token, 'uid': uid}).fetchone()
@@ -1643,7 +1736,7 @@ def api_sl_session_end(request, token):
 
         (sid, game, game_mode, deaths, total_surv, longest_life,
          hollow_streak, time_in_hollow, hollow_entered, session_start,
-         session_type, rage_pct, hollow_boss_kills, reset_count, session_sec) = session
+         session_type, rage_pct, hollow_boss_kills, reset_count, session_sec, undo_count) = session
 
         # Finalize hollow time if still hollow at end
         final_hollow = time_in_hollow or 0
@@ -1661,8 +1754,11 @@ def api_sl_session_end(request, token):
             "SELECT COUNT(*) FROM sl_session_bosses WHERE session_id=:sid AND is_defeated=1"
         ), {'sid': sid}).scalar() or 0
 
-        # Deaths per Boss (stored in true_death_rate column)
-        death_rate = round((deaths or 0) / bosses_def, 1) if bosses_def >= 1 else 0.0
+        # Deaths per Boss (stored in true_death_rate column) - only boss-focused deaths count
+        boss_deaths = db.execute(text(
+            "SELECT COUNT(*) FROM sl_death_events WHERE session_id=:sid AND boss_name IS NOT NULL"
+        ), {'sid': sid}).scalar() or 0
+        death_rate = round(boss_deaths / bosses_def, 1) if bosses_def >= 1 else 0.0
 
         # HC: check if completed (all bosses, 0 deaths) and calculate final score
         is_hc = db.execute(text(
@@ -1694,41 +1790,8 @@ def api_sl_session_end(request, token):
             "UPDATE sl_collection_sessions SET ended_at=:ts, time_in_hollow_sec=:tih WHERE id=:sid"
         ), {'ts': now, 'tih': final_hollow, 'sid': sid})
 
-        # Snapshot to leaderboard - must be public, and HC or have 1+ death
-        run_is_public = db.execute(text(
-            "SELECT is_public FROM sl_collection_sessions WHERE id=:sid"
-        ), {'sid': sid}).scalar() or 0
-        should_snapshot = bool(run_is_public) and ((deaths or 0) > 0 or is_hardcore_run)
-        if should_snapshot:
-            username = getattr(request.web_user, 'username', '') or ''
-            db.execute(text("""
-                INSERT INTO sl_leaderboard_entries
-                    (user_id, username, session_id, game, game_mode,
-                     session_deaths, total_survival_sec, longest_life_sec,
-                     true_death_rate, hollow_streak, time_in_hollow_sec,
-                     bosses_defeated, session_duration_sec,
-                     hollow_boss_kills, is_hardcore, hc_score, hc_completed,
-                     created_at)
-                VALUES
-                    (:uid, :uname, :sid, :game, :gmode,
-                     :deaths, :surv, :longest,
-                     :rate, :hstreak, :tih,
-                     :bdef, :dur,
-                     :hbk, :hc, :hcs, :hcc,
-                     :now)
-            """), {
-                'uid': uid, 'uname': username, 'sid': sid,
-                'game': game or 'elden_ring', 'gmode': game_mode or 'vanilla',
-                'deaths': deaths or 0, 'surv': final_surv, 'longest': longest_life or 0,
-                'rate': death_rate, 'hstreak': hollow_streak or 0, 'tih': final_hollow,
-                'hbk': hollow_boss_kills or 0,
-                'hc': 1 if is_hardcore_run else 0,
-                'hcs': hc_score_val,
-                'hcc': 1 if hc_completed_val else 0,
-                'bdef': bosses_def, 'dur': session_dur, 'now': now,
-            })
-
         # Auto-enter into tournaments user registered for
+        username = getattr(request.web_user, 'username', '') or ''
         session_snapshot = {
             'deaths':            deaths or 0,
             'longest_life_sec':  longest_life or 0,
@@ -1738,6 +1801,7 @@ def api_sl_session_end(request, token):
             'bosses_defeated':   bosses_def,
             'hollow_boss_kills': hollow_boss_kills or 0,
             'reset_count':       reset_count or 0,
+            'undo_count':        undo_count or 0,
             'session_sec':       session_sec or session_dur,
             'is_hardcore':       is_hardcore_run,
             'hc_score':          hc_score_val,
@@ -1754,6 +1818,95 @@ def api_sl_session_end(request, token):
                     uid, sid, deaths, final_surv, death_rate)
 
     return JsonResponse({'ok': True})
+
+
+@csrf_exempt
+@ratelimit(key='ip', rate='20/m', block=True)
+@require_http_methods(['POST'])
+def api_sl_submit_to_leaderboard(request, token):
+    """POST /api/soulslike/session/<token>/submit-to-leaderboard/
+    Explicit, one-time opt-in to publish an already-ended run to the public
+    leaderboard. Nothing is auto-published at session-end anymore - a run only
+    ever appears on the leaderboard if the owner intentionally clicks Submit
+    (site) or triggers the equivalent desktop-app action. Locked once
+    submitted: no re-submit, no withdrawal, matching a single deliberate action
+    per run rather than a togglable state.
+    """
+    uid = _owner_uid_from_request(request)
+    if not uid:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    now = int(time.time())
+    with get_db_session() as db:
+        session = db.execute(text("""
+            SELECT id, game, game_mode, death_count, total_survival_sec, longest_life_sec,
+                   hollow_streak, time_in_hollow_sec, is_public, is_hardcore, hc_score,
+                   hc_completed, hollow_boss_kills, username, leaderboard_submitted_at,
+                   ended_at
+            FROM sl_collection_sessions s
+            JOIN web_users u ON u.id = s.user_id
+            WHERE s.session_token=:tok AND s.user_id=:uid
+        """), {'tok': token, 'uid': uid}).fetchone()
+        if not session:
+            return JsonResponse({'error': 'Run not found'}, status=404)
+
+        (sid, game, game_mode, deaths, total_surv, longest_life,
+         hollow_streak, time_in_hollow, is_public, is_hardcore, hc_score,
+         hc_completed, hollow_boss_kills, username, already_submitted, ended_at) = session
+
+        if not ended_at:
+            return JsonResponse({'error': 'Run must be ended before it can be submitted'}, status=400)
+        if already_submitted:
+            return JsonResponse({'error': 'This run has already been submitted'}, status=400)
+        if not is_public:
+            return JsonResponse({'error': 'Only public runs can be submitted to the leaderboard'}, status=400)
+
+        # Re-derive from source event tables at submit time - never trust the
+        # request body or any client-cached value for what actually happened.
+        bosses_def = db.execute(text(
+            "SELECT COUNT(*) FROM sl_session_bosses WHERE session_id=:sid AND is_defeated=1"
+        ), {'sid': sid}).scalar() or 0
+        boss_deaths = db.execute(text(
+            "SELECT COUNT(*) FROM sl_death_events WHERE session_id=:sid AND boss_name IS NOT NULL"
+        ), {'sid': sid}).scalar() or 0
+        death_rate = round(boss_deaths / bosses_def, 1) if bosses_def >= 1 else 0.0
+        session_dur = max(0, (ended_at or now) - (db.execute(text(
+            "SELECT session_start_ts FROM sl_collection_sessions WHERE id=:sid"
+        ), {'sid': sid}).scalar() or ended_at or now))
+
+        db.execute(text("""
+            INSERT INTO sl_leaderboard_entries
+                (user_id, username, session_id, game, game_mode,
+                 session_deaths, total_survival_sec, longest_life_sec,
+                 true_death_rate, hollow_streak, time_in_hollow_sec,
+                 bosses_defeated, session_duration_sec,
+                 hollow_boss_kills, is_hardcore, hc_score, hc_completed,
+                 created_at)
+            VALUES
+                (:uid, :uname, :sid, :game, :gmode,
+                 :deaths, :surv, :longest,
+                 :rate, :hstreak, :tih,
+                 :bdef, :dur,
+                 :hbk, :hc, :hcs, :hcc,
+                 :now)
+        """), {
+            'uid': uid, 'uname': username or '', 'sid': sid,
+            'game': game or 'elden_ring', 'gmode': game_mode or 'vanilla',
+            'deaths': deaths or 0, 'surv': total_surv or 0, 'longest': longest_life or 0,
+            'rate': death_rate, 'hstreak': hollow_streak or 0, 'tih': time_in_hollow or 0,
+            'hbk': hollow_boss_kills or 0,
+            'hc': 1 if is_hardcore else 0,
+            'hcs': hc_score or 0,
+            'hcc': 1 if hc_completed else 0,
+            'bdef': bosses_def, 'dur': session_dur, 'now': now,
+        })
+        db.execute(text(
+            "UPDATE sl_collection_sessions SET leaderboard_submitted_at=:now WHERE id=:sid"
+        ), {'now': now, 'sid': sid})
+        db.commit()
+        logger.info("sl_submit_to_leaderboard uid=%s sid=%s", uid, sid)
+
+    return JsonResponse({'ok': True, 'submitted': True})
 
 
 @csrf_exempt
@@ -1956,38 +2109,10 @@ def sl_runs(request):
 def sl_community_runs(request):
     """Public community runs - live and recently completed public runs."""
     game     = request.GET.get('game', '')[:32]
+    if game == 'remnant2':
+        return HttpResponse(status=404)
     now      = int(time.time())
     cutoff   = now - (7 * 24 * 3600)  # last 7 days for completed runs
-
-    # R2 runs live in a separate table - handle separately
-    if game == 'remnant2':
-        with get_db_session() as db:
-            r2_rows = db.execute(text("""
-                SELECT r.token, r.name, r.run_type, r.is_hardcore, r.is_active,
-                       r.death_count, r.bosses_killed, r.items_found,
-                       r.created_at, r.completed_at,
-                       u.username, u.avatar_url,
-                       GROUP_CONCAT(z.world ORDER BY z.world SEPARATOR ', ') as zones
-                FROM r2_runs r
-                JOIN web_users u ON r.user_id = u.id
-                LEFT JOIN r2_run_zones z ON z.run_id = r.id
-                WHERE r.is_public = 1 AND u.is_banned = 0
-                GROUP BY r.id
-                ORDER BY r.is_active DESC, r.created_at DESC LIMIT 50
-            """)).fetchall()
-        r2_runs_list = [{
-            'token': r[0], 'build_name': r[1], 'game': 'remnant2',
-            'game_mode': r[2], 'game_label': 'Remnant 2',
-            'deaths': r[3] or 0, 'is_active': bool(r[4]),
-            'bosses_killed': r[6] or 0, 'items_collected': r[7] or 0,
-            'username': r[10], 'avatar': r[11], 'zones': r[12] or '',
-            'is_hardcore': bool(r[3]),
-        } for r in r2_rows]
-        return render(request, 'questlog_web/sl_community_runs.html', {
-            'web_user': request.web_user, 'active_page': 'sl_community_runs',
-            'runs': r2_runs_list, 'active_count': sum(1 for r in r2_runs_list if r['is_active']),
-            'game_filter': game,
-        })
 
     with get_db_session() as db:
         filters = "WHERE s.is_public=1 AND u.is_banned=0 AND (s.is_archived=0 OR s.is_archived IS NULL)"
@@ -2175,7 +2300,7 @@ def api_sl_leaderboards(request):
                     FROM sl_leaderboard_entries le
                     JOIN web_users u ON u.id = le.user_id
                     WHERE le.game=:g AND u.is_banned=0
-                    {'AND le.user_id=:uid' if is_personal else 'AND le.is_public=1'}
+                    {'AND le.user_id=:uid' if is_personal else ''}
                     GROUP BY le.user_id, u.username
                     HAVING total_bosses > 0
                     ORDER BY total_bosses DESC LIMIT {'50' if is_personal else '100'}
@@ -2265,7 +2390,7 @@ def api_sl_leaderboards(request):
                     JOIN web_users u ON u.id = le.user_id
                     WHERE le.game=:g AND le.bosses_defeated >= 5
                       AND le.session_deaths >= 5 AND u.is_banned=0
-                    {'AND le.user_id=:uid' if is_personal else 'AND le.is_public=1'}
+                    {'AND le.user_id=:uid' if is_personal else ''}
                     ORDER BY le.true_death_rate DESC, le.bosses_defeated DESC
                     LIMIT {'50' if is_personal else '100'}
                 """
@@ -2290,7 +2415,7 @@ def api_sl_leaderboards(request):
                     FROM sl_leaderboard_entries le
                     JOIN web_users u ON u.id = le.user_id
                     WHERE le.game=:g AND le.hollow_boss_kills > 0 AND u.is_banned=0
-                    {'AND le.user_id=:uid' if is_personal else 'AND le.is_public=1'}
+                    {'AND le.user_id=:uid' if is_personal else ''}
                     ORDER BY le.hollow_boss_kills DESC LIMIT {'50' if is_personal else '100'}
                 """
                 params = {'g': game, **({'uid': uid} if is_personal else {})}
@@ -2463,7 +2588,7 @@ def sl_run_detail(request, token):
                    s.is_hardcore, s.hc_score, s.hc_completed, s.is_public,
                    u.username, u.avatar_url, u.is_live, u.live_platform,
                    u.twitch_username, u.youtube_channel_id, u.is_banned, u.live_url,
-                   s.session_start_ts
+                   s.session_start_ts, s.leaderboard_submitted_at
             FROM sl_collection_sessions s
             JOIN web_users u ON u.id = s.user_id
             WHERE s.session_token=:tok
@@ -2525,7 +2650,8 @@ def sl_run_detail(request, token):
             started_at    = session[4]
             ended_at      = session[5]
             duration_sec  = max(0, (ended_at - started_at)) if ended_at and started_at else session_sec
-            deaths_hr     = round(deaths / bosses_killed, 1) if bosses_killed >= 1 else 0.0
+            boss_deaths   = sum(1 for d in death_log if d[0])
+            deaths_hr     = round(boss_deaths / bosses_killed, 1) if bosses_killed >= 1 else 0.0
 
             hc_score_summary = db.execute(text(
                 "SELECT hc_score, hc_completed FROM sl_collection_sessions WHERE id=:sid"
@@ -2572,6 +2698,7 @@ def sl_run_detail(request, token):
         'owner_platform':  owner_platform,
         'stream_url':      stream_url,
         'summary':         summary,
+        'leaderboard_submitted': bool(session[31]),
     })
 
 
@@ -3243,12 +3370,10 @@ def api_sl_tournament_detail(request, tournament_id):
 
 # ── Admin: finalize + create ──────────────────────────────────────────────────
 
-@web_login_required
+@web_admin_required
 @require_http_methods(['POST'])
 def api_sl_tournament_finalize(request, tournament_id):
     """Admin only - lock results, award flairs to top 3."""
-    if not request.web_user.is_admin:
-        return JsonResponse({'error': 'Admin only'}, status=403)
     now = int(time.time())
     with get_db_session() as db:
         t = db.execute(text(
@@ -3290,13 +3415,10 @@ def api_sl_tournament_finalize(request, tournament_id):
     return JsonResponse({'ok': True, 'ranked': len(entries)})
 
 
-@web_login_required
-@require_http_methods(['GET', 'POST'])
+@web_admin_required
+@require_http_methods(['GET', 'POST', 'DELETE'])
 def api_sl_admin_tournaments(request, tournament_id=None):
     """Admin: list / create / delete tournaments."""
-    if not request.web_user.is_admin:
-        return JsonResponse({'error': 'Admin only'}, status=403)
-
     now = int(time.time())
 
     # DELETE a specific tournament

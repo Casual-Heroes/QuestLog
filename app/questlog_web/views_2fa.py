@@ -78,7 +78,7 @@ def totp_verify(request):
     """
     pending_user_id = request.session.get('web_2fa_pending_user_id')
     if not pending_user_id:
-        return redirect('login/')
+        return redirect('questlog_web_login')
 
     error = None
     use_backup = request.GET.get('backup') == '1' or request.POST.get('use_backup') == '1'
@@ -152,10 +152,10 @@ def totp_setup(request):
     """
     web_user = get_web_user(request)
     if not web_user:
-        return redirect('login/')
+        return redirect('questlog_web_login')
 
     with get_db_session() as db:
-        user = db.query(WebUser).filter_by(id=web_user['id']).first()
+        user = db.query(WebUser).filter_by(id=web_user.id).first()
         rec = db.query(WebUserTOTP).filter_by(user_id=user.id).first()
 
         # Always generate a fresh secret on setup load (unless already enabled)
@@ -173,7 +173,7 @@ def totp_setup(request):
             db.refresh(rec)
         elif rec.is_enabled:
             # Already enabled -- redirect to profile
-            return redirect('profile/edit/#2fa')
+            return redirect('questlog_web_profile_edit')
         else:
             secret = decrypt_token(rec.secret_enc)
 
@@ -184,6 +184,8 @@ def totp_setup(request):
         )
 
     return render(request, 'questlog_web/2fa_setup.html', {
+        'web_user': web_user,
+        'active_page': 'profile',
         'otpauth_uri': uri,
         'manual_secret': secret,
     })
@@ -209,7 +211,7 @@ def api_2fa_enable(request):
 
     with get_db_session() as db:
         rec = db.query(WebUserTOTP).filter_by(
-            user_id=web_user['id'], is_enabled=False
+            user_id=web_user.id, is_enabled=False
         ).first()
 
         if not rec:
@@ -246,7 +248,7 @@ def api_2fa_disable(request):
 
     with get_db_session() as db:
         rec = db.query(WebUserTOTP).filter_by(
-            user_id=web_user['id'], is_enabled=True
+            user_id=web_user.id, is_enabled=True
         ).first()
 
         if not rec:
@@ -279,7 +281,7 @@ def api_2fa_backup_codes(request):
 
     with get_db_session() as db:
         rec = db.query(WebUserTOTP).filter_by(
-            user_id=web_user['id'], is_enabled=True
+            user_id=web_user.id, is_enabled=True
         ).first()
 
         if not rec:

@@ -210,6 +210,11 @@
             <i class="fab fa-steam mr-1"></i>Steam
           </button>
           {% endif %}
+          <!-- Quest Control is mod-visible too - mods only see/manage instances where
+               they hold that instance's configured Manager role, enforced server-side. -->
+          <a href="/admin/quest-control/" class="admin-tab px-3 py-1.5 rounded-md text-sm font-medium transition inline-flex items-center">
+            <i class="fas fa-server mr-1 text-cyan-400"></i>Quest Control
+          </a>
         </div>
       </div>
 
@@ -428,10 +433,31 @@
   <div id="panel-games" class="admin-panel hidden">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold text-white"><i class="fas fa-gamepad text-green-400 mr-2"></i>Found Games</h2>
+      <span id="foundGamesCount" class="text-xs text-gray-500"></span>
     </div>
     <p class="text-gray-400 text-sm mb-4">Manage discovered games. Feature, hide, or remove entries.</p>
+    <div class="flex items-center gap-3 mb-4 flex-wrap">
+      <select id="foundGamesGenreFilter" onchange="foundGamesPage = 1; tabLoaded.games = false; loadFoundGames();"
+        class="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500 focus:outline-none">
+        <option value="">All Genres</option>
+      </select>
+      <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-400">
+        <input type="checkbox" id="foundGamesHideNsfw" checked
+          onchange="foundGamesPage = 1; tabLoaded.games = false; loadFoundGames();" class="rounded bg-neutral-700">
+        Hide sexual/adult content
+      </label>
+    </div>
     <div id="adminFoundGamesList" class="space-y-3">
       <div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+    </div>
+    <div id="foundGamesPagination" class="flex justify-center items-center gap-2 mt-4 hidden">
+      <button id="foundGamesPagePrev" onclick="foundGamesPage -= 1; loadFoundGames();" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">
+        <i class="fas fa-chevron-left"></i> Prev
+      </button>
+      <span id="foundGamesPageInfo" class="text-xs text-gray-400 px-3 py-1.5"></span>
+      <button id="foundGamesPageNext" onclick="foundGamesPage += 1; loadFoundGames();" class="text-xs bg-neutral-700 text-gray-300 hover:bg-neutral-600 px-3 py-1.5 rounded transition">
+        Next <i class="fas fa-chevron-right"></i>
+      </button>
     </div>
   </div>
 
@@ -1819,13 +1845,42 @@ async function deleteSteamSearch(id, name) {
 // FOUND GAMES
 // ============================================================
 let adminFoundGames = [];
+let foundGamesPage = 1;
 
 async function loadFoundGames() {
   try {
-    const r = await fetch('{% url "questlog_web_api_admin_found_games" %}');
+    const genre = document.getElementById('foundGamesGenreFilter').value;
+    const hideNsfw = document.getElementById('foundGamesHideNsfw').checked;
+    const params = new URLSearchParams({page: foundGamesPage});
+    if (genre) params.set('genre', genre);
+    if (hideNsfw) params.set('hide_nsfw', '1');
+    const r = await fetch('{% url "questlog_web_api_admin_found_games" %}?' + params.toString());
     const d = await r.json();
     adminFoundGames = d.games || [];
     renderFoundGames();
+
+    document.getElementById('foundGamesCount').textContent = `${d.total} game${d.total === 1 ? '' : 's'} found`;
+
+    const genreSelect = document.getElementById('foundGamesGenreFilter');
+    if (genreSelect.dataset.populated !== '1' && d.genres) {
+      const current = genreSelect.value;
+      genreSelect.innerHTML = '<option value="">All Genres</option>' +
+        d.genres.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+      genreSelect.value = current;
+      genreSelect.dataset.populated = '1';
+    }
+
+    const pag = document.getElementById('foundGamesPagination');
+    if (d.total_pages > 1) {
+      pag.classList.remove('hidden');
+      document.getElementById('foundGamesPageInfo').textContent = `Page ${d.page} of ${d.total_pages}`;
+      document.getElementById('foundGamesPagePrev').disabled = d.page <= 1;
+      document.getElementById('foundGamesPagePrev').classList.toggle('opacity-40', d.page <= 1);
+      document.getElementById('foundGamesPageNext').disabled = d.page >= d.total_pages;
+      document.getElementById('foundGamesPageNext').classList.toggle('opacity-40', d.page >= d.total_pages);
+    } else {
+      pag.classList.add('hidden');
+    }
   } catch(e) {
     document.getElementById('adminFoundGamesList').innerHTML = '<div class="text-red-400 text-center py-4">Failed to load</div>';
   }
@@ -1846,6 +1901,7 @@ function renderFoundGames() {
             <a href="${escapeHtml(g.steam_url)}" target="_blank" rel="noopener" class="text-white font-medium hover:text-blue-400 transition">${escapeHtml(g.name)}</a>
             ${g.is_featured ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-600/20 text-yellow-400">Featured</span>' : ''}
             ${g.is_hidden ? '<span class="text-xs px-1.5 py-0.5 rounded bg-red-600/20 text-red-400">Hidden</span>' : ''}
+            ${g.is_nsfw ? '<span class="text-xs px-1.5 py-0.5 rounded bg-pink-600/20 text-pink-400">NSFW</span>' : ''}
           </div>
           <div class="text-xs text-gray-500 mt-0.5">
             ${g.developer || ''} ${g.release_date ? '| ' + g.release_date : ''} ${g.review_score ? '| Score: ' + g.review_score + '%' : ''}
