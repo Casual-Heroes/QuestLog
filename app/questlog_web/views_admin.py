@@ -5,6 +5,7 @@ import re
 import time
 import logging
 import os
+from functools import wraps
 import requests as _requests
 
 from django.shortcuts import render, redirect
@@ -52,7 +53,7 @@ from .helpers import (
     web_login_required, web_admin_required, web_mod_required, add_web_user_context, log_admin_action,
     serialize_post, fetch_rss_feed, create_notification,
     serialize_user_brief, safe_int, validate_admin_image_url,
-    process_uploaded_image, fluxer_or_web_admin_required,
+    process_uploaded_image, fluxer_or_web_admin_required, get_web_user,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,134 @@ def _get_gamebot_config(engine, instance_name: str) -> dict | None:
     except Exception as e:
         logger.error('_get_gamebot_config(%s): %s', instance_name, e)
         return None
+
+
+# Discord's guilds.cached_members is refreshed by WardenBot's guild_sync_cog every
+# 30 minutes (cogs/guild_sync_cog.py), NOT continuously - a 5-minute window (the
+# value fluxer_guild_required uses for a different, more-frequently-synced cache)
+# denied legitimate managers most of the time here. 35 min gives a few minutes of
+# slack past the sync interval; a role change takes up to ~30 min to take effect
+# either direction (grant or revoke) - same lag as the underlying sync itself.
+_MANAGER_ROLE_CACHE_MAX_AGE = 35 * 60
+
+
+def _web_user_manages_instance(web_user, instance_name: str) -> bool:
+    """True if web_user can access this specific Quest Control instance: full site
+    admins always can; mods only if their linked Discord/Fluxer account CURRENTLY
+    holds that instance's configured Manager role in its linked guild (live-checked
+    against cached member data on every call, not a one-time grant, so a role
+    removed in Discord/Fluxer immediately revokes access here too)."""
+    if not web_user or web_user.is_banned:
+        return False
+    if web_user.is_admin:
+        return True
+    if not web_user.is_mod:
+        return False
+    if not _validate_instance_name(instance_name):
+        return False
+
+    from app.db import get_engine
+    engine = get_engine()
+    cfg = _get_gamebot_config(engine, instance_name)
+    if not cfg:
+        return False
+
+    # Discord side - role membership lives in guilds.cached_members (a JSON array of
+    # {id, username, roles}, synced by WardenBot's Gateway cache), NOT a per-member
+    # roles column on guild_members - that column doesn't exist on this table.
+    discord_role_id = cfg.get('discord_manager_role_id')
+    discord_guild_id = cfg.get('discord_guild_id')
+    user_discord_id = str(getattr(web_user, 'discord_id', None) or '')
+    if discord_role_id and discord_guild_id and user_discord_id:
+        try:
+            with get_db_session() as db:
+                row = db.execute(
+                    sa_text("SELECT cached_members, updated_at FROM guilds WHERE guild_id=:g LIMIT 1"),
+                    {'g': int(discord_guild_id)}
+                ).fetchone()
+            if row and row[0]:
+                cache_age = int(time.time()) - int(row[1] or 0)
+                if cache_age <= _MANAGER_ROLE_CACHE_MAX_AGE:
+                    members = json.loads(row[0])
+                    user_data = next((m for m in members if str(m.get('id')) == user_discord_id), None)
+                    if user_data:
+                        user_roles = {str(r) for r in user_data.get('roles', [])}
+                        allowed = {r.strip() for r in str(discord_role_id).split(',') if r.strip()}
+                        if allowed & user_roles:
+                            return True
+                else:
+                    logger.warning(
+                        'MANAGER ROLE CACHE STALE: guild=%s age=%ss - denying role-based access',
+                        discord_guild_id, cache_age,
+                    )
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            logger.warning('_web_user_manages_instance discord check %s: %s', instance_name, e)
+
+    # Fluxer side
+    fluxer_role_id = cfg.get('fluxer_manager_role_id')
+    fluxer_guild_id = cfg.get('fluxer_guild_id')
+    user_fluxer_id = str(getattr(web_user, 'fluxer_id', None) or '')
+    if fluxer_role_id and fluxer_guild_id and user_fluxer_id:
+        try:
+            with get_db_session() as db:
+                s = db.query(WebFluxerGuildSettings).filter_by(guild_id=fluxer_guild_id).first()
+            if s and s.cached_members:
+                cache_age = int(time.time()) - int(s.updated_at or 0)
+                if cache_age <= _MANAGER_ROLE_CACHE_MAX_AGE:
+                    members = json.loads(s.cached_members)
+                    user_data = next((m for m in members if str(m.get('id')) == user_fluxer_id), None)
+                    if user_data:
+                        user_roles = {str(r) for r in user_data.get('roles', [])}
+                        allowed = {r.strip() for r in str(fluxer_role_id).split(',') if r.strip()}
+                        if allowed & user_roles:
+                            return True
+                else:
+                    logger.warning(
+                        'MANAGER ROLE CACHE STALE: guild=%s age=%ss - denying role-based access',
+                        fluxer_guild_id, cache_age,
+                    )
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            logger.warning('_web_user_manages_instance fluxer check %s: %s', instance_name, e)
+
+    return False
+
+
+def web_admin_or_instance_manager_required(view_func):
+    """Allows full site admins through unconditionally. Mods (is_mod=True) are only
+    allowed through if the request identifies a specific instance (?bot=... query
+    param on GET, or a JSON body {"bot": "..."} on POST) AND they currently hold
+    that instance's configured Manager role - checked fresh on every request via
+    _web_user_manages_instance, never cached as a standing grant. Requires its own
+    valid web_user session (checks auth itself, does not rely on another decorator).
+    Replaces the old fluxer_or_web_admin_required on Quest Control's API endpoints,
+    which let through ANY Fluxer-linked user regardless of admin/mod status."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        web_user = get_web_user(request)
+        if not web_user or web_user.is_banned:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+
+        if web_user.is_admin:
+            request.web_user = web_user
+            return view_func(request, *args, **kwargs)
+
+        instance_name = request.GET.get('bot', '')
+        if not instance_name and request.method == 'POST':
+            try:
+                instance_name = json.loads(request.body).get('bot', '')
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                instance_name = ''
+
+        if not instance_name or not _web_user_manages_instance(web_user, instance_name):
+            logger.warning(
+                'QUEST CONTROL ACCESS DENIED: user=%s instance=%r - not admin, not manager of this instance',
+                getattr(web_user, 'username', '?'), instance_name,
+            )
+            return JsonResponse({'error': 'Access denied'}, status=403)
+
+        request.web_user = web_user
+        return view_func(request, *args, **kwargs)
+    return wrapper
 
 def _load_preset_from_file(preset_path):
     """Import DAY_EVENT_PRESETS from a bot preset .py file. Returns dict or None."""
@@ -251,10 +380,14 @@ def _build_schedule_schema():
 
 
 
-@fluxer_or_web_admin_required
+@web_admin_required
 @require_http_methods(['GET'])
 def api_quest_control_discord_lookup(request):
-    """Fetch channels and roles for a guild_id from the Fluxer bot's synced DB tables."""
+    """Fetch channels and roles for a guild_id from the Fluxer bot's synced DB tables.
+    Admin-only (not instance-scoped): takes a bare guild_id, not a bot/instance_name,
+    so there's no single instance to check Manager access against. No live caller in
+    the current admin_quest_control.html - only referenced by the old, unrouted
+    quest_control.html template."""
     from app.db import get_engine
     from sqlalchemy import text as sa_text2
     engine = get_engine()
@@ -281,7 +414,7 @@ def api_quest_control_discord_lookup(request):
         return JsonResponse({'ok': False, 'error': 'Lookup failed'})
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
 @require_http_methods(['GET', 'POST'])
 def api_quest_control_schedule(request):
     """GET: Load schedule presets for an instance. POST: Save schedule overrides to DB."""
@@ -421,7 +554,157 @@ def api_quest_control_schedule(request):
         return JsonResponse({'ok': True})
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
+@require_http_methods(['POST'])
+def api_quest_control_backup_timing(request):
+    """Save the warned-backup-cycle timing for a game server instance - warning lead
+    times and wait durations. Everything here is admin-editable, never hardcoded in
+    the bot itself; this endpoint is the only place these values are ever written."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    updates = {}
+    if 'backup_warning_minutes' in body:
+        raw = body['backup_warning_minutes']
+        if isinstance(raw, list):
+            try:
+                minutes = sorted({int(v) for v in raw if int(v) > 0}, reverse=True)
+            except (TypeError, ValueError):
+                return JsonResponse({'ok': False, 'error': 'backup_warning_minutes must be a list of positive integers'})
+            updates['backup_warning_minutes'] = json.dumps(minutes) if minutes else None
+        else:
+            return JsonResponse({'ok': False, 'error': 'backup_warning_minutes must be a list'})
+
+    for field, cap in (
+        ('backup_wait_after_stop_sec', 3600),
+        ('backup_wait_after_backup_sec', 3600),
+        ('backup_wait_after_start_sec', 3600),
+    ):
+        if field not in body:
+            continue
+        try:
+            val = int(body[field])
+        except (TypeError, ValueError):
+            return JsonResponse({'ok': False, 'error': f'{field} must be an integer'})
+        updates[field] = max(0, min(val, cap))
+
+    if not updates:
+        return JsonResponse({'ok': False, 'error': 'No fields to update'})
+
+    set_clause = ', '.join(f'{f} = :{f}' for f in updates)
+    updates['n'] = instance_name
+    try:
+        with engine.connect() as conn:
+            conn.execute(sa_text2(
+                f"UPDATE gamebot_configs SET {set_clause} WHERE instance_name = :n"
+            ).bindparams(**updates))
+            conn.commit()
+    except Exception as e:
+        logger.error('api_quest_control_backup_timing save: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Save failed'})
+
+    return JsonResponse({'ok': True})
+
+
+@web_admin_or_instance_manager_required
+@require_http_methods(['POST'])
+def api_quest_control_backup_messages(request):
+    """Save the 3 admin-authored embeds (warn/down/online) used by the warned backup
+    cycle. Blank fields fall back to the bot's stock wording - nothing here forces the
+    admin to fill in all 9 fields, only the ones they want to customize."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    updates = {}
+    for kind in ('warn', 'down', 'online'):
+        title_field = f'backup_{kind}_embed_title'
+        desc_field = f'backup_{kind}_embed_description'
+        color_field = f'backup_{kind}_embed_color'
+        if title_field in body:
+            updates[title_field] = str(body[title_field] or '').strip()[:256] or None
+        if desc_field in body:
+            updates[desc_field] = str(body[desc_field] or '').strip()[:4096] or None
+        if color_field in body:
+            color = str(body[color_field] or '').strip()
+            if color and not (color.startswith('#') and len(color) == 7):
+                return JsonResponse({'ok': False, 'error': f'{color_field} must be #RRGGBB format'})
+            updates[color_field] = color or None
+
+    if not updates:
+        return JsonResponse({'ok': False, 'error': 'No fields to update'})
+
+    set_clause = ', '.join(f'{f} = :{f}' for f in updates)
+    updates['n'] = instance_name
+    try:
+        with engine.connect() as conn:
+            conn.execute(sa_text2(
+                f"UPDATE gamebot_configs SET {set_clause} WHERE instance_name = :n"
+            ).bindparams(**updates))
+            conn.commit()
+    except Exception as e:
+        logger.error('api_quest_control_backup_messages save: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Save failed'})
+
+    return JsonResponse({'ok': True})
+
+
+@web_admin_or_instance_manager_required
+@require_http_methods(['POST'])
+def api_quest_control_backup_run_now(request):
+    """Queue an immediate warned backup cycle for one instance, bypassing the daily
+    scheduler entirely - for testing, and for catching a missed trigger window without
+    waiting until tomorrow. Consumed by QuestLogFluxer's scheduler loop within ~60s."""
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = body.get('bot', '')
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(sa_text2(
+                "SELECT backups_enabled FROM gamebot_configs WHERE instance_name = :n LIMIT 1"
+            ), {'n': instance_name}).fetchone()
+            if not row:
+                return JsonResponse({'ok': False, 'error': 'Instance not found'})
+            if not row.backups_enabled:
+                return JsonResponse({'ok': False, 'error': 'Nightly Backups is not enabled for this instance'})
+            conn.execute(sa_text2(
+                "INSERT INTO gamebot_backup_run_requests (instance_name, requested_at) VALUES (:n, :t)"
+            ), {'n': instance_name, 't': int(time.time())})
+            conn.commit()
+    except Exception as e:
+        logger.error('api_quest_control_backup_run_now: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Request failed'})
+
+    return JsonResponse({'ok': True})
+
+
+@web_admin_or_instance_manager_required
 @require_http_methods(['POST'])
 def api_quest_control_channels(request):
     """Save channel/role IDs for a game server instance."""
@@ -437,9 +720,39 @@ def api_quest_control_channels(request):
     if not _validate_instance_name(instance_name):
         return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
 
-    allowed_fields = ['notif_channel_id', 'live_log_channel_id', 'stats_channel_id',
-                      'discord_stats_channel_id', 'server_update_channel_id', 'admin_role_id']
-    updates = {f: (str(body[f]).strip() or None) for f in allowed_fields if f in body}
+    allowed_fields = ['notif_channel_id', 'stats_channel_id',
+                      'discord_stats_channel_id', 'admin_role_id',
+                      'discord_manager_role_id', 'fluxer_manager_role_id',
+                      'live_log_discord_channel_id', 'live_log_fluxer_channel_id',
+                      'server_update_discord_channel_id', 'server_update_fluxer_channel_id',
+                      'backup_notice_discord_channel_id', 'backup_notice_fluxer_channel_id',
+                      'rcon_broadcast_message']
+    # Manager-role fields control WHO counts as an instance manager - only a site
+    # admin may change them, or a manager could re-point the role at themselves
+    # and entrench access after their real Discord/Fluxer role is revoked.
+    if not request.web_user.is_admin:
+        allowed_fields = [f for f in allowed_fields
+                           if f not in ('discord_manager_role_id', 'fluxer_manager_role_id')]
+    updates = {}
+    for f in allowed_fields:
+        if f not in body:
+            continue
+        if f == 'discord_stats_channel_id':
+            # Multi-select field - stored as a JSON array of channel IDs, not a bare string.
+            raw = body[f]
+            if isinstance(raw, list):
+                channel_ids = [str(c).strip() for c in raw if str(c).strip()]
+            elif raw:
+                channel_ids = [str(raw).strip()]
+            else:
+                channel_ids = []
+            updates[f] = json.dumps(channel_ids) if channel_ids else None
+        elif f == 'rcon_broadcast_message':
+            # Free text (admin-authored in-game broadcast command/message), not a
+            # Discord/Fluxer channel or role snowflake id - longer cap, no strip-to-id.
+            updates[f] = str(body[f])[:2000].strip() or None
+        else:
+            updates[f] = str(body[f]).strip() or None
 
     if not updates:
         return JsonResponse({'ok': False, 'error': 'No fields to update'})
@@ -459,7 +772,7 @@ def api_quest_control_channels(request):
     return JsonResponse({'ok': True})
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
 @require_http_methods(['POST'])
 def api_quest_control_toggles(request):
     """Save display/alert toggles for a game server instance."""
@@ -476,7 +789,8 @@ def api_quest_control_toggles(request):
         return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
 
     toggle_fields = ['alert_join_leave', 'alert_live_logs', 'show_player_count',
-                     'show_ip_port', 'show_password', 'show_top_5_players']
+                     'show_ip_port', 'show_password', 'show_top_5_players',
+                     'backups_enabled', 'rcon_broadcast_enabled']
     updates = {f: 1 if body.get(f) else 0 for f in toggle_fields if f in body}
     if not updates:
         return JsonResponse({'ok': False, 'error': 'No fields to update'})
@@ -521,7 +835,7 @@ def _get_amp_instance(instance_name, user_env='AMP_USER', pass_env='AMP_PASSWORD
         loop.close()
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
 @require_http_methods(['POST'])
 def api_quest_control_server_settings(request):
     """Save server-level settings (public_ip override) for a game server instance."""
@@ -555,7 +869,7 @@ def api_quest_control_server_settings(request):
     return JsonResponse({'ok': True})
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
 @ratelimit(key='ip', rate='10000/h', method='GET', block=True)
 @require_http_methods(['GET'])
 def api_quest_control_server_status(request):
@@ -661,7 +975,7 @@ def api_quest_control_server_status(request):
         return JsonResponse({'ok': False, 'error': 'Failed to fetch server status'})
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 @require_http_methods(['POST'])
 def api_quest_control_server_action(request):
@@ -712,7 +1026,7 @@ def api_quest_control_server_action(request):
         return JsonResponse({'ok': False, 'error': 'Server action failed'})
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
 @ratelimit(key='ip', rate='20/h', method='POST', block=True)
 @require_http_methods(['POST'])
 def api_quest_control_god_action(request):
@@ -924,7 +1238,7 @@ def api_quest_control_god_action(request):
         return JsonResponse({'ok': False, 'error': f'Command failed: {e}'})
 
 
-@fluxer_or_web_admin_required
+@web_admin_or_instance_manager_required
 @require_http_methods(['POST'])
 def api_quest_control_send_embed(request):
     """POST: Send a custom embed to a game bot channel via fluxer_pending_broadcasts."""
@@ -940,9 +1254,20 @@ def api_quest_control_send_embed(request):
     if not _validate_instance_name(instance_name):
         return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
 
-    channel_id = str(body.get('channel_id', '')).strip()
-    if not channel_id or not channel_id.isdigit():
-        return JsonResponse({'ok': False, 'error': 'Invalid channel_id'})
+    # Each platform gets its own optional channel_id now that an instance can be linked
+    # to a Discord guild, a Fluxer guild, both, or neither - the client sends whichever
+    # of these it collected from the user, and we queue a broadcast per channel provided.
+    discord_channel_id = str(body.get('discord_channel_id', '')).strip()
+    fluxer_channel_id   = str(body.get('fluxer_channel_id', '')).strip()
+    # Back-compat: a bare 'channel_id' with no platform-specific field is treated as
+    # whichever single platform this instance is actually linked to (existing callers).
+    legacy_channel_id = str(body.get('channel_id', '')).strip()
+
+    if not discord_channel_id and not fluxer_channel_id and not legacy_channel_id:
+        return JsonResponse({'ok': False, 'error': 'No destination channel provided'})
+    for cid in (discord_channel_id, fluxer_channel_id, legacy_channel_id):
+        if cid and not cid.isdigit():
+            return JsonResponse({'ok': False, 'error': 'Invalid channel_id'})
 
     title = str(body.get('title', '')).strip()[:256]
     description = str(body.get('description', '')).strip()[:4096]
@@ -980,56 +1305,72 @@ def api_quest_control_send_embed(request):
     if footer:
         embed_data['footer'] = footer
 
-    # Look up guild_id + platform from unified table
+    # Look up this instance's independent Discord/Fluxer guild links
     try:
         with engine.connect() as conn:
             row = conn.execute(sa_text2(
-                "SELECT guild_id, platform FROM gamebot_configs WHERE instance_name = :n LIMIT 1"
+                "SELECT discord_guild_id, fluxer_guild_id FROM gamebot_configs WHERE instance_name = :n LIMIT 1"
             ), {'n': instance_name}).fetchone()
-            guild_id = row.guild_id if row else 0
-            platform = (row.platform if row else None) or 'fluxer'
+            if not row:
+                return JsonResponse({'ok': False, 'error': 'Instance not found'})
+            discord_guild_id = row.discord_guild_id
+            fluxer_guild_id  = row.fluxer_guild_id
     except Exception as e:
         return JsonResponse({'ok': False, 'error': f'DB error: {e}'})
 
-    # Route to the correct broadcast queue based on platform
-    if platform == 'fluxer':
-        broadcast_sql = "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"
-    else:
-        broadcast_sql = "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"
+    # Legacy bare channel_id (no platform specified): send it to whichever single
+    # platform this instance is actually linked to, preferring Fluxer to match the
+    # old default when both existed only in theory (never in practice, pre-split).
+    if legacy_channel_id and not discord_channel_id and not fluxer_channel_id:
+        if fluxer_guild_id:
+            fluxer_channel_id = legacy_channel_id
+        elif discord_guild_id:
+            discord_channel_id = legacy_channel_id
+        else:
+            return JsonResponse({'ok': False, 'error': 'Instance is not linked to any guild'})
+
     payload_json = json.dumps({'embed': embed_data})
     now_ts = int(time.time())
+    sent_to = []
 
     try:
         with engine.connect() as conn:
-            conn.execute(sa_text2(broadcast_sql),
-                         {'g': int(guild_id) if guild_id else 0, 'c': int(channel_id), 'p': payload_json, 't': now_ts})
+            if fluxer_channel_id:
+                if not fluxer_guild_id:
+                    return JsonResponse({'ok': False, 'error': 'Instance is not linked to a Fluxer guild'})
+                conn.execute(sa_text2(
+                    "INSERT INTO fluxer_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"
+                ), {'g': int(fluxer_guild_id), 'c': int(fluxer_channel_id), 'p': payload_json, 't': now_ts})
+                sent_to.append('fluxer')
+            if discord_channel_id:
+                if not discord_guild_id:
+                    return JsonResponse({'ok': False, 'error': 'Instance is not linked to a Discord guild'})
+                conn.execute(sa_text2(
+                    "INSERT INTO discord_pending_broadcasts (guild_id, channel_id, payload, created_at) VALUES (:g, :c, :p, :t)"
+                ), {'g': int(discord_guild_id), 'c': int(discord_channel_id), 'p': payload_json, 't': now_ts})
+                sent_to.append('discord')
             conn.commit()
     except Exception as e:
         return JsonResponse({'ok': False, 'error': f'Queue insert failed: {e}'})
 
     log_admin_action(request, 'quest_control_send_embed', instance_name, 0,
-                     details={'channel_id': channel_id, 'title': title, 'instance': instance_name})
-    return JsonResponse({'ok': True})
+                     details={'sent_to': sent_to, 'title': title, 'instance': instance_name})
+    return JsonResponse({'ok': True, 'sent_to': sent_to})
 
 
-@web_login_required
-@ratelimit(key='ip', rate='10/h', method='POST', block=True)
+@web_admin_required
 @require_http_methods(['POST'])
 def api_quest_control_claim(request):
     """
-    POST: Assign an unconfigured AMP instance to this Fluxer guild.
-    Called from the Quest Control dashboard when clicking 'Claim' on a discovered server.
-    Auth: Fluxer guild owner/admin - validated via session web_user_id vs guild ownership.
+    POST: Activate a discovered-but-unconfigured AMP instance into QuestLog.
+    Every game server instance is owned by QuestLog itself (site admin), not by any
+    Discord or Fluxer guild - Discord/Fluxer linkage is a separate, independent,
+    per-instance notification setting (see api_quest_control_link_guild below), not
+    an ownership/authorization mechanism. No guild is involved in activation at all.
     """
     from app.db import get_engine
     from sqlalchemy import text as sa_text2
-    from .helpers import get_web_user
     engine = get_engine()
-
-    caller = get_web_user(request)
-    if not caller or caller.is_banned or caller.is_disabled:
-        return JsonResponse({'ok': False, 'error': 'Access denied'}, status=403)
-    web_user_id = caller.id
 
     try:
         body = json.loads(request.body)
@@ -1037,74 +1378,64 @@ def api_quest_control_claim(request):
         return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
 
     instance_name = str(body.get('instance_name', '')).strip()
-    guild_id      = str(body.get('guild_id', '')).strip()
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
 
-    if not _validate_instance_name(instance_name) or not guild_id:
-        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name or guild_id'})
-
-    # Verify caller owns or admins this guild (Fluxer OR Discord)
-    try:
-        with engine.connect() as conn:
-            user_row = conn.execute(sa_text2(
-                "SELECT fluxer_id, discord_id FROM web_users WHERE id = :uid LIMIT 1"
-            ), {'uid': web_user_id}).fetchone()
-            if not user_row:
-                return JsonResponse({'ok': False, 'error': 'User not found'}, status=403)
-
-            authorized = False
-
-            # Try Fluxer guild auth first
-            fluxer_id = str(user_row.fluxer_id) if user_row.fluxer_id else None
-            if fluxer_id:
-                guild_row = conn.execute(sa_text2(
-                    "SELECT owner_id FROM web_fluxer_guild_settings WHERE guild_id = :g LIMIT 1"
-                ), {'g': guild_id}).fetchone()
-                if guild_row:
-                    if str(guild_row.owner_id) == fluxer_id:
-                        authorized = True
-                    else:
-                        panel_row = conn.execute(sa_text2(
-                            "SELECT role FROM web_fluxer_guild_settings WHERE guild_id = :g AND panel_user_id = :uid LIMIT 1"
-                        ), {'g': guild_id, 'uid': web_user_id}).fetchone()
-                        if panel_row:
-                            authorized = True
-
-            # Try Discord guild auth if Fluxer auth didn't match
-            if not authorized:
-                discord_id = str(user_row.discord_id) if user_row.discord_id else None
-                if discord_id:
-                    discord_guild_row = conn.execute(sa_text2(
-                        "SELECT guild_id FROM guilds WHERE guild_id = :g AND owner_id = :did LIMIT 1"
-                    ), {'g': guild_id, 'did': discord_id}).fetchone()
-                    if discord_guild_row:
-                        authorized = True
-                    elif caller.is_admin:
-                        # Site admins can claim for any Discord guild
-                        discord_exists = conn.execute(sa_text2(
-                            "SELECT guild_id FROM guilds WHERE guild_id = :g LIMIT 1"
-                        ), {'g': guild_id}).fetchone()
-                        if discord_exists:
-                            authorized = True
-
-            if not authorized:
-                return JsonResponse({'ok': False, 'error': 'Not authorized for this guild'}, status=403)
-
-    except Exception as e:
-        logger.error('api_quest_control_claim auth error: %s', e)
-        return JsonResponse({'ok': False, 'error': 'Authorization check failed'}, status=500)
-
-    # Claim it - assign guild_id and mark configured=1 so bot commands work immediately
     try:
         with engine.connect() as conn:
             result = conn.execute(sa_text2(
-                "UPDATE gamebot_configs SET guild_id = :g, platform = 'fluxer', configured = 1 "
-                "WHERE instance_name = :n AND (guild_id IS NULL OR guild_id = '')"
-            ), {'g': guild_id, 'n': instance_name})
+                "UPDATE gamebot_configs SET configured = 1 WHERE instance_name = :n AND configured = 0"
+            ), {'n': instance_name})
             conn.commit()
             if result.rowcount == 0:
-                return JsonResponse({'ok': False, 'error': 'Instance already claimed or not found'})
+                return JsonResponse({'ok': False, 'error': 'Instance already active or not found'})
     except Exception as e:
-        return JsonResponse({'ok': False, 'error': f'Claim failed: {e}'})
+        return JsonResponse({'ok': False, 'error': f'Activation failed: {e}'})
+
+    return JsonResponse({'ok': True})
+
+
+@web_admin_required
+@require_http_methods(['POST'])
+def api_quest_control_link_guild(request):
+    """
+    POST: Set or clear which Discord and/or Fluxer guild a QuestLog-owned instance
+    should notify. Independent per platform - an instance can be linked to a Discord
+    guild, a Fluxer guild, both, or neither, at any time, regardless of the other.
+    Site-admin only (this whole page is admin-gated) - no separate guild-ownership
+    proof is required, since only trusted admins can reach this endpoint at all.
+    """
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+    engine = get_engine()
+
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON'})
+
+    instance_name = str(body.get('instance_name', '')).strip()
+    if not _validate_instance_name(instance_name):
+        return JsonResponse({'ok': False, 'error': 'Missing or invalid instance_name'})
+
+    updates = {}
+    if 'discord_guild_id' in body:
+        updates['discord_guild_id'] = str(body['discord_guild_id']).strip() or None
+    if 'fluxer_guild_id' in body:
+        updates['fluxer_guild_id'] = str(body['fluxer_guild_id']).strip() or None
+    if not updates:
+        return JsonResponse({'ok': False, 'error': 'No guild fields to update'})
+
+    set_clause = ', '.join(f'{f} = :{f}' for f in updates)
+    updates['n'] = instance_name
+    try:
+        with engine.connect() as conn:
+            conn.execute(sa_text2(
+                f"UPDATE gamebot_configs SET {set_clause} WHERE instance_name = :n"
+            ), updates)
+            conn.commit()
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': f'Link update failed: {e}'})
 
     return JsonResponse({'ok': True})
 
@@ -1389,6 +1720,12 @@ def api_admin_community_action(request, community_id):
     action = body.get('action')
     if action not in ('approve', 'deny', 'ban', 'unban', 'purge', 'toggle_discovery', 'remove_from_network', 'toggle_unified_xp'):
         return JsonResponse({'error': 'Invalid action'}, status=400)
+
+    # Purge is irreversible (deletes the community and all its members) - only
+    # a full admin may do this, unlike the other softer/reversible actions
+    # this endpoint allows any mod to perform.
+    if action == 'purge' and not request.web_user.is_admin:
+        return JsonResponse({'error': 'Access denied - admin only action'}, status=403)
 
     with get_db_session() as db:
         community = db.query(WebCommunity).filter_by(id=community_id).first()
@@ -1815,9 +2152,54 @@ def api_admin_run_steam_search(request, search_id):
 
 @web_admin_required
 def api_admin_found_games(request):
-    """API: List/manage found games."""
+    """API: List/manage found games. Paginated - previously hard-capped at 100 rows
+    with no way to see the rest; now returns a page at a time plus the total count.
+    Supports optional genre and NSFW filters via query params."""
+    page = safe_int(request.GET.get('page'), 1, 1, 100000)
+    page_size = 50
+    genre_filter = (request.GET.get('genre') or '').strip()
+    hide_nsfw = request.GET.get('hide_nsfw') == '1'
+
     with get_db_session() as db:
-        games = db.query(WebFoundGame).order_by(WebFoundGame.name).limit(100).all()
+        query = db.query(WebFoundGame)
+
+        if genre_filter:
+            # genres is a JSON array stored as text - a plain LIKE on the quoted
+            # value avoids needing a JSON-aware column type for this simple filter.
+            query = query.filter(WebFoundGame.genres.like(f'%"{genre_filter}"%'))
+
+        if hide_nsfw:
+            # Real Steam flag first; keyword fallback covers rows fetched before
+            # is_nsfw existed (Steam's own content_descriptors weren't captured yet).
+            nsfw_keywords = ['hentai', 'nudity', 'sexual content', 'adult only', 'erotic', 'nsfw']
+            keyword_clause = or_(*[
+                or_(
+                    WebFoundGame.name.ilike(f'%{kw}%'),
+                    WebFoundGame.summary.ilike(f'%{kw}%'),
+                    WebFoundGame.genres.ilike(f'%{kw}%'),
+                )
+                for kw in nsfw_keywords
+            ])
+            query = query.filter(WebFoundGame.is_nsfw == False, ~keyword_clause)
+
+        total = query.count()
+        games = (
+            query.order_by(WebFoundGame.name)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+
+        # Genre list for the filter dropdown - drawn from ALL games, not just this
+        # page, so the option list doesn't shrink/shift as the admin paginates.
+        all_genre_rows = db.query(WebFoundGame.genres).all()
+        all_genres = set()
+        for (raw,) in all_genre_rows:
+            try:
+                all_genres.update(json.loads(raw or '[]'))
+            except (TypeError, ValueError):
+                pass
+
         data = [{
             'id': g.id,
             'steam_app_id': g.steam_app_id,
@@ -1838,9 +2220,18 @@ def api_admin_found_games(request):
             'console_platforms': json.loads(g.console_platforms or '[]'),
             'is_featured': g.is_featured,
             'is_hidden': g.is_hidden,
+            'is_nsfw': g.is_nsfw,
             'found_at': g.found_at,
         } for g in games]
-    return JsonResponse({'games': data})
+
+    return JsonResponse({
+        'games': data,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': max(1, (total + page_size - 1) // page_size),
+        'genres': sorted(all_genres),
+    })
 
 
 @web_admin_required
@@ -2186,6 +2577,8 @@ def api_admin_tracker_stats(request):
         'soulslike_tracker': 'Mortality Tracker',
         'soulslike_r2':      'Remnant 2',
         'soulslike':         'SoulsLike Hub',
+        'survival':          'Survival Hub',
+        'palworld':          'Palworld',
         'ffxiv_tools':       'FFXIV Tools',
         'ffxiv':             'FFXIV',
         'eso':               'ESO',
@@ -2416,6 +2809,13 @@ def api_admin_user_action(request, user_id):
         # Prevent self-action on destructive operations
         if user_id == request.web_user.id and action in ('ban', 'disable', 'remove_admin', 'revoke_mod'):
             return JsonResponse({'error': 'Cannot perform this action on your own account'}, status=400)
+
+        # A mod (not a full admin) may only act on regular users - otherwise a
+        # mod could disable/timeout/mass-delete-posts on another mod's or an
+        # admin's account, which is a privilege-escalation path since
+        # mod_allowed_actions has no target-role check of its own.
+        if is_mod_only and (user.is_admin or user.is_mod):
+            return JsonResponse({'error': 'Access denied - cannot act on a mod or admin account'}, status=403)
 
         if action == 'ban':
             user.is_banned = True
@@ -2807,6 +3207,7 @@ def api_admin_comment_action(request, comment_id):
 # ── Games We Play Tracker ──────────────────────────────────────────────────────
 
 @web_mod_required
+@add_web_user_context
 def admin_games_tracker(request):
     """Admin page for managing /gamesweplay/ game list."""
     with get_db_session() as db:
@@ -2855,6 +3256,225 @@ def admin_games_tracker(request):
         'web_user': request.web_user,
         'active_page': 'admin',
     })
+
+
+# ---------------------------------------------------------------------------
+# Quest Control (unified) - site-admin page, not guild-scoped-by-URL.
+# Replaces the old per-guild pages guild_quest_control (Discord) and
+# fluxer_guild_game_servers (Fluxer). Reads/writes the same gamebot_configs
+# table and calls the same /api/admin/quest-control/* endpoints - unchanged.
+# ---------------------------------------------------------------------------
+
+_QC_GAME_ICONS = {
+    'V Rising':          ('fa-droplet',   'red'),
+    'Seven Days To Die': ('fa-biohazard', 'orange'),
+    'Enshrouded':        ('fa-cloud',     'purple'),
+    'Valheim':           ('fa-hammer',    'blue'),
+    'Icarus':            ('fa-mountain',  'green'),
+    'Palworld':          ('fa-paw',       'yellow'),
+}
+_QC_DEFAULT_ICON = ('fa-server', 'cyan')
+
+
+def _qc_load_discord_guilds():
+    """All Discord guilds WardenBot is in - site-owner view, not session-scoped."""
+    from app.models import Guild as GuildModel
+    out = []
+    try:
+        with get_db_session() as db:
+            rows = db.query(GuildModel).order_by(GuildModel.guild_name).all()
+            for g in rows:
+                out.append({'id': str(g.guild_id), 'name': g.guild_name or str(g.guild_id)})
+    except Exception as e:
+        logger.warning('_qc_load_discord_guilds: %s', e)
+    return out
+
+
+def _qc_load_fluxer_guilds():
+    """All Fluxer guilds the bot currently has joined (bot_present=1)."""
+    out = []
+    try:
+        with get_db_session() as db:
+            rows = db.query(WebFluxerGuildSettings).filter_by(bot_present=1).order_by(
+                WebFluxerGuildSettings.guild_name
+            ).all()
+            for g in rows:
+                out.append({'id': str(g.guild_id), 'name': g.guild_name or str(g.guild_id)})
+    except Exception as e:
+        logger.warning('_qc_load_fluxer_guilds: %s', e)
+    return out
+
+
+def _qc_load_channels_roles(platform, guild_id):
+    """Load channel/role picker options for a guild, keyed by platform."""
+    import json as _json
+    channels, roles = [], []
+    if not guild_id:
+        return channels, roles
+
+    # Every option is tagged with 'platform' so the client can tell a merged
+    # Discord+Fluxer channel/role list apart when a channel is actually picked -
+    # e.g. sending an embed needs to know whether the chosen channel_id belongs
+    # to the Discord broadcast queue or the Fluxer one.
+    if platform == 'discord':
+        from app.models import Guild as GuildModel
+        try:
+            with get_db_session() as db:
+                g = db.query(GuildModel).filter_by(guild_id=int(guild_id)).first()
+                if g:
+                    if g.cached_channels:
+                        raw_channels = _json.loads(g.cached_channels)
+                        channels = [
+                            {'value': str(c['id']), 'label': c['name'], 'platform': 'discord'}
+                            for c in raw_channels
+                            if c.get('type') == 0 or c.get('type') == 'text'
+                        ]
+                    if g.cached_roles:
+                        raw_roles = _json.loads(g.cached_roles)
+                        roles = [
+                            {'value': str(r['id']), 'label': r['name'], 'platform': 'discord'}
+                            for r in sorted(raw_roles, key=lambda x: -x.get('position', 0))
+                        ]
+        except Exception as e:
+            logger.warning('_qc_load_channels_roles(discord, %s): %s', guild_id, e)
+    else:
+        from app.db import get_engine
+        from sqlalchemy import text as sa_text2
+        engine = get_engine()
+        try:
+            with engine.connect() as conn:
+                ch_rows = conn.execute(sa_text2(
+                    "SELECT channel_id, channel_name FROM web_fluxer_guild_channels "
+                    "WHERE guild_id = :g ORDER BY channel_name"
+                ), {'g': str(guild_id)}).fetchall()
+                channels = [{'value': str(r.channel_id), 'label': r.channel_name or str(r.channel_id), 'platform': 'fluxer'} for r in ch_rows]
+                role_rows = conn.execute(sa_text2(
+                    "SELECT role_id, role_name FROM web_fluxer_guild_roles "
+                    "WHERE guild_id = :g ORDER BY position DESC"
+                ), {'g': str(guild_id)}).fetchall()
+                roles = [{'value': str(r.role_id), 'label': r.role_name or str(r.role_id), 'platform': 'fluxer'} for r in role_rows]
+        except Exception as e:
+            logger.warning('_qc_load_channels_roles(fluxer, %s): %s', guild_id, e)
+
+    return channels, roles
+
+
+@web_mod_required
+@add_web_user_context
+def admin_quest_control(request):
+    """
+    Unified Quest Control page. Site admins see every configured instance
+    unconditionally - no guild has to be picked first. Mods (is_mod=True, not
+    is_admin) only see instances where their linked Discord/Fluxer account
+    currently holds that instance's configured Manager role - checked fresh on
+    every page load via _web_user_manages_instance, same check the API endpoints
+    enforce, so a mod can never see (or act on) an instance they don't manage.
+    Each instance independently and optionally links a Discord guild and/or a Fluxer
+    guild purely for notification purposes (which channels get status embeds, etc) -
+    that's a per-instance setting managed inline on its own card, not a page-level
+    filter/gate. Reference lists of every known Discord/Fluxer guild are still loaded
+    up front, to populate the per-instance link-guild pickers.
+    """
+    from app.db import get_engine
+    from sqlalchemy import text as sa_text2
+
+    # Only site admins can link/relink a guild to an instance (see
+    # api_quest_control_link_guild), so the full guild directory - names and IDs
+    # for every Discord/Fluxer guild QuestLog knows about - is only loaded for
+    # them. A mod has no use for it and shouldn't see guilds they don't manage.
+    is_site_admin = bool(request.web_user and request.web_user.is_admin)
+    discord_guilds = _qc_load_discord_guilds() if is_site_admin else []
+    fluxer_guilds = _qc_load_fluxer_guilds() if is_site_admin else []
+
+    engine = get_engine()
+    all_rows = []
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(sa_text2(
+                "SELECT * FROM gamebot_configs "
+                "ORDER BY configured DESC, COALESCE(NULLIF(server_display_name,''), instance_name) ASC"
+            )).fetchall()
+            all_rows = [dict(r._mapping) for r in rows]
+    except Exception as e:
+        logger.warning('admin_quest_control: gamebot_configs query failed: %s', e)
+
+    # Cache channel/role lookups per guild id so an instance's own linked guild(s)
+    # aren't refetched if another instance happens to link the same guild.
+    _channels_cache = {}
+    def _channels_for(platform, guild_id):
+        if not guild_id:
+            return [], []
+        key = (platform, guild_id)
+        if key not in _channels_cache:
+            _channels_cache[key] = _qc_load_channels_roles(platform, guild_id)
+        return _channels_cache[key]
+
+    bots, unconfigured_bots = [], []
+    for cfg in all_rows:
+        game_type = cfg.get('game_type', 'Unknown')
+        icon, color = _QC_GAME_ICONS.get(game_type, _QC_DEFAULT_ICON)
+
+        if cfg.get('configured'):
+            discord_channels, discord_roles = _channels_for('discord', cfg.get('discord_guild_id'))
+            fluxer_channels, fluxer_roles = _channels_for('fluxer', cfg.get('fluxer_guild_id'))
+            bots.append({
+                'slug':          cfg['instance_name'],
+                'name':          cfg.get('server_display_name') or cfg['instance_name'],
+                'game':          game_type,
+                'icon':          icon,
+                'color':         color,
+                'instance_name': cfg['instance_name'],
+                'configured':    True,
+                'has_password':  bool(cfg.get('server_password')),
+                'config':        cfg,
+                'discord_guild_id': cfg.get('discord_guild_id') or '',
+                'fluxer_guild_id':  cfg.get('fluxer_guild_id') or '',
+                'discord_channels': discord_channels,
+                'discord_roles':    discord_roles,
+                'fluxer_channels':  fluxer_channels,
+                'fluxer_roles':     fluxer_roles,
+                # Combined list, still used by pickers that don't care which platform
+                # a channel/role came from (each option carries its own 'platform' tag).
+                'channels': discord_channels + fluxer_channels,
+                'roles':    discord_roles + fluxer_roles,
+            })
+        else:
+            unconfigured_bots.append({
+                'instance_name': cfg['instance_name'],
+                'game':          game_type,
+                'icon':          icon,
+                'color':         color,
+            })
+
+    for bot in bots:
+        bot['config_json']   = json.dumps(bot['config'], default=str)
+        bot['channels_json'] = json.dumps(bot['channels'])
+        bot['roles_json']    = json.dumps(bot['roles'])
+        bot['discord_channels_json'] = json.dumps(bot['discord_channels'])
+        bot['discord_roles_json']    = json.dumps(bot['discord_roles'])
+        bot['fluxer_channels_json']  = json.dumps(bot['fluxer_channels'])
+        bot['fluxer_roles_json']     = json.dumps(bot['fluxer_roles'])
+
+    if not is_site_admin:
+        # Mod: only show instances they currently hold the configured Manager role
+        # for - same live check the API endpoints enforce, so what's visible here
+        # always matches what they're actually allowed to act on.
+        bots = [b for b in bots if _web_user_manages_instance(request.web_user, b['instance_name'])]
+        unconfigured_bots = []  # claiming a new instance is an admin-only action
+
+    context = {
+        'web_user':          request.web_user,
+        'active_page':       'admin',
+        'is_site_admin':     is_site_admin,
+        'discord_guilds':    discord_guilds,
+        'fluxer_guilds':     fluxer_guilds,
+        'discord_guilds_json': json.dumps(discord_guilds),
+        'fluxer_guilds_json':  json.dumps(fluxer_guilds),
+        'bots':              bots,
+        'unconfigured_bots': unconfigured_bots,
+        'active_bot':        bots[0]['slug'] if bots else None,
+    }
+    return render(request, 'questlog_web/admin_quest_control.html', context)
 
 
 @web_admin_required
@@ -4169,12 +4789,12 @@ def api_admin_fluxer_webhook_test(request, config_id):
             "title": _default_titles.get(cfg.event_type, f'Test - {cfg.label}'),
             "description": description,
             "color": _hex_to_int(cfg.embed_color, _default_colors.get(cfg.event_type, 0x5865F2)),
-            "footer": cfg.embed_footer or f"QuestLog - casual-heroes.com/ql/",
+            "footer": cfg.embed_footer or f"QuestLog - https://questlog.casual-heroes.com",
         }
         if cfg.event_type in _default_fields:
             embed["fields"] = _default_fields[cfg.event_type]
         if cfg.event_type == 'lfg_announce':
-            embed["url"] = "https://casual-heroes.com/ql/lfg/"
+            embed["url"] = "https://questlog.casual-heroes.com"
 
         test_payload = _json.dumps(embed)
 

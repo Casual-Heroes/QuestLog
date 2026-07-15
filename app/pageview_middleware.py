@@ -14,15 +14,16 @@ _executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='pageview')
 # Map URL prefix → section label. Order matters - first match wins.
 SECTION_MAP = [
     ('/soulslike/tracker',  'soulslike_tracker'),
-    ('/soulslike/r2',       'soulslike_r2'),
     ('/soulslike',          'soulslike'),
+    ('/survival/palworld',  'palworld'),
+    ('/survival',           'survival'),
     ('/ffxiv/tools',        'ffxiv_tools'),
     ('/ffxiv',              'ffxiv'),
     ('/eso',                'eso'),
     ('/indie-heroes',       'indie_heroes'),
     ('/lfg',                'lfg'),
     ('/gamesweplay',        'games_we_play'),
-    ('/gameservers',        'game_servers'),
+    ('/hosted-games',       'hosted_games'),
     ('/communities',        'communities'),
     ('/discover',           'discover'),
     ('/blog',               'blog'),

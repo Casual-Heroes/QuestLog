@@ -625,8 +625,6 @@ urlpatterns = [
     path('dashboard/discord/<str:guild_id>/flair-management/',  views.flair_management,         name='ql_discord_guild_flair_management'),
     path('dashboard/discord/<str:guild_id>/featured-creators/', views.guild_featured_creators,  name='ql_discord_guild_featured_creators'),
     path('dashboard/discord/<str:guild_id>/bridge/',            views.guild_bridge,             name='ql_discord_guild_bridge'),
-    # Quest Control (Discord)
-    path('dashboard/discord/<str:guild_id>/quest-control/',          views.guild_quest_control,          name='ql_discord_guild_quest_control'),
     # Community Spotlight (Discord)
     path('dashboard/discord/<str:guild_id>/spotlight/',              views.guild_spotlight,              name='ql_discord_guild_spotlight'),
     # Live Alerts (Discord)

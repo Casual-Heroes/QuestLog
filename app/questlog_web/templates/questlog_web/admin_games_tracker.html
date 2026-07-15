@@ -48,11 +48,11 @@
               </span>
               <span class="px-2 py-1 text-xs rounded
                 {% if game.display_on == 'both' %}bg-purple-900/40 text-purple-300
-                {% elif game.display_on == 'gameservers' %}bg-yellow-900/40 text-yellow-300
+                {% elif game.display_on == 'hosted' %}bg-yellow-900/40 text-yellow-300
                 {% else %}bg-blue-900/40 text-blue-300{% endif %}">
                 <i class="fas fa-eye mr-1"></i>
                 {% if game.display_on == 'both' %}Both Pages
-                {% elif game.display_on == 'gameservers' %}Game Servers
+                {% elif game.display_on == 'hosted' %}Hosted Games
                 {% else %}Games We Play{% endif %}
               </span>
             </div>
@@ -814,8 +814,8 @@ document.addEventListener('DOMContentLoaded', function() {
     name: 'displayOn',
     id: 'displayOn',
     items: [
-      {value: 'gamesweplay', label: 'Games We Play'},
-      {value: 'gameservers', label: 'Game Servers'},
+      {value: 'gamesweplay', label: 'Games We Play (Not Hosted)'},
+      {value: 'hosted', label: 'Hosted Games (We Host)'},
       {value: 'both', label: 'Both Pages'},
     ],
     selected: 'gamesweplay',

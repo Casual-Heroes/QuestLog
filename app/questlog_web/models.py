@@ -867,6 +867,10 @@ class WebFoundGame(Base):
     review_score = Column(Integer, nullable=True)  # 0-100
     review_count = Column(Integer, default=0)
 
+    # Steam's own mature-content signal (content_descriptors ids 1/3/5 = nudity/sexual
+    # content, or required_age >= 18) - captured at fetch time, not derived from genres
+    is_nsfw = Column(Boolean, default=False)
+
     # Which search found it
     search_config_id = Column(Integer, ForeignKey('web_steam_search_configs.id'), nullable=True)
 

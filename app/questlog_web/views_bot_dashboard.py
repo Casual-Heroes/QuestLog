@@ -1135,116 +1135,6 @@ def fluxer_guild_soon(request, guild_id):
 
 
 # ---------------------------------------------------------------------------
-# Game Servers (Quest Control) - scoped to a specific Fluxer guild
-# ---------------------------------------------------------------------------
-
-_GAME_ICONS = {
-    'V Rising':          ('fa-droplet',   'red'),
-    'Seven Days To Die': ('fa-biohazard', 'orange'),
-    'Enshrouded':        ('fa-cloud',     'purple'),
-    'Valheim':           ('fa-hammer',    'blue'),
-    'Icarus':            ('fa-mountain',  'green'),
-    'Palworld':          ('fa-paw',       'yellow'),
-}
-_DEFAULT_ICON = ('fa-server', 'cyan')
-
-
-@fluxer_guild_required
-def fluxer_guild_game_servers(request, guild_id):
-    """
-    Quest Control scoped to a Fluxer guild dashboard.
-    Reads from unified gamebot_configs table - automatically shows any
-    instance discovered from AMP, configured or not.
-    """
-    from app.db import get_engine
-    from sqlalchemy import text as sa_text2
-    engine = get_engine()
-
-    # Load Fluxer channels and roles for this guild
-    guild_channels = []
-    guild_roles = []
-    try:
-        with engine.connect() as conn:
-            ch_rows = conn.execute(sa_text2(
-                "SELECT channel_id, channel_name FROM web_fluxer_guild_channels "
-                "WHERE guild_id = :g ORDER BY channel_name"
-            ), {'g': str(guild_id)}).fetchall()
-            guild_channels = [{'value': str(r.channel_id), 'label': r.channel_name or str(r.channel_id)} for r in ch_rows]
-            role_rows = conn.execute(sa_text2(
-                "SELECT role_id, role_name FROM web_fluxer_guild_roles "
-                "WHERE guild_id = :g ORDER BY position DESC"
-            ), {'g': str(guild_id)}).fetchall()
-            guild_roles = [{'value': str(r.role_id), 'label': r.role_name or str(r.role_id)} for r in role_rows]
-    except Exception:
-        pass
-
-    # Load all known instances from unified table.
-    # Show instances assigned to this guild OR unassigned (unconfigured) so
-    # the owner can claim and configure them directly from the dashboard.
-    all_instances = []
-    unconfigured = []
-    try:
-        with engine.connect() as conn:
-            rows = conn.execute(sa_text2(
-                "SELECT * FROM gamebot_configs ORDER BY configured DESC, COALESCE(NULLIF(server_display_name,''), instance_name) ASC"
-            )).fetchall()
-            for row in rows:
-                cfg = dict(row._mapping)
-                if str(cfg.get('guild_id') or '') == str(guild_id):
-                    all_instances.append(cfg)
-                elif not cfg.get('configured') and not cfg.get('guild_id'):
-                    unconfigured.append(cfg)
-    except Exception as e:
-        logger.debug('fluxer_guild_game_servers: gamebot_configs query failed: %s', e)
-
-    # Build bot dicts for the template
-    bots = []
-    for cfg in all_instances:
-        game_type = cfg.get('game_type', 'Unknown')
-        icon, color = _GAME_ICONS.get(game_type, _DEFAULT_ICON)
-        slug = cfg['instance_name']
-        bots.append({
-            'slug':      slug,
-            'name':      cfg.get('server_display_name') or cfg['instance_name'],
-            'game':      game_type,
-            'icon':      icon,
-            'color':     color,
-            'instance_name': cfg['instance_name'],
-            'configured':   bool(cfg.get('configured')),
-            'has_password': bool(cfg.get('server_password')),
-            'config':       cfg,
-            'channels':     guild_channels,
-            'roles':        guild_roles,
-        })
-
-    # Unconfigured instances: shown as claimable in the template
-    unconfigured_bots = []
-    for cfg in unconfigured:
-        game_type = cfg.get('game_type', 'Unknown')
-        icon, color = _GAME_ICONS.get(game_type, _DEFAULT_ICON)
-        unconfigured_bots.append({
-            'instance_name': cfg['instance_name'],
-            'game':          game_type,
-            'icon':          icon,
-            'color':         color,
-        })
-
-    for bot in bots:
-        bot['config_json']   = json.dumps(bot['config'], default=str)
-        bot['channels_json'] = json.dumps(bot['channels'])
-        bot['roles_json']    = json.dumps(bot['roles'])
-
-    def _extra(db, gid):
-        return {
-            'bots':               bots,
-            'unconfigured_bots':  unconfigured_bots,
-            'active_bot':         bots[0]['slug'] if bots else None,
-        }
-
-    return _guild_view(request, guild_id, 'questlog_web/fluxer_guild_game_servers.html', 'game_servers', extra=_extra)
-
-
-# ---------------------------------------------------------------------------
 # Settings API
 # ---------------------------------------------------------------------------
 
@@ -2759,6 +2649,11 @@ def api_bot_dashboard_configs(request):
             cfg = db.query(WebCommunityBotConfig).filter_by(
                 platform=platform, guild_id=guild_id, event_type=event_type
             ).first()
+            # A matching row may belong to a DIFFERENT community than the one
+            # this caller owns - without this check, any user who knows/guesses
+            # a guild_id could hijack that community's existing webhook config.
+            if cfg and cfg.community_id and cfg.community_id != community_id:
+                return JsonResponse({'error': 'A config for this guild/event already exists and is not owned by you'}, status=403)
 
         if cfg:
             cfg.community_id = community_id or cfg.community_id
@@ -2797,10 +2692,15 @@ def api_bot_dashboard_config_detail(request, config_id):
         if not cfg:
             return JsonResponse({'error': 'Not found'}, status=404)
 
-        if cfg.community_id:
-            community = db.query(WebCommunity).filter_by(id=cfg.community_id, owner_id=user_id).first()
-            if not community:
-                return JsonResponse({'error': 'Forbidden'}, status=403)
+        # Configs with no community_id (e.g. bot-registered via
+        # api_internal_bot_config, which never sets it) have no owner to check
+        # against - deny rather than silently allowing any logged-in user to
+        # edit/delete them, which the old `if cfg.community_id:` skip allowed.
+        if not cfg.community_id:
+            return JsonResponse({'error': 'Forbidden'}, status=403)
+        community = db.query(WebCommunity).filter_by(id=cfg.community_id, owner_id=user_id).first()
+        if not community:
+            return JsonResponse({'error': 'Forbidden'}, status=403)
 
         if request.method == 'DELETE':
             db.delete(cfg)

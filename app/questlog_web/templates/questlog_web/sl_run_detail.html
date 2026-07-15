@@ -55,6 +55,7 @@
 .boss-name { flex:1; font-size:0.82rem; font-weight:500; color:#d1d5db; }
 .boss-row.defeated .boss-name { text-decoration:line-through; color:#4b5563; }
 .boss-tier-badge { font-size:0.55rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; padding:0.1rem 0.3rem; border-radius:3px; flex-shrink:0; }
+.boss-death-count { font-size:0.65rem; font-weight:700; color:#f87171; background:rgba(239,68,68,0.12); padding:0.05rem 0.35rem; border-radius:3px; flex-shrink:0; display:inline-flex; align-items:center; }
 .tier-enemy        { background:rgba(107,114,128,0.15); color:#6b7280; }
 .tier-great_enemy  { background:rgba(59,130,246,0.15); color:#60a5fa; }
 .tier-legend       { background:rgba(139,92,246,0.15); color:#a78bfa; }
@@ -224,6 +225,24 @@
     <div class="section-card p-4 text-center text-gray-600 text-xs">No deaths recorded this run.</div>
     {% endif %}
 
+    <!-- Submit to Leaderboard - explicit, one-time opt-in. Nothing is ever
+         auto-published; a run only appears on the public leaderboard if the
+         owner intentionally clicks this (or the equivalent desktop action). -->
+    {% if is_owner %}
+    <div class="section-card p-4 text-center">
+      {% if leaderboard_submitted %}
+      <p class="text-green-400 text-xs font-semibold"><i class="fas fa-check-circle mr-1"></i>Submitted to the leaderboard</p>
+      {% elif not is_public %}
+      <p class="text-gray-600 text-xs">This run is private, so it can't be submitted to the public leaderboard.</p>
+      {% else %}
+      <button id="submit-leaderboard-btn" onclick="submitToLeaderboard()" class="btn-sm bg-amber-700 hover:bg-amber-600 text-amber-50">
+        <i class="fas fa-trophy"></i> Submit to Leaderboard
+      </button>
+      <p class="text-gray-600 text-[10px] mt-2">This is final - once submitted, a run can't be resubmitted or withdrawn.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Archive note -->
     <p class="text-center text-[10px] text-gray-700">
       Completed runs are archived after 30 days.
@@ -280,11 +299,15 @@
   <div id="currently-fighting" class="hidden mb-3 flex items-center gap-2 px-3 py-2 bg-red-900/20 border border-red-800/40 rounded-lg">
     <i class="fas fa-crosshairs text-red-400 text-xs animate-pulse flex-shrink-0"></i>
     <span class="text-white text-xs font-bold flex-1" id="fighting-boss-name"></span>
+    <span id="fighting-boss-deaths" class="hidden text-red-400 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+      <i class="fas fa-skull text-[9px]"></i><span id="fighting-boss-death-count">0</span>
+    </span>
     <button onclick="clearFocus()" class="text-gray-600 hover:text-gray-400 text-xs"><i class="fas fa-times"></i></button>
   </div>
   {% endif %}
 
   <!-- ── Stats: same for everyone ── -->
+  <!-- Row 1: Deaths overview -->
   <div class="grid grid-cols-3 gap-2 mb-2">
     <div class="stat-card">
       <div class="stat-value text-amber-400" id="stat-deaths">0</div>
@@ -299,6 +322,34 @@
       <div class="stat-label">Deaths / Boss</div>
     </div>
   </div>
+  <!-- Row 2: Boss attribution breakdown -->
+  <div class="grid grid-cols-3 gap-2 mb-2">
+    <div class="stat-card">
+      <div class="stat-value text-red-400" id="stat-current-boss-deaths">0</div>
+      <div class="stat-label">Current Boss</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-orange-400" id="stat-boss-deaths-total">0</div>
+      <div class="stat-label">Boss Deaths</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-gray-400" id="stat-non-boss-deaths-total">0</div>
+      <div class="stat-label">Everything Else</div>
+    </div>
+  </div>
+  <!-- Row 2b: Deaths/Hour - two separate rates, each vs its own played-time clock.
+       "--" (not 0) under 10 min played, since an early death swings the rate wildly. -->
+  <div class="grid grid-cols-2 gap-2 mb-2">
+    <div class="stat-card">
+      <div class="stat-value text-yellow-400" id="stat-session-deaths-per-hour">--</div>
+      <div class="stat-label">Deaths / hr <span class="text-gray-600">(session)</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value text-yellow-400" id="stat-run-deaths-per-hour">--</div>
+      <div class="stat-label">Deaths / hr <span class="text-gray-600">(run)</span></div>
+    </div>
+  </div>
+  <!-- Row 3: Life & progress -->
   <div class="grid grid-cols-3 gap-2 mb-2">
     <div class="stat-card">
       <div class="stat-value text-sm" id="stat-surv-time">00:00:00</div>
@@ -313,6 +364,7 @@
       <div class="stat-label">Items Found</div>
     </div>
   </div>
+  <!-- Row 4: Time -->
   <div class="grid grid-cols-2 gap-2 mb-3">
     <div class="stat-card">
       <div class="stat-value text-sm" id="stat-session-time">00:00:00</div>
@@ -328,7 +380,7 @@
   {% if is_owner and is_active %}
   <div class="flex gap-2 mb-3 flex-wrap" id="action-btns" style="display:none">
     {% if not is_hardcore %}
-    <button onclick="showDeathPicker()" class="btn-die">
+    <button onclick="logDeath()" class="btn-die">
       <i class="fas fa-skull"></i> Log Death
     </button>
     <button onclick="undoLastDeath()" class="btn-sm" title="Undo last death (F10)">
@@ -474,7 +526,7 @@
     </div>
     <div id="death-picker-focused" class="hidden mb-2 p-3 bg-red-900/20 border border-red-800/30 rounded-xl flex items-center justify-between gap-3">
       <span class="text-sm text-red-300 font-bold flex-1" id="death-picker-focused-name"></span>
-      <button onclick="submitDeath(document.getElementById('death-picker-focused-name').textContent)"
+      <button onclick="submitDeath(document.getElementById('death-picker-focused-name').textContent,currentFocusBossKey)"
               class="px-4 py-2 bg-red-800 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition flex-shrink-0">
         <i class="fas fa-skull mr-1"></i>Died here
       </button>
@@ -529,6 +581,8 @@ var TYPE_LABELS = {
 };
 var allBosses        = {};
 var bossData         = {};
+var bossDeathCounts  = {};  // boss name -> death count (for boss list rows, may collide on dup names)
+var bossDeathCountsByKey = {};  // boss key -> death count (unambiguous, used for focused-boss counter)
 var activeBossTab    = '';
 var bossSearch       = '';
 var currentFilter    = 'all';
@@ -554,6 +608,20 @@ function getCsrf() {
   return '';
 }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// For values embedded inside a single-quoted JS string literal within an inline
+// onclick/oncontextmenu attribute (e.g. onclick="fn('...')"). esc() alone is NOT
+// enough here - it escapes for HTML-attribute context but leaves apostrophes
+// untouched, so a name containing one (e.g. a boss name with a possessive) breaks
+// out of the JS string and throws "missing ) after argument list" on click.
+// Order matters: escape backslashes first, then quotes/newlines, then HTML-escape
+// the result so it's also safe as raw attribute text.
+function escJs(s) {
+  return esc(String(s||'')
+    .replace(/\\/g,'\\\\')
+    .replace(/'/g,"\\'")
+    .replace(/\n/g,'\\n')
+    .replace(/\r/g,'\\r'));
+}
 function fmtSecs(s) {
   s=parseInt(s)||0; var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
   if(h>0) return h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec;
@@ -600,6 +668,13 @@ function loadStatus() {
       document.getElementById('stat-deaths').textContent         = deaths;
       document.getElementById('stat-session-deaths').textContent = d.session_deaths || 0;
       document.getElementById('stat-death-rate').textContent     = d.death_rate_ready ? (d.true_death_rate||0).toFixed(1) : '--';
+      // null = under the 10-min played threshold - show "--", not 0 (0 would misread as "no deaths/hr")
+      document.getElementById('stat-session-deaths-per-hour').textContent =
+        (d.session_deaths_per_hour != null) ? d.session_deaths_per_hour.toFixed(1) : '--';
+      document.getElementById('stat-run-deaths-per-hour').textContent =
+        (d.run_deaths_per_hour != null) ? d.run_deaths_per_hour.toFixed(1) : '--';
+      document.getElementById('stat-boss-deaths-total').textContent     = d.boss_deaths_total || 0;
+      document.getElementById('stat-non-boss-deaths-total').textContent = d.non_boss_deaths_total || 0;
       // Longest life is run-scoped - always show server value (never reset on refresh)
       var serverLongest = d.longest_life_sec || 0;
       if (serverLongest > _localLongestSec) _localLongestSec = serverLongest;
@@ -626,28 +701,40 @@ function loadStatus() {
       else if (!listenerConnected) manualSessionRunning = false;
       var shouldTick = gameRunning || (IS_ACTIVE && !listenerConnected && manualSessionRunning);
 
+      // Run Duration = TRUE lifetime /played time (dedicated field, never reset by Full Reset
+      // or Stop Session - only the heartbeat ever adds to it). NOT total_survival_sec, which
+      // Full Reset zeroes. Always shown from server value when not actively ticking.
+      var serverRunDurationSec = d.lifetime_playtime_sec || 0;
+
       if (shouldTick && !_localGameRunning) {
         // Transition: idle -> running. Seed once from server, then JS owns display.
         _localSessionSec  = serverSessionSec;
         _localSurvivalSec = serverSurvivalSec;
+        _localRunDurationSec = serverRunDurationSec;
         _localLastTick    = Date.now();
         _localGameRunning = true;
         _localSeeded      = true;
       } else if (shouldTick && _localGameRunning) {
-        // Already running - JS owns display, do NOT touch timers or display.
-        // _localSeeded stays true, ticker keeps going uninterrupted.
+        // Already running - JS owns session/streak display, do NOT touch those.
+        // Run Duration re-syncs from server every poll regardless (self-healing against
+        // any stale _localGameRunning desync, since this stat must never drift/run away).
+        _localRunDurationSec = serverRunDurationSec;
       } else if (!shouldTick && _localGameRunning) {
-        // Transition: running -> stopped. Zero everything.
+        // Transition: running -> stopped. Zero session/streak, but Run Duration keeps its
+        // accumulated total (does not reset - only stops advancing).
         _localGameRunning = false;
         _localSeeded      = false;
         _localSessionSec  = 0;
         _localSurvivalSec = 0;
         document.getElementById('stat-session-time').textContent = '00:00:00';
         document.getElementById('stat-surv-time').textContent    = '00:00:00';
+        renderRunDuration(serverRunDurationSec);
       } else {
-        // Not ticking, wasn't ticking - show zeros.
+        // Not ticking, wasn't ticking - show zeros for session/streak, but Run Duration
+        // still reflects the real accumulated total from the server (not zero, not wall-clock).
         document.getElementById('stat-session-time').textContent = '00:00:00';
         document.getElementById('stat-surv-time').textContent    = '00:00:00';
+        renderRunDuration(serverRunDurationSec);
       }
       // While ticking: JS owns display completely, poll never writes timer elements.
 
@@ -687,8 +774,13 @@ function loadStatus() {
         var bpb = document.getElementById('boss-progress-bar');
         if (bpl) bpl.textContent = d.bosses_defeated+' / '+d.bosses_total;
         if (bpb) bpb.style.width = bPct+'%';
-        (d.bosses||[]).forEach(function(b){ bossData[b.key]=b.defeated; });
+        (d.bosses||[]).forEach(function(b){
+          bossData[b.key] = b.defeated;
+          bossDeathCounts[b.name] = b.deaths || 0;   // used by boss list rows (may collide on dup names)
+          bossDeathCountsByKey[b.key] = b.deaths || 0;  // used by the focused-boss counter (unambiguous)
+        });
         renderBossTab(activeBossTab);
+        updateFocusedBossDeathCount();
       }
 
       // Death log
@@ -697,7 +789,9 @@ function loadStatus() {
       if (logEl) {
         if (dl.length) {
           logEl.innerHTML = dl.map(function(dd){
-            var boss = dd.boss || (d.last_attempted_boss || null);
+            // Only show a boss if THIS death event actually had one attached - never fall back
+            // to the currently-focused boss, that falsely attributes every death to it.
+            var boss = dd.boss || null;
             return '<div class="flex items-center gap-2 px-3 py-1.5 border-b border-white/5 last:border-0">'+
               '<i class="fas fa-skull text-red-500 text-[10px]"></i>'+
               (boss?'<span class="text-gray-300 text-xs font-medium">'+esc(boss)+'</span>':'<span class="text-gray-600 text-xs italic">No boss tracked</span>')+
@@ -864,9 +958,14 @@ function renderBossTab(region) {
       var chkCls='boss-check'+(defeated?' done':(focused?' focusing':''));
       var icon=defeated?'<i class="fas fa-check text-green-400" style="font-size:9px"></i>'
         :(focused?'<i class="fas fa-skull text-red-400" style="font-size:9px"></i>':'');
-      html+='<div class="'+rowCls+'" onclick="tapBoss(\''+esc(b.key)+'\',\''+esc(b.name)+'\',\''+state+'\')">'+
+      var deathCount = bossDeathCounts[b.name] || 0;
+      var deathBadge = deathCount > 0
+        ? '<span class="boss-death-count" onclick="event.stopPropagation();clearBossDeaths(\''+escJs(b.key)+'\',\''+escJs(b.name)+'\')" title="Click to clear death count (mis-click correction, does not change Total Deaths)">'+deathCount+'<i class="fas fa-skull" style="font-size:8px;margin-left:3px"></i></span>'
+        : '';
+      html+='<div class="'+rowCls+'" onclick="tapBoss(\''+escJs(b.key)+'\',\''+escJs(b.name)+'\',\''+state+'\')" oncontextmenu="return rightClickBoss(event,\''+escJs(b.name)+'\',\''+state+'\')">'+
         '<div class="'+chkCls+'">'+icon+'</div>'+
         '<div class="boss-name">'+esc(b.name)+'</div>'+
+        deathBadge+
         '<span class="boss-tier-badge tier-'+b.tier+'">'+esc(b.tier.replace('_',' '))+'</span>'+
         '</div>';
     });
@@ -875,6 +974,7 @@ function renderBossTab(region) {
 }
 
 // ── Boss focus ────────────────────────────────────────────────────────────────
+var currentFocusBossKey = '';  // disambiguates same-named bosses at different locations
 function applyFocus(bossName, fighting) {
   // Update currentFocusBoss and banner
   if (fighting && bossName) {
@@ -888,17 +988,31 @@ function applyFocus(bossName, fighting) {
     var cf = document.getElementById('currently-fighting');
     if (cf) cf.classList.add('hidden');
   }
+  updateFocusedBossDeathCount();
   // Re-render boss list so the red highlight appears on the right row
   // Only renders if allBosses is loaded - if not, loadBossRegistry() will re-render on complete
   if (Object.keys(allBosses).length > 0) renderBossTab(activeBossTab);
 }
 
-function setFocus(bossName) {
+function updateFocusedBossDeathCount() {
+  var el = document.getElementById('fighting-boss-deaths');
+  var countEl = document.getElementById('fighting-boss-death-count');
+  var statEl = document.getElementById('stat-current-boss-deaths');
+  var count = (currentFocusBoss && currentFocusBossKey) ? (bossDeathCountsByKey[currentFocusBossKey] || 0) : 0;
+  if (el && countEl) {
+    countEl.textContent = count;
+    el.classList.toggle('hidden', !currentFocusBoss || count === 0);
+  }
+  // Always-visible stat card - defaults to 0 when nothing is focused, same as every other stat box
+  if (statEl) statEl.textContent = count;
+}
+function setFocus(bossName, bossKey) {
   if (!IS_ACTIVE||!IS_OWNER) return;
+  currentFocusBossKey = bossKey || '';
   applyFocus(bossName, true);
   fetch('/api/soulslike/session/'+TOKEN+'/set-focus/',{
     method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
-    body:JSON.stringify({boss_name:bossName}),
+    body:JSON.stringify({boss_name:bossName, boss_key:bossKey||''}),
   }).catch(function(){});
   // Auto-start manual session if not already running and no app connected
   if (!manualSessionRunning && !_localGameRunning) {
@@ -906,15 +1020,16 @@ function setFocus(bossName) {
   }
 }
 function clearFocus() {
+  currentFocusBossKey = '';
   applyFocus('', false);
   fetch('/api/soulslike/session/'+TOKEN+'/set-focus/',{
     method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
-    body:JSON.stringify({boss_name:''}),
+    body:JSON.stringify({boss_name:'', boss_key:''}),
   }).catch(function(){});
 }
 function tapBoss(key,name,state) {
   if (!IS_ACTIVE||!IS_OWNER) return;
-  if (state==='') { setFocus(name); }
+  if (state==='') { setFocus(name, key); }
   else if (state==='focusing') {
     fetch('/api/soulslike/session/'+TOKEN+'/boss/mark/',{
       method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
@@ -939,6 +1054,28 @@ function tapBoss(key,name,state) {
       }
     }).catch(function(){});
   }
+}
+function rightClickBoss(event,name,state) {
+  event.preventDefault();
+  if (!IS_ACTIVE||!IS_OWNER) return false;
+  // Right-click = instant unfocus, skip the tap-cycle. Only relevant if this boss is currently focused.
+  if (state==='focusing') clearFocus();
+  return false;
+}
+function clearBossDeaths(key,name) {
+  if (!IS_ACTIVE||!IS_OWNER) return;
+  if (!confirm('Clear death count for '+name+'? This corrects a mis-click - Total Deaths stays the same.')) return;
+  fetch('/api/soulslike/session/'+TOKEN+'/boss/clear-deaths/',{
+    method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+    body:JSON.stringify({boss_key:key}),
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      bossDeathCounts[name] = 0;
+      bossDeathCountsByKey[key] = 0;
+      updateFocusedBossDeathCount();
+      renderBossTab(activeBossTab);
+    }
+  }).catch(function(){});
 }
 
 // ── Items ─────────────────────────────────────────────────────────────────────
@@ -979,6 +1116,12 @@ function toggleItemEl(el){
 }
 
 // ── Death picker ──────────────────────────────────────────────────────────────
+function logDeath() {
+  // Boss focused - log instantly against it, no modal. If nothing is focused, there's
+  // a real choice to make (which boss, or unknown), so show the picker.
+  if (currentFocusBoss) { submitDeath(currentFocusBoss, currentFocusBossKey); }
+  else { showDeathPicker(); }
+}
 function showDeathPicker() {
   var focusedEl=document.getElementById('death-picker-focused');
   var focusedName=document.getElementById('death-picker-focused-name');
@@ -998,26 +1141,38 @@ function filterDeathBosses(q){
   source=source.filter(function(b){return !bossData[b.key];}).slice(0,15);
   if(!source.length){list.innerHTML='<div class="text-gray-600 text-xs text-center py-3">No bosses found</div>';return;}
   list.innerHTML=source.map(function(b){
-    return '<button onclick="submitDeath(\''+esc(b.name)+'\')" class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-left hover:bg-red-900/20 hover:text-red-300 text-gray-400 transition">'+
+    return '<button onclick="submitDeath(\''+escJs(b.name)+'\',\''+escJs(b.key)+'\')" class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-left hover:bg-red-900/20 hover:text-red-300 text-gray-400 transition">'+
       '<i class="fas fa-skull text-red-800 text-[10px] w-3"></i>'+
       '<span class="flex-1">'+esc(b.name)+'</span>'+
       '<span class="boss-tier-badge tier-'+b.tier+'">'+esc(b.tier.replace('_',' '))+'</span>'+
       '</button>';
   }).join('');
 }
-function submitDeath(boss){
+function submitDeath(boss,bossKey){
   closeDeathPicker();
   if (TIMING_MODE==='manual' && manualSessionRunning) lastDeathTime = Date.now();
+  // Current Streak resets immediately on death - don't wait for poll
+  _localSurvivalSec = 0;
+  var sk = document.getElementById('stat-surv-time');
+  if (sk) sk.textContent = '00:00:00';
+  // Deaths-from-current-boss counter bumps instantly too
+  if (bossKey && bossKey === currentFocusBossKey) {
+    bossDeathCountsByKey[bossKey] = (bossDeathCountsByKey[bossKey] || 0) + 1;
+    updateFocusedBossDeathCount();
+  }
   fetch('/api/soulslike/session/'+TOKEN+'/death/',{
     method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
-    body:JSON.stringify({boss:boss,source:'manual'}),
+    body:JSON.stringify({boss:boss,boss_key:bossKey||'',source:'manual'}),
   }).then(function(){loadStatus();}).catch(function(){});
 }
+var _undoInFlight = false;
 function undoLastDeath(){
+  if (_undoInFlight) return;  // guard against double-fire (F10 + button click, key repeat, etc.)
+  _undoInFlight = true;
   fetch('/api/soulslike/session/'+TOKEN+'/subtract-death/',{
     method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
     body:JSON.stringify({}),
-  }).then(function(){loadStatus();}).catch(function(){});
+  }).then(function(){loadStatus();}).catch(function(){}).finally(function(){ _undoInFlight = false; });
 }
 function resetDeaths(){
   if(!confirm('Reset deaths and session stats to 0?')) return;
@@ -1064,6 +1219,24 @@ function endRun(){
   fetch('/api/soulslike/session/'+TOKEN+'/end/',{
     method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
   }).then(function(){window.location.reload();}).catch(function(){});
+}
+function submitToLeaderboard(){
+  if(!confirm('Submit this run to the public leaderboard? This is final - it can\'t be resubmitted or withdrawn later.')) return;
+  var btn = document.getElementById('submit-leaderboard-btn');
+  if (btn) btn.disabled = true;
+  csrfFetch('/api/soulslike/session/'+TOKEN+'/submit-to-leaderboard/', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      window.location.reload();
+    } else {
+      alert(d.error || 'Submit failed');
+      if (btn) btn.disabled = false;
+    }
+  }).catch(function(){
+    if (btn) btn.disabled = false;
+  });
 }
 function showSetDeaths() {
   var current = parseInt(document.getElementById('stat-deaths').textContent) || 0;
@@ -1138,7 +1311,7 @@ function completeHcRun(){
 {% if is_owner and is_active %}
 document.addEventListener('keydown',function(e){
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
-  if(e.key==='F9'){ e.preventDefault(); IS_HARDCORE ? logHcDeath() : showDeathPicker(); }
+  if(e.key==='F9'){ e.preventDefault(); IS_HARDCORE ? logHcDeath() : logDeath(); }
   if(!IS_HARDCORE && e.key==='F10'){ e.preventDefault(); undoLastDeath(); }
   if(!IS_HARDCORE && e.key==='F8'){ e.preventDefault(); resetDeaths(); }
 });
@@ -1248,27 +1421,28 @@ setInterval(function() {
   if (sk) sk.textContent = fmtSecs(_localSurvivalSec);
 }, 1000);
 
-// Run Duration - always ticking wall clock from run creation, never resets
-// Completely independent of session state, app connection, or anything else
-if (RUN_STARTED_AT > 0) {
-  function updateRunDuration() {
-    var el = document.getElementById('stat-run-duration');
-    if (!el) return;
-    var secs = Math.floor(Date.now() / 1000) - RUN_STARTED_AT;
-    if (secs < 0) secs = 0;
-    // Show as days if over 24h
-    if (secs >= 86400) {
-      var days = Math.floor(secs / 86400);
-      var hrs  = Math.floor((secs % 86400) / 3600);
-      var mins = Math.floor((secs % 3600) / 60);
-      el.textContent = days + 'd ' + String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0');
-    } else {
-      el.textContent = fmtSecs(secs);
-    }
+// Run Duration - total REAL playtime accumulated across all sessions of this run
+// (mirrors total_survival_sec server-side). Only advances while a session is actively
+// ticking (_localGameRunning) - does NOT run just because the run exists / time has passed.
+var _localRunDurationSec = 0;
+function renderRunDuration(secs) {
+  var el = document.getElementById('stat-run-duration');
+  if (!el) return;
+  if (secs >= 86400) {
+    var days = Math.floor(secs / 86400);
+    var hrs  = Math.floor((secs % 86400) / 3600);
+    var mins = Math.floor((secs % 3600) / 60);
+    el.textContent = days + 'd ' + String(hrs).padStart(2,'0') + ':' + String(mins).padStart(2,'0');
+  } else {
+    el.textContent = fmtSecs(secs);
   }
-  updateRunDuration();
-  setInterval(updateRunDuration, 1000);
 }
+setInterval(function() {
+  if (_localGameRunning && _localSeeded) {
+    _localRunDurationSec += 1;
+    renderRunDuration(_localRunDurationSec);
+  }
+}, 1000);
 
 document.addEventListener('DOMContentLoaded',function(){
   loadStatus();

@@ -1,0 +1,94 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Two-Factor Verification - QuestLog{% endblock %}
+{% block og_title %}Two-Factor Verification - QuestLog{% endblock %}
+{% block og_description %}Enter your two-factor authentication code to finish signing in.{% endblock %}
+
+{% block extra_css %}
+<style>
+.ql-login-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+}
+.ql-login-card {
+    background: #0f0f1a;
+    border: 1px solid #1e1e3a;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 440px;
+}
+.ql-login-logo {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+    text-align: center;
+}
+.ql-login-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 6px;
+    text-align: center;
+}
+.ql-login-subtitle {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 32px;
+    text-align: center;
+}
+.ql-messages { margin-bottom: 20px; }
+.ql-alert { padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 8px; }
+.ql-alert-error { background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); color: #fca5a5; }
+@media (max-width: 480px) {
+    .ql-login-card { padding: 36px 20px; }
+}
+</style>
+{% endblock %}
+
+{% block web_content %}
+<div class="ql-login-page">
+  <div class="ql-login-card">
+
+    <div class="ql-login-logo">🔐</div>
+    <h1 class="ql-login-title">Two-Factor Verification</h1>
+    <p class="ql-login-subtitle">
+      {% if use_backup %}Enter one of your backup codes{% else %}Enter the 6-digit code from your authenticator app{% endif %}
+    </p>
+
+    {% if error %}
+    <div class="ql-messages">
+      <div class="ql-alert ql-alert-error">{{ error }}</div>
+    </div>
+    {% endif %}
+
+    <form method="post" style="display:flex;flex-direction:column;gap:14px;margin-top:10px">
+      {% csrf_token %}
+      <input type="hidden" name="use_backup" value="{% if use_backup %}1{% else %}0{% endif %}">
+      {% if use_backup %}
+      <input type="text" name="code" placeholder="XXXXXXXX-XXXXXXXX" autocomplete="off" autofocus
+             style="padding:12px 14px;border-radius:10px;border:1px solid #1f2937;background:#0b0f17;color:#fff;font-size:14px;letter-spacing:1px;text-align:center">
+      {% else %}
+      <input type="text" name="code" placeholder="000000" autocomplete="one-time-code" inputmode="numeric" maxlength="6" autofocus
+             style="padding:12px 14px;border-radius:10px;border:1px solid #1f2937;background:#0b0f17;color:#fff;font-size:20px;letter-spacing:6px;text-align:center">
+      {% endif %}
+      <button type="submit"
+              style="padding:12px;background:#6366f1;color:#fff;font-weight:700;font-size:14px;border-radius:10px;border:none;cursor:pointer;transition:background 0.15s"
+              onmouseover="this.style.background='#4f46e5'" onmouseout="this.style.background='#6366f1'">
+        Verify
+      </button>
+    </form>
+
+    <p style="text-align:center;font-size:0.82rem;color:#4b5563;margin-top:18px">
+      {% if use_backup %}
+      <a href="?" style="color:#6366f1">Use your authenticator app instead</a>
+      {% else %}
+      <a href="?backup=1" style="color:#6366f1">Use a backup code instead</a>
+      {% endif %}
+    </p>
+
+  </div>
+</div>
+{% endblock %}

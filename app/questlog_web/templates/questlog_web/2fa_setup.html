@@ -1,0 +1,137 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Set Up Two-Factor Authentication - QuestLog{% endblock %}
+{% block og_title %}Set Up Two-Factor Authentication - QuestLog{% endblock %}
+{% block og_description %}Add an authenticator app as a second factor on your QuestLog account.{% endblock %}
+
+{% block extra_css %}
+<style>
+.ql-login-page {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+}
+.ql-login-card {
+    background: #0f0f1a;
+    border: 1px solid #1e1e3a;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 440px;
+}
+.ql-login-logo {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+    text-align: center;
+}
+.ql-login-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 6px;
+    text-align: center;
+}
+.ql-login-subtitle {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 32px;
+    text-align: center;
+}
+.ql-messages { margin-bottom: 20px; }
+.ql-alert { padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 8px; }
+.ql-alert-error { background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); color: #fca5a5; }
+@media (max-width: 480px) {
+    .ql-login-card { padding: 36px 20px; }
+}
+</style>
+{% endblock %}
+
+{% block web_content %}
+<div class="ql-login-page">
+  <div class="ql-login-card">
+
+    <div class="ql-login-logo">🔐</div>
+    <h1 class="ql-login-title">Set Up Two-Factor Authentication</h1>
+    <p class="ql-login-subtitle">Add an authenticator app (Google Authenticator, Authy, 1Password, etc.) as a second sign-in step.</p>
+
+    <div id="2fa-setup-error" class="ql-messages" style="display:none">
+      <div class="ql-alert ql-alert-error" id="2fa-setup-error-text"></div>
+    </div>
+
+    <div id="2fa-setup-form">
+      <p style="color:#9ca3af;font-size:0.85rem;margin-bottom:10px">
+        1. Add a new account in your authenticator app using this key:
+      </p>
+      <div style="background:#0b0f17;border:1px solid #1f2937;border-radius:10px;padding:14px;text-align:center;margin-bottom:16px">
+        <code style="color:#a5b4fc;font-size:15px;letter-spacing:1px;word-break:break-all">{{ manual_secret }}</code>
+      </div>
+      <p style="color:#6b7280;font-size:0.75rem;margin-bottom:20px">
+        Issuer: CasualHeroes QuestLog &middot; Account: your QuestLog username
+      </p>
+
+      <p style="color:#9ca3af;font-size:0.85rem;margin-bottom:10px">
+        2. Enter the 6-digit code your app is showing:
+      </p>
+      <form id="2fa-enable-form" style="display:flex;flex-direction:column;gap:14px">
+        <input type="text" name="code" id="2fa-code" placeholder="000000" autocomplete="one-time-code" inputmode="numeric" maxlength="6" autofocus
+               style="padding:12px 14px;border-radius:10px;border:1px solid #1f2937;background:#0b0f17;color:#fff;font-size:20px;letter-spacing:6px;text-align:center">
+        <button type="submit"
+                style="padding:12px;background:#6366f1;color:#fff;font-weight:700;font-size:14px;border-radius:10px;border:none;cursor:pointer;transition:background 0.15s"
+                onmouseover="this.style.background='#4f46e5'" onmouseout="this.style.background='#6366f1'">
+          Enable Two-Factor Authentication
+        </button>
+      </form>
+    </div>
+
+    <div id="2fa-backup-codes" style="display:none">
+      <p style="color:#a78bfa;font-size:0.9rem;font-weight:700;margin-bottom:8px">Save these backup codes</p>
+      <p style="color:#9ca3af;font-size:0.8rem;margin-bottom:14px">
+        Each code works once if you lose access to your authenticator app. Store them somewhere safe - they won't be shown again.
+      </p>
+      <div id="2fa-backup-codes-list" style="background:#0b0f17;border:1px solid #1f2937;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;font-family:monospace;color:#a5b4fc;font-size:14px;text-align:center"></div>
+      <a href="/ql/profile/edit/" style="display:block;text-align:center;margin-top:20px;padding:12px;background:#6366f1;color:#fff;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none">
+        Done
+      </a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.getElementById('2fa-enable-form');
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var code = document.getElementById('2fa-code').value.trim();
+    var errBox = document.getElementById('2fa-setup-error');
+    var errText = document.getElementById('2fa-setup-error-text');
+    errBox.style.display = 'none';
+
+    csrfFetch('/ql/api/2fa/enable/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'code=' + encodeURIComponent(code),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.success) {
+        document.getElementById('2fa-setup-form').style.display = 'none';
+        var list = document.getElementById('2fa-backup-codes-list');
+        (data.backup_codes || []).forEach(function(c) {
+          var div = document.createElement('div');
+          div.textContent = c;
+          list.appendChild(div);
+        });
+        document.getElementById('2fa-backup-codes').style.display = 'block';
+      } else {
+        errText.textContent = data.error || 'Something went wrong.';
+        errBox.style.display = 'block';
+      }
+    }).catch(function() {
+      errText.textContent = 'Something went wrong. Please try again.';
+      errBox.style.display = 'block';
+    });
+  });
+});
+</script>
+{% endblock %}

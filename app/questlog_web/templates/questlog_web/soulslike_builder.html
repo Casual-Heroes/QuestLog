@@ -255,9 +255,9 @@
           <button onclick="selectGame('err','Elden Ring Reforged')" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-amber-900/30 hover:text-amber-300 transition flex items-center justify-between border-t border-neutral-800">
             Elden Ring Reforged <i class="fas fa-check text-amber-500 text-[10px] hidden" id="check-err"></i>
           </button>
-          <a href="/soulslike/r2/builder/" class="w-full text-left px-3 py-2 text-xs text-gray-200 hover:bg-neutral-800 hover:text-white transition flex items-center justify-between border-t border-neutral-800 block">
-            Remnant 2
-          </a>
+          <div class="w-full text-left px-3 py-2 text-xs text-gray-600 flex items-center justify-between border-t border-neutral-800" title="Temporarily offline while image assets are replaced">
+            Remnant 2 <span class="text-[9px] uppercase tracking-wider">Offline</span>
+          </div>
         </div>
       </div>
 
@@ -453,6 +453,20 @@
               <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">Affinity</span>
               <span class="text-[11px] text-purple-400 flex-1 truncate" id="affinity-{{ wslot }}-name">Standard</span>
             </div>
+            <div id="enkindle-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50">
+              <i class="fas fa-star text-yellow-600 text-[10px] flex-shrink-0"></i>
+              <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">Enkindle</span>
+              <select class="flex-1 min-w-0 bg-neutral-900 border border-neutral-700 rounded text-[11px] text-yellow-500 px-1 py-0.5 outline-none focus:border-yellow-600"
+                      id="enkindle-affix-{{ wslot }}" onchange="onEnkindleChange('{{ wslot }}')">
+                <option value="">No Enkindling</option>
+              </select>
+              <select class="w-20 flex-shrink-0 bg-neutral-900 border border-neutral-700 rounded text-[10px] text-yellow-500 px-1 py-0.5 outline-none focus:border-yellow-600 hidden"
+                      id="enkindle-rarity-{{ wslot }}" onchange="onEnkindleChange('{{ wslot }}')">
+                <option value="common">Common</option>
+                <option value="rare">Rare</option>
+                <option value="legendary">Legendary</option>
+              </select>
+            </div>
           </div>
           {% endif %}{% endfor %}
           </div>
@@ -491,6 +505,20 @@
               <i class="fas fa-flask text-purple-700 text-[10px] flex-shrink-0"></i>
               <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">Affinity</span>
               <span class="text-[11px] text-purple-400 flex-1 truncate" id="affinity-{{ wslot }}-name">Standard</span>
+            </div>
+            <div id="enkindle-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50">
+              <i class="fas fa-star text-yellow-600 text-[10px] flex-shrink-0"></i>
+              <span class="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0">Enkindle</span>
+              <select class="flex-1 min-w-0 bg-neutral-900 border border-neutral-700 rounded text-[11px] text-yellow-500 px-1 py-0.5 outline-none focus:border-yellow-600"
+                      id="enkindle-affix-{{ wslot }}" onchange="onEnkindleChange('{{ wslot }}')">
+                <option value="">No Enkindling</option>
+              </select>
+              <select class="w-20 flex-shrink-0 bg-neutral-900 border border-neutral-700 rounded text-[10px] text-yellow-500 px-1 py-0.5 outline-none focus:border-yellow-600 hidden"
+                      id="enkindle-rarity-{{ wslot }}" onchange="onEnkindleChange('{{ wslot }}')">
+                <option value="common">Common</option>
+                <option value="rare">Rare</option>
+                <option value="legendary">Legendary</option>
+              </select>
             </div>
           </div>
           {% endif %}{% endfor %}
@@ -863,15 +891,17 @@
           <a href="https://github.com/Casual-Heroes/elden-ring-weapon-calculator" target="_blank" rel="noopener"
              class="text-amber-500 hover:text-amber-300 transition">Our fork ↗</a>
           <span class="text-neutral-600">·</span>
-          <span class="text-gray-500">MIT license</span>
+          <a href="https://github.com/Casual-Heroes/QuestLog/blob/main/THIRD_PARTY_NOTICES.md"
+             target="_blank" rel="noopener"
+             class="text-gray-500 hover:text-gray-300 transition">MIT notice ↗</a>
         </div>
       </div>
 
       <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
         <div class="text-amber-500 font-semibold mb-1.5">Elden Ring Reforged</div>
         <p class="text-gray-300 leading-relaxed mb-2">
-          ERR classes, Curios, Binding Runes, Spirit Ashes, Ashes of War, and all rebalanced data
-          from the ERR wiki and community. All credit to the mod team and wiki contributors.
+          Factual mechanics and balance values referenced from the ERR wiki and community.
+          All credit to the mod team and wiki contributors.
         </p>
         <a href="https://err.fandom.com/wiki/ELDEN_RING_Reforged_Wiki" target="_blank" rel="noopener"
            class="text-xs text-amber-500 hover:text-amber-300 transition">ERR Wiki ↗</a>
@@ -880,7 +910,7 @@
       <div class="bg-neutral-900/50 rounded-lg p-3 border border-neutral-800">
         <div class="text-amber-500 font-semibold mb-1.5">Elden Ring Wiki</div>
         <p class="text-gray-300 leading-relaxed mb-2">
-          Item descriptions, lore, locations, and general game data.
+          Factual item, mechanic, and location data checked against community-maintained references.
         </p>
         <a href="https://eldenring.wiki.fextralife.com/" target="_blank" rel="noopener"
            class="text-xs text-amber-500 hover:text-amber-300 transition">Fextralife Wiki ↗</a>
@@ -1019,6 +1049,7 @@ document.addEventListener('DOMContentLoaded', function() {
   loadArmor();
   loadAffinities();
   loadArData();
+  loadEnkindlingAffixes();
   updateDerivedStats();
 
   // Check URL params - ?load= for edit, ?view= for view-only
@@ -1053,6 +1084,7 @@ const BUILD = {
     talisman1: null, talisman2: null, talisman3: null, talisman4: null,
   },
   aow: { rh1: null, rh2: null, rh3: null, lh1: null, lh2: null, lh3: null },
+  enkindle: { rh1: null, rh2: null, rh3: null, lh1: null, lh2: null, lh3: null },  // ERR only - { affix, rarity } or null
   spells: [],
   playstyle_tag: 'pve',
   scadutree: 0,
@@ -1167,6 +1199,72 @@ function loadArmor() {
   const armorGame = BUILD.game === 'err' ? 'elden_ring' : BUILD.game;
   fetch('/api/soulslike/armor/?game=' + armorGame + '&limit=1000')
     .then(r => r.json()).then(d => { ALL_ARMOR = d.armor || []; }).catch(() => {});
+}
+
+// name -> {name, affinity, tiers:[{star,text,static_effect}]}, used to look up
+// what an equipped Enkindling affix actually does (calcEnkindleModifiers below).
+let ENKINDLING_AFFIXES_BY_NAME = {};
+
+function loadEnkindlingAffixes() {
+  if (BUILD.game !== 'err') return;
+  fetch('/api/soulslike/err/enkindling/')
+    .then(r => r.json()).then(d => {
+      ENKINDLING_AFFIXES_BY_NAME = {};
+      (d.affixes || []).forEach(a => { ENKINDLING_AFFIXES_BY_NAME[a.name] = a; });
+    }).catch(() => {});
+}
+
+const _ENKINDLE_RARITY_TIER = { common: 1, rare: 2, legendary: 3 };
+
+// Aggregates every equipped weapon slot's Enkindling selection into one modifier
+// bundle the AR/stat calculators can apply. Rarity unlocks cumulative tiers:
+// Common=tier 1, Rare=tiers 1-2, and Legendary=tiers 1-3.
+// Only static_effect-bearing tiers contribute here - conditional/timed tiers
+// have static_effect=null and are skipped (display-only, not calculated).
+function calcEnkindleModifiers() {
+  const mods = {
+    statFlat: {},              // stat name -> total flat bonus
+    hpMult: 1, fpMult: 1, staminaMult: 1, equipLoadMult: 1,
+    poiseFlat: 0,
+    damageMult: {},            // damage_type -> multiplier (multiplicative across slots)
+    damageMultVsEnemyType: [], // [{damage_type, enemy_type, value}] - UI applies only if toggled on
+  };
+  if (BUILD.game !== 'err') return mods;
+
+  const seenEffects = new Set();  // Apply each passive affix tier only once.
+  Object.values(BUILD.enkindle || {}).forEach(sel => {
+    if (!sel || !sel.affix) return;
+    const affix = ENKINDLING_AFFIXES_BY_NAME[sel.affix];
+    if (!affix) return;
+    const maxTier = _ENKINDLE_RARITY_TIER[sel.rarity] || 1;
+    affix.tiers.forEach(tier => {
+      if (tier.star > maxTier || !tier.static_effect) return;
+      const dedupeKey = sel.affix + ':' + tier.star;
+      if (seenEffects.has(dedupeKey)) return;
+      seenEffects.add(dedupeKey);
+      const e = tier.static_effect;
+      switch (e.type) {
+        case 'stat_flat':
+          mods.statFlat[e.stat] = (mods.statFlat[e.stat] || 0) + e.value; break;
+        case 'stat_flat_multi':
+          Object.entries(e.stats).forEach(([s, v]) => { mods.statFlat[s] = (mods.statFlat[s] || 0) + v; }); break;
+        case 'hp_mult': mods.hpMult *= e.value; break;
+        case 'fp_mult': mods.fpMult *= e.value; break;
+        case 'stamina_mult': mods.staminaMult *= e.value; break;
+        case 'equip_load_mult': mods.equipLoadMult *= e.value; break;
+        case 'hp_fp_stamina_mult':
+          mods.hpMult *= e.hp; mods.fpMult *= e.fp; mods.staminaMult *= e.stamina; break;
+        case 'poise_flat': mods.poiseFlat += e.value; break;
+        case 'poise_and_equip_load':
+          mods.poiseFlat += e.poise; mods.equipLoadMult *= e.equip_load_mult; break;
+        case 'damage_mult':
+          mods.damageMult[e.damage_type] = (mods.damageMult[e.damage_type] || 1) * e.value; break;
+        case 'damage_mult_vs_enemy_type':
+          mods.damageMultVsEnemyType.push({ damage_type: e.damage_type, enemy_type: e.enemy_type, value: e.value }); break;
+      }
+    });
+  });
+  return mods;
 }
 
 function loadCurios() {
@@ -1470,7 +1568,19 @@ function updateWeaponAR(slot) {
 
     const scaduLevel = BUILD.scadutree || 0;
     const scaduMult = SCADU_DMG_MULT[scaduLevel] || 1;
-    const effectiveAR = Math.floor(result.total * scaduMult);
+    // Enkindling static damage_mult effects apply last, after Scadutree - this slot's
+    // own Enkindled AoW affix only (not other slots' selections).
+    const enkSel = BUILD.enkindle?.[slot];
+    let enkMult = 1;
+    if (enkSel?.affix && BUILD.game === 'err') {
+      const affix = ENKINDLING_AFFIXES_BY_NAME[enkSel.affix];
+      const maxTier = _ENKINDLE_RARITY_TIER[enkSel.rarity] || 1;
+      (affix?.tiers || []).forEach(t => {
+        if (t.star > maxTier || !t.static_effect) return;
+        if (t.static_effect.type === 'damage_mult') enkMult *= t.static_effect.value;
+      });
+    }
+    const effectiveAR = Math.floor(result.total * scaduMult * enkMult);
 
     const reqSuffix = result.ineffective?.length ? ' ⚠' : '';
     const reqTitle = result.ineffective?.length
@@ -1526,14 +1636,26 @@ function updateARSummary() {
       if (!variant) return null;
       const result = computeAR(variant, statsForAR);
       if (!result) return null;
-      const effAR = Math.floor(result.total * scaduMult);
+      // Enkindling static damage_mult effects apply last, after Scadutree - this slot's
+      // own Enkindled AoW affix only (not other slots' selections). Mirrors updateWeaponAR.
+      const enkSel = BUILD.enkindle?.[slot];
+      let enkMult = 1;
+      if (enkSel?.affix && BUILD.game === 'err') {
+        const affix = ENKINDLING_AFFIXES_BY_NAME[enkSel.affix];
+        const maxTier = _ENKINDLE_RARITY_TIER[enkSel.rarity] || 1;
+        (affix?.tiers || []).forEach(t => {
+          if (t.star > maxTier || !t.static_effect) return;
+          if (t.static_effect.type === 'damage_mult') enkMult *= t.static_effect.value;
+        });
+      }
+      const effAR = Math.floor(result.total * scaduMult * enkMult);
       // Build per-damage-type breakdown string: "204+210" for phys, show others if present
       const dmgParts = [0,1,2,3,4].map(i => {
         const b = result.breakdown[i];
         if (!b || b.total === 0) return null;
-        const val = Math.floor(b.total * scaduMult);
+        const val = Math.floor(b.total * scaduMult * enkMult);
         return b.scaling > 0
-          ? `<span class="text-gray-400">${Math.floor(b.base * scaduMult)}</span><span class="text-gray-600">+</span><span class="text-amber-300">${Math.floor(b.scaling * scaduMult)}</span>`
+          ? `<span class="text-gray-400">${Math.floor(b.base * scaduMult * enkMult)}</span><span class="text-gray-600">+</span><span class="text-amber-300">${Math.floor(b.scaling * scaduMult * enkMult)}</span>`
           : `<span class="text-gray-400">${val}</span>`;
       }).filter(Boolean);
       return { slot, name: w.name, affinity: equippedAffinity, effAR, dmgParts,
@@ -1572,9 +1694,10 @@ function updateARSummary() {
 // Returns BUILD.stats merged with ERR binding rune bonuses for AR calculation
 function getEffectiveStats() {
   const bonuses = calcRuneStatBonuses();
+  const enkindleMods = calcEnkindleModifiers();
   const eff = {};
   ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'].forEach(k => {
-    eff[k] = Math.min(99, (BUILD.stats[k] || 10) + (bonuses[k] || 0));
+    eff[k] = Math.min(99, (BUILD.stats[k] || 10) + (bonuses[k] || 0) + (enkindleMods.statFlat[k] || 0));
   });
   return eff;
 }
@@ -1783,6 +1906,7 @@ function loadBuildData(d) {
   activePicker = null;
 
   Promise.all(weaponPromises).then(() => {
+    const enkindleRestorePromises = [];
     // Restore AoW and affinity for each weapon slot
     weaponSlots.forEach(slot => {
       if (!BUILD.slots[slot]) return;
@@ -1804,12 +1928,35 @@ function loadBuildData(d) {
           activePicker = null;
         }
       }
+      // Restore Enkindling (ERR only) - always refresh the eligible-affix dropdown
+      // for any equipped AoW (not just when a saved selection exists), since
+      // equipAow() above may not reliably repopulate it during a bulk data restore.
+      if (BUILD.game === 'err' && aowName) {
+        const enkAffix  = d.weapons?.[slot + '_enkindle_affix'];
+        const enkRarity = d.weapons?.[slot + '_enkindle_rarity'];
+        enkindleRestorePromises.push(refreshEnkindleOptions(slot).then(() => {
+          if (!enkAffix || !enkRarity) return;
+          const affixSel = document.getElementById('enkindle-affix-' + slot);
+          const raritySel = document.getElementById('enkindle-rarity-' + slot);
+          // Only restore if the saved affix is actually a valid option for this AoW -
+          // otherwise leave it cleared rather than silently desyncing DOM vs BUILD state.
+          const hasOption = affixSel && Array.from(affixSel.options).some(o => o.value === enkAffix);
+          if (!hasOption) return;
+          if (affixSel) affixSel.value = enkAffix;
+          if (raritySel) raritySel.value = enkRarity;
+          BUILD.enkindle = BUILD.enkindle || {};
+          BUILD.enkindle[slot] = { affix: enkAffix, rarity: enkRarity };
+          if (raritySel) raritySel.classList.remove('hidden');
+        }));
+      }
     });
-    updateAllStatBars();
-    updateDerivedStats();
-    updateAllWeaponARs();
-    updateEquipLoad();
-    updatePoise();
+    Promise.all(enkindleRestorePromises).then(() => {
+      updateAllStatBars();
+      updateDerivedStats();
+      updateAllWeaponARs();
+      updateEquipLoad();
+      updatePoise();
+    });
   });
 
   // Restore ERR-only fields: curios, rune inventory, spirit ash, tears, scadutree
@@ -2240,10 +2387,12 @@ function updateAllStatBars() {
 function updateStatBar(stat) {
   const runeBonuses    = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
   const fortuneBonuses = calcFortuneStatBonuses();
+  const enkindleBonuses = calcEnkindleModifiers().statFlat;
   const base  = BUILD.stats[stat] || 10;
   const rune  = runeBonuses[stat] || 0;
   const fort  = fortuneBonuses[stat] || 0;
-  const bonus = rune + fort;
+  const enk   = enkindleBonuses[stat] || 0;
+  const bonus = rune + fort + enk;
   const val   = Math.min(99, base + bonus);
   const input = document.getElementById('stat-' + stat);
   if (input) {
@@ -2252,6 +2401,7 @@ function updateStatBar(stat) {
       const parts = [];
       if (rune !== 0)  parts.push((rune > 0 ? '+' : '') + rune + ' Rune');
       if (fort !== 0)  parts.push((fort > 0 ? '+' : '') + fort + ' Fortune');
+      if (enk !== 0)   parts.push((enk > 0 ? '+' : '') + enk + ' Enkindle');
       input.title = `Base: ${base} | ${parts.join(', ')}`;
       input.style.color = bonus > 0 ? '#fbbf24' : '#f87171';
       input.dataset.runeBonus = bonus;
@@ -2385,12 +2535,13 @@ function updateDerivedStats() {
   const s = BUILD.stats;
   const runeBonuses     = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
   const fortuneBonuses  = calcFortuneStatBonuses();
-  // Effective stats = base + rune bonuses + fortune bonuses, capped at 99
+  const enkindleMods    = calcEnkindleModifiers();
+  // Effective stats = base + rune bonuses + fortune bonuses + enkindle bonuses, capped at 99
   const eff = {};
   ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'].forEach(k => {
-    eff[k] = Math.min(99, (s[k] || 10) + (runeBonuses[k] || 0) + (fortuneBonuses[k] || 0));
+    eff[k] = Math.min(99, (s[k] || 10) + (runeBonuses[k] || 0) + (fortuneBonuses[k] || 0) + (enkindleMods.statFlat[k] || 0));
   });
-  // Level = class starting level + points spent above class base (rune bonuses don't count toward level)
+  // Level = class starting level + points spent above class base (rune/enkindle bonuses don't count toward level)
   const classLevel = BUILD.class_id ? (CLASSES.find(c => c.id === BUILD.class_id)?.level || 1) : 1;
   const keys = ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'];
   const pointsSpent = keys.reduce((sum, k) => sum + Math.max(0, (s[k] || 0) - (BUILD.class_base[k] || 0)), 0);
@@ -2398,16 +2549,16 @@ function updateDerivedStats() {
   const totalLevel = Math.min(levelCap, classLevel + pointsSpent);
   document.getElementById('total-level').textContent = Math.max(1, totalLevel);
 
-  // HP/FP/Stamina: apply fortune multipliers then rune multipliers (both compound)
+  // HP/FP/Stamina: apply fortune multipliers, then rune multipliers, then enkindle multipliers (all compound)
   const fm = calcFortuneDerivedMults();
   const rm = calcRuneDerivedMults();
-  const hp   = Math.floor(calcHP(eff.vigor)          * fm.hp      * rm.hp);
-  const fp   = Math.floor(calcFP(eff.mind)           * fm.fp      * rm.fp);
-  const stam = Math.floor(calcStamina(eff.endurance) * fm.stamina * rm.stamina);
+  const hp   = Math.floor(calcHP(eff.vigor)          * fm.hp      * rm.hp      * enkindleMods.hpMult);
+  const fp   = Math.floor(calcFP(eff.mind)           * fm.fp      * rm.fp      * enkindleMods.fpMult);
+  const stam = Math.floor(calcStamina(eff.endurance) * fm.stamina * rm.stamina * enkindleMods.staminaMult);
   // ERR: base equip load = 100 (Endurance has no effect). ER: use formula.
   const eqLoad = BUILD.game === 'err'
-    ? Math.round(100 * rm.eqload * 10) / 10
-    : Math.floor(calcEquipLoad(eff.endurance) * rm.eqload * 10) / 10;
+    ? Math.round(100 * rm.eqload * enkindleMods.equipLoadMult * 10) / 10
+    : Math.floor(calcEquipLoad(eff.endurance) * rm.eqload * enkindleMods.equipLoadMult * 10) / 10;
 
   const el = id => document.getElementById('derived-' + id);
   if (el('hp'))     el('hp').textContent    = hp;
@@ -2475,7 +2626,8 @@ function updateEquipLoad() {
       'Dynasts':   0.85,
     };
     const fortuneMult = BUILD.fortune ? (FORTUNE_EQ_MULTS[BUILD.fortune.name] || 1.0) : 1.0;
-    eqLoad = Math.round(100 * fortuneMult * rm.eqload * 10) / 10;
+    const enkindleMods = calcEnkindleModifiers();
+    eqLoad = Math.round(100 * fortuneMult * rm.eqload * enkindleMods.equipLoadMult * 10) / 10;
 
     // ERR weapon weight: only heaviest RH + heaviest LH (not all 6 slots)
     const rhWeights = ['rh1','rh2','rh3'].map(s => BUILD.slots[s]?.weight || 0);
@@ -2590,6 +2742,9 @@ function clearSlot(slot) {
     document.getElementById('tab-aow')?.classList.add('hidden');
     const arEl = document.getElementById('slot-' + slot + '-ar');
     if (arEl) arEl.classList.add('hidden');
+    clearEnkindle(slot);
+    const enkindleRow = document.getElementById('enkindle-row-' + slot);
+    if (enkindleRow) enkindleRow.classList.add('hidden');
     updateARSummary();
   }
   updateEquipLoad();
@@ -2662,6 +2817,7 @@ function selectGame(gameKey, label) {
   loadCurios();
   loadRuneforging();
   loadAffinities();
+  loadEnkindlingAffixes();
   loadSpiritAshes();
   loadCrystalTears();
   {% if web_user %}loadMyBuilds();{% endif %}
@@ -3886,8 +4042,9 @@ function renderAffinityPicker() {
     el.innerHTML = resetBtn + countNote + (items.map(name => {
       const a = affinityInfo[name] || { name, whetblade: '-', scaling_stat: '-', effect: '', is_new: false };
       const isActive = name === current;
+      const encoded = encodeURIComponent(JSON.stringify(a)).replace(/'/g, '%27');
       return `<div class="sl-item-row ${isActive ? 'border border-purple-700/50 bg-purple-950/20' : ''}"
-        onclick="equipAffinity(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(a))}')))">
+        onclick="equipAffinity(JSON.parse(decodeURIComponent('${encoded}')))">
         <div class="flex-1">
           <div class="sl-item-name flex items-center gap-1">
             ${escapeHtml(name)}
@@ -4005,6 +4162,23 @@ function equipItem(category, item) {
       }
     }
 
+    // Enkindle row (ERR only): this is the actual weapon-equip path (default AoW
+    // shown, no custom swap yet) - equipAow() only fires later if the user swaps
+    // to a different AoW. Without this call here, the dropdown never populates
+    // for a weapon's default skill, which is the common case.
+    // Locked-skill weapons (is_locked_skill) can't be Enkindled at all - their AoW
+    // slot is fixed at the engine level (disableGemAttr=1 in the game's own weapon
+    // param data), so hide the row entirely rather than showing an empty dropdown.
+    if (BUILD.game === 'err') {
+      clearEnkindle(slot);  // discard any stale enkindle selection from the previous weapon
+      if (isLockedSkill) {
+        const enkindleRow = document.getElementById('enkindle-row-' + slot);
+        if (enkindleRow) enkindleRow.classList.add('hidden');
+      } else {
+        refreshEnkindleOptions(slot);
+      }
+    }
+
     updateWeaponAR(slot);
     updateARSummary();
   }
@@ -4037,6 +4211,10 @@ function equipAow(aow) {
   if (clearBtn) clearBtn.style.display = '';  // show clear so they can revert to default
   document.getElementById('tab-aow')?.classList.add('hidden');
   closePicker();
+  // A different AoW is equipped now - any prior Enkindling selection no longer
+  // applies (it was scoped to the old AoW's eligible affix list).
+  clearEnkindle(slot);
+  if (BUILD.game === 'err') refreshEnkindleOptions(slot);
 }
 
 function clearAow(weaponSlot) {
@@ -4049,6 +4227,73 @@ function clearAow(weaponSlot) {
   const defaultSkill = weapon?.default_skill || 'No Skill';
   if (nameEl) { nameEl.textContent = defaultSkill; nameEl.style.color = '#d97706'; }  // amber-600 = default
   if (clearBtn) clearBtn.style.display = 'none';
+  clearEnkindle(weaponSlot);
+  if (BUILD.game === 'err') refreshEnkindleOptions(weaponSlot);
+}
+
+// ── Ash of War Enkindling (ERR only) ─────────────────────────────────────────
+// Cache of eligible-affix lists per AoW name, so switching between slots that
+// share the same AoW doesn't re-fetch.
+const _enkindleEligibleCache = {};
+
+function refreshEnkindleOptions(weaponSlot) {
+  const row = document.getElementById('enkindle-row-' + weaponSlot);
+  const affixSel = document.getElementById('enkindle-affix-' + weaponSlot);
+  const raritySel = document.getElementById('enkindle-rarity-' + weaponSlot);
+  if (!row || !affixSel) return Promise.resolve();
+
+  const aowName = BUILD.aow[weaponSlot]?.name || BUILD.slots[weaponSlot]?.default_skill;
+  if (BUILD.game !== 'err' || !aowName || aowName === 'No Skill') {
+    row.classList.add('hidden');
+    return Promise.resolve();
+  }
+  row.classList.remove('hidden');
+
+  const populate = (affixes) => {
+    affixSel.innerHTML = '<option value="">No Enkindling</option>' +
+      affixes.map(a => `<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)} (${escapeHtml(a.affinity)})</option>`).join('');
+  };
+
+  if (_enkindleEligibleCache[aowName]) {
+    populate(_enkindleEligibleCache[aowName]);
+    return Promise.resolve();
+  }
+  return fetch('/api/soulslike/err/enkindling/eligible/?aow=' + encodeURIComponent(aowName))
+    .then(r => r.json())
+    .then(d => {
+      const affixes = d.affixes || [];
+      _enkindleEligibleCache[aowName] = affixes;
+      populate(affixes);
+    })
+    .catch(() => { affixSel.innerHTML = '<option value="">No Enkindling</option>'; });
+}
+
+function onEnkindleChange(weaponSlot) {
+  const affixSel = document.getElementById('enkindle-affix-' + weaponSlot);
+  const raritySel = document.getElementById('enkindle-rarity-' + weaponSlot);
+  const affixName = affixSel?.value || '';
+  if (!affixName) {
+    clearEnkindle(weaponSlot);
+    return;
+  }
+  raritySel?.classList.remove('hidden');
+  BUILD.enkindle[weaponSlot] = { affix: affixName, rarity: raritySel?.value || 'common' };
+  updateAllStatBars();
+  updateAllWeaponARs();
+  updateDerivedStats();
+  updatePoise();
+}
+
+function clearEnkindle(weaponSlot) {
+  BUILD.enkindle[weaponSlot] = null;
+  const affixSel = document.getElementById('enkindle-affix-' + weaponSlot);
+  const raritySel = document.getElementById('enkindle-rarity-' + weaponSlot);
+  if (affixSel) affixSel.value = '';
+  if (raritySel) raritySel.classList.add('hidden');
+  updateAllStatBars();
+  updateAllWeaponARs();
+  updateDerivedStats();
+  updatePoise();
 }
 
 function updatePoise() {
@@ -4056,6 +4301,7 @@ function updatePoise() {
   ['helm','chest','gauntlet','leg'].forEach(slot => {
     if (BUILD.slots[slot]) poise += BUILD.slots[slot].poise || 0;
   });
+  poise += calcEnkindleModifiers().poiseFlat;
   const el = document.getElementById('total-poise');
   if (el) el.textContent = poise.toFixed(1);
   // Mirror to CHARACTER panel
@@ -4122,11 +4368,17 @@ function saveBuild() {
     ...BUILD.stats,
     total_level: parseInt(document.getElementById('total-level').textContent) || 1,
     rh1_weapon_id: BUILD.slots.rh1?.id || null, rh1_aow_name: BUILD.aow.rh1?.name || null, rh1_affinity: BUILD.slots.rh1?.equippedAffinity || null,
+    rh1_enkindle_affix: BUILD.enkindle.rh1?.affix || null, rh1_enkindle_rarity: BUILD.enkindle.rh1?.rarity || null,
     rh2_weapon_id: BUILD.slots.rh2?.id || null, rh2_aow_name: BUILD.aow.rh2?.name || null, rh2_affinity: BUILD.slots.rh2?.equippedAffinity || null,
+    rh2_enkindle_affix: BUILD.enkindle.rh2?.affix || null, rh2_enkindle_rarity: BUILD.enkindle.rh2?.rarity || null,
     rh3_weapon_id: BUILD.slots.rh3?.id || null, rh3_aow_name: BUILD.aow.rh3?.name || null, rh3_affinity: BUILD.slots.rh3?.equippedAffinity || null,
+    rh3_enkindle_affix: BUILD.enkindle.rh3?.affix || null, rh3_enkindle_rarity: BUILD.enkindle.rh3?.rarity || null,
     lh1_weapon_id: BUILD.slots.lh1?.id || null, lh1_aow_name: BUILD.aow.lh1?.name || null, lh1_affinity: BUILD.slots.lh1?.equippedAffinity || null,
+    lh1_enkindle_affix: BUILD.enkindle.lh1?.affix || null, lh1_enkindle_rarity: BUILD.enkindle.lh1?.rarity || null,
     lh2_weapon_id: BUILD.slots.lh2?.id || null, lh2_aow_name: BUILD.aow.lh2?.name || null, lh2_affinity: BUILD.slots.lh2?.equippedAffinity || null,
+    lh2_enkindle_affix: BUILD.enkindle.lh2?.affix || null, lh2_enkindle_rarity: BUILD.enkindle.lh2?.rarity || null,
     lh3_weapon_id: BUILD.slots.lh3?.id || null, lh3_aow_name: BUILD.aow.lh3?.name || null, lh3_affinity: BUILD.slots.lh3?.equippedAffinity || null,
+    lh3_enkindle_affix: BUILD.enkindle.lh3?.affix || null, lh3_enkindle_rarity: BUILD.enkindle.lh3?.rarity || null,
     shield_id:           BUILD.slots.shield?.id    || null,
     helm_id:             BUILD.slots.helm?.id      || null,
     chest_id:            BUILD.slots.chest?.id     || null,

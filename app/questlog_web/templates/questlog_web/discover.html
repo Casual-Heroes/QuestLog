@@ -1775,7 +1775,7 @@ async function loadGameServerStrip() {
           : 'bg-neutral-800 border border-neutral-700 text-gray-500 hover:bg-neutral-700';
       const dot = live ? 'bg-green-400 animate-pulse' : hasAmp ? 'bg-red-500' : 'bg-gray-600';
       const count = live ? `<span class="text-green-400 font-semibold ml-1">${s.online}/${s.max}</span>` : '';
-      return `<a href="/ql/gameservers/" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs whitespace-nowrap flex-shrink-0 transition ${cls}"><span class="w-1.5 h-1.5 rounded-full ${dot}"></span>${escapeHtml(name)}${count}</a>`;
+      return `<a href="/hosted-games/" class="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs whitespace-nowrap flex-shrink-0 transition ${cls}"><span class="w-1.5 h-1.5 rounded-full ${dot}"></span>${escapeHtml(name)}${count}</a>`;
     }).join('');
     strip.style.visibility = 'visible';
   } catch(e) {}

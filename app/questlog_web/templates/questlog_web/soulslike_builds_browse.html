@@ -61,7 +61,6 @@
     <span class="text-xs text-gray-500">Game:</span>
     <button class="sl-tag-btn active" data-game="elden_ring" onclick="setGame('elden_ring')">Elden Ring</button>
     <button class="sl-tag-btn" data-game="err" onclick="setGame('err')">ERR</button>
-    <button class="sl-tag-btn" data-game="remnant2" onclick="setGame('remnant2')">🌀 Remnant 2</button>
   </div>
   <div class="flex items-center gap-2 mb-4 flex-wrap">
     <span class="text-xs text-gray-500">Sort:</span>
@@ -114,35 +113,6 @@ function setSort(sort) {
 function loadBuilds() {
   const grid = document.getElementById('builds-grid');
   grid.innerHTML = '<div class="text-gray-600 text-sm text-center py-12 col-span-full">Loading...</div>';
-
-  // R2 builds use a separate API and card format
-  if (currentGame === 'remnant2') {
-    const params = new URLSearchParams({ sort: currentSort });
-    if (searchQuery) params.set('q', searchQuery);
-    fetch('/api/r2/builds/browse/?' + params.toString())
-      .then(r => r.json()).then(d => {
-        const builds = d.builds || [];
-        if (!builds.length) {
-          grid.innerHTML = '<div class="text-gray-600 text-sm text-center py-12 col-span-full">No Remnant 2 builds yet. Be the first!</div>';
-          return;
-        }
-        grid.innerHTML = builds.map(b => `
-          <a href="/soulslike/r2/builder/?load=${b.share_token}" class="build-card block">
-            <div class="flex items-start justify-between mb-2">
-              <h3 class="text-white font-bold text-sm leading-tight">${esc(b.name)}</h3>
-            </div>
-            ${b.primary_arch ? `<div class="flex gap-1 mb-1.5"><span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-300 font-bold">${esc(b.primary_arch)}</span>${b.secondary_arch ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-300 font-bold">${esc(b.secondary_arch)}</span>` : ''}</div>` : ''}
-            ${b.description ? `<p class="text-gray-500 text-xs leading-relaxed line-clamp-2 mb-2">${esc(b.description)}</p>` : ''}
-            <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-white/5">
-              ${safeAvatarUrl(b.avatar) ? `<img src="${safeAvatarUrl(b.avatar)}" class="w-4 h-4 rounded-full object-cover">` : ''}
-              <span class="text-[11px] text-gray-500">${esc(b.username)}</span>
-            </div>
-          </a>`).join('');
-      }).catch(() => {
-        grid.innerHTML = '<div class="text-gray-600 text-sm text-center py-12 col-span-full">Failed to load builds.</div>';
-      });
-    return;
-  }
 
   const params = new URLSearchParams({ game: currentGame, sort: currentSort });
   if (currentTag) params.set('tag', currentTag);

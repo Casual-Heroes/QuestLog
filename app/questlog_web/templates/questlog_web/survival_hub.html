@@ -1,0 +1,78 @@
+{% extends "questlog_web/base_web.html" %}
+{% load static %}
+{% block title %}Survival Hub - Casual Heroes{% endblock %}
+{% block og_title %}Survival Hub - Casual Heroes{% endblock %}
+{% block og_description %}Live community stats, leaderboards, and analytics for the survival games we host.{% endblock %}
+
+{% block web_content %}
+
+<!-- Hero -->
+<div class="relative w-full overflow-hidden" style="height:320px">
+  <img src="{% static 'img/games/survivalgames/survival games.jpg' %}" alt="Survival Hub"
+       class="w-full h-full object-cover object-center">
+  <div class="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-neutral-950/20"></div>
+  <div class="absolute inset-0 flex items-end">
+    <div class="p-8 sm:p-12 max-w-5xl mx-auto w-full">
+      <div class="flex items-center gap-2 mb-3">
+        <i class="fas fa-campground text-emerald-400"></i>
+        <span class="text-xs font-bold uppercase tracking-widest text-emerald-400">Casual Heroes</span>
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black text-white leading-tight mb-3" style="text-shadow:0 2px 20px rgba(0,0,0,0.8)">
+        Survival Hub
+      </h1>
+      <p class="text-gray-300 text-base max-w-lg leading-relaxed">
+        Live leaderboards, best-pal rankings, and community analytics for the survival worlds we host.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-5xl mx-auto px-4 py-10 space-y-10">
+
+  <!-- Live community stats -->
+  <div>
+    <span class="text-xs text-gray-500 uppercase tracking-widest font-bold">Community Stats</span>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-emerald-400">{{ stats.total_players }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Players Tracked</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-amber-400">{{ stats.total_pals }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Pals Recorded</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-indigo-400">{{ stats.total_guilds }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Guilds</div>
+      </div>
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 text-center">
+        <div class="text-2xl font-black text-green-400">{{ stats.total_captures }}</div>
+        <div class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">Total Pals Caught</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Games grid -->
+  <div>
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Games</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <!-- Palworld -->
+      <a href="/survival/palworld/"
+         class="group relative bg-neutral-900 border border-neutral-800 hover:border-emerald-700/60 rounded-2xl overflow-hidden transition-all hover:shadow-lg hover:shadow-emerald-900/20">
+        <div class="h-28 bg-gradient-to-br from-emerald-950/70 via-neutral-900 to-neutral-950 flex items-center justify-center relative">
+          <span style="font-size:3rem;line-height:1">🐾</span>
+          <span class="absolute top-2 right-2 px-2 py-0.5 bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wide rounded-full">Live</span>
+        </div>
+        <div class="p-4">
+          <p class="text-white font-bold text-sm mb-1 group-hover:text-emerald-300 transition">Palworld</p>
+          <p class="text-gray-500 text-xs leading-relaxed">Best Pals leaderboard, top catchers, highest levels, and guild rosters - updated daily.</p>
+        </div>
+      </a>
+
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

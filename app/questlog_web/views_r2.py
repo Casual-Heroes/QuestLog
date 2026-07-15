@@ -29,9 +29,8 @@ def r2_hub(request):
             total_deaths = db.execute(text('SELECT COALESCE(SUM(death_count),0) FROM r2_runs')).scalar() or 0
             total_bosses = db.execute(text('SELECT COALESCE(SUM(bosses_killed),0) FROM r2_runs')).scalar() or 0
             total_items  = db.execute(text('SELECT COALESCE(SUM(items_found),0) FROM r2_runs')).scalar() or 0
-            total_builds = db.execute(text('SELECT COUNT(*) FROM r2_builds')).scalar() or 0
         except Exception:
-            total_runs = active_runs = total_deaths = total_bosses = total_items = total_builds = 0
+            total_runs = active_runs = total_deaths = total_bosses = total_items = 0
 
         # Recent public runs
         recent_runs = []
@@ -65,7 +64,6 @@ def r2_hub(request):
             ('Deaths',  total_deaths,  'text-red-400'),
             ('Bosses',  total_bosses,  'text-amber-400'),
             ('Items',   total_items,   'text-cyan-400'),
-            ('Builds',  total_builds,  'text-blue-400'),
         ],
         'recent_runs': recent_runs,
     })
@@ -645,6 +643,7 @@ def api_r2_build_delete(request, build_id):
     return JsonResponse({'ok': True})
 
 
+@add_web_user_context
 def api_r2_build_detail(request, share_token):
     with get_db_session() as db:
         row = db.execute(text("""
@@ -1111,6 +1110,7 @@ def api_r2_builds_browse(request):
     } for r in rows]})
 
 
+@web_login_required
 def api_r2_manifest(request):
     """GET - user's full manifest (all items + bosses found across all runs)."""
     uid = request.web_user.id

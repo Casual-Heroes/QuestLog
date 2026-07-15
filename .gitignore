@@ -68,6 +68,8 @@ teststats.py
 *.sql
 *.md
 !app/docs/*.md
+!THIRD_PARTY_NOTICES.md
+!ASSET_PROVENANCE.md
 
 # Ignore environments
 .env

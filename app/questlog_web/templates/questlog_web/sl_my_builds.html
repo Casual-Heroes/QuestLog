@@ -78,7 +78,7 @@
   </div>
   {% endif %}
 
-  <!-- Remnant 2 Builds -->
+  <!-- Remnant 2 build records remain visible, but the builder is offline. -->
   {% if r2_builds %}
   <div class="mt-8">
     <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -96,16 +96,7 @@
           <p class="text-white text-sm font-semibold truncate">{{ b.name }}</p>
           {% if b.playstyle %}<p class="text-gray-600 text-[11px]">{{ b.playstyle }}</p>{% endif %}
         </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <a href="/soulslike/r2/builder/?load={{ b.token }}"
-             class="text-xs text-gray-500 hover:text-gray-300 transition px-2 py-1.5 rounded-lg hover:bg-neutral-800">
-            <i class="fas fa-pen"></i>
-          </a>
-          <a href="/soulslike/r2/runs/"
-             class="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 text-white text-xs font-bold rounded-lg transition">
-            <i class="fas fa-play mr-1"></i>Start Run
-          </a>
-        </div>
+        <span class="text-[10px] text-gray-600 px-2 py-1.5 flex-shrink-0" title="R2 features temporarily offline">R2 offline</span>
       </div>
       {% endfor %}
     </div>
