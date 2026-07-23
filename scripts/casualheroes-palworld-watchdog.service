@@ -1,0 +1,21 @@
+[Unit]
+Description=Casual Heroes Palworld AMP crash watchdog
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=fulldata
+Group=nogroup
+WorkingDirectory=/srv/ch-webserver
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/ch-webserver/chwebsiteprj/bin/python /srv/ch-webserver/manage.py monitor_palworld_amp
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/srv/ch-webserver/cache
+
+[Install]
+WantedBy=multi-user.target

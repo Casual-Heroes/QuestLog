@@ -97,7 +97,7 @@ var showing = false;
 var hideTimer = null;
 
 function load() {
-  fetch(POLL_URL)
+  fetch(POLL_URL, {cache:'no-store'})
     .then(function(r){ return r.json(); })
     .then(function(d) {
       if (!d || d.error) return;

@@ -1297,12 +1297,6 @@ DISCORD_GAME_STATIC_INFO = {
         "custom_img": "/static/img/games/wow/dwarf.webp",
         "link_label": "View Site"
     },
-    "ESO": {
-        "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
-        "discord_invite": DISCORD_INVITE_URL,
-        "steam_appid": "306130",
-        "link_label": "View on Steam"
-    },
 }
 
 # Games tracked through Discord only
@@ -1371,17 +1365,6 @@ DISCORD_GAMES = [
         "steam_link": "https://worldofwarcraft.blizzard.com/en-us/",
         "discord_invite": DISCORD_INVITE_URL,
         "custom_img": "/static/img/games/wow/dwarf.webp",
-        "online": "-",
-        "max": "-",
-        "link_label": "View Site"
-    },
-    {
-        "id": "ESO",
-        "name": "Elder Scrolls Online",
-        "description": "Casual Legends is building a PC-NA ESO guild for adults who want chill runs and real progress-without the drama or sweaty expectations. New and returning players welcome. We learn together, gear up together, and push harder content when we’re ready.",
-        "steam_link": "https://store.steampowered.com/app/306130/The_Elder_Scrolls_Online/",
-        "discord_invite": DISCORD_INVITE_URL,
-        "steam_appid": "306130",
         "online": "-",
         "max": "-",
         "link_label": "View Site"
@@ -22738,68 +22721,28 @@ def sitemap_xml(request):
 
 def robots_txt(request):
     """Serve robots.txt with proper headers for social media and search engine crawlers."""
+    from django.conf import settings
     from django.http import HttpResponse
+    from pathlib import Path
 
-    robots_content = """# Casual Heroes - robots.txt
+    robots_path = Path(settings.BASE_DIR) / 'static' / 'robots.txt'
+    try:
+        robots_content = robots_path.read_text(encoding='utf-8')
+    except OSError:
+        # Fail closed for raw/internal endpoints if the deployment artifact is
+        # ever missing, while leaving ordinary public pages indexable.
+        robots_content = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /api/\n"
+            "Disallow: /ql/api/\n"
+            "Disallow: /internal/\n"
+            "Disallow: /admin/\n"
+        )
 
-# Allow social media crawlers (Discord, LinkedIn, Twitter, Facebook, etc.)
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
-User-agent: LinkedInBot
-Allow: /
-
-User-agent: Discordbot
-Allow: /
-
-User-agent: Slackbot
-Allow: /
-
-User-agent: TelegramBot
-Allow: /
-
-# Allow search engines
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-# Block AI scrapers
-User-agent: GPTBot
-Disallow: /
-
-User-agent: ChatGPT-User
-Disallow: /
-
-User-agent: CCBot
-Disallow: /
-
-User-agent: Google-Extended
-Disallow: /
-
-User-agent: anthropic-ai
-Disallow: /
-
-User-agent: Claude-Web
-Disallow: /
-
-User-agent: cohere-ai
-Disallow: /
-
-# Default: Allow everything else except API endpoints
-User-agent: *
-Allow: /
-Disallow: /api/admin/
-Disallow: /admin/
-
-Sitemap: https://casual-heroes.com/sitemap.xml
-"""
-
-    return HttpResponse(robots_content, content_type='text/plain')
+    response = HttpResponse(robots_content, content_type='text/plain; charset=utf-8')
+    response['Cache-Control'] = 'public, max-age=3600'
+    return response
 
 
 # ============================================================================

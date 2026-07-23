@@ -1,0 +1,210 @@
+{
+  "reference_version": "2.2.9.5",
+  "source": "ERR regulation.bin SpEffectParam",
+  "calculation_scope": "deterministic_build_sheet",
+  "rarity_tiers": {
+    "common": 1,
+    "rare": 2,
+    "legendary": 3
+  },
+  "tier_rule": "cumulative",
+  "stacking_rule": "identical_passive_affix_tiers_do_not_stack",
+  "affixes": {
+    "Acrobatic": {
+      "2": {
+        "type": "stat_flat",
+        "stat": "dexterity",
+        "value": 2
+      }
+    },
+    "Astral": {
+      "1": {
+        "type": "damage_mult",
+        "damage_type": "magic",
+        "value": 1.035
+      }
+    },
+    "Chaotic": {
+      "2": {
+        "type": "stat_flat_multi",
+        "stats": {
+          "strength": 1,
+          "dexterity": 1,
+          "faith": 1,
+          "intelligence": 1
+        }
+      }
+    },
+    "Clever": {
+      "1": {
+        "type": "fp_mult",
+        "value": 1.05
+      }
+    },
+    "Eclipsed": {
+      "1": {
+        "type": "stat_flat_multi",
+        "stats": {
+          "faith": 1,
+          "intelligence": 1
+        }
+      }
+    },
+    "Enchanted": {
+      "1": {
+        "type": "damage_mult",
+        "damage_type": "spell_all",
+        "value": 1.035
+      }
+    },
+    "Enduring": {
+      "1": {
+        "type": "equip_load_mult",
+        "value": 1.02
+      }
+    },
+    "Gifted": {
+      "2": {
+        "type": "stat_flat_multi",
+        "stats": {
+          "dexterity": 1,
+          "strength": 1
+        }
+      }
+    },
+    "Godslayer": {
+      "1": {
+        "type": "damage_mult_vs_enemy_type",
+        "damage_type": "all",
+        "enemy_type": "divine",
+        "value": 1.05
+      }
+    },
+    "Golden": {
+      "1": {
+        "type": "stat_flat",
+        "stat": "faith",
+        "value": 2
+      }
+    },
+    "Hearty": {
+      "1": {
+        "type": "hp_mult",
+        "value": 1.04
+      }
+    },
+    "Lively": {
+      "1": {
+        "type": "stamina_mult",
+        "value": 1.06
+      }
+    },
+    "Mundane": {
+      "1": {
+        "type": "stat_flat",
+        "stat": "vigor",
+        "value": 1
+      },
+      "2": {
+        "type": "stat_flat",
+        "stat": "mind",
+        "value": 2
+      },
+      "3": {
+        "type": "stat_flat",
+        "stat": "endurance",
+        "value": 3
+      }
+    },
+    "Rampaging": {
+      "2": {
+        "type": "stat_flat",
+        "stat": "strength",
+        "value": 2
+      }
+    },
+    "Resolute": {
+      "1": {
+        "type": "poise_flat",
+        "value": 6
+      }
+    },
+    "Ruinous": {
+      "1": {
+        "type": "damage_mult",
+        "damage_type": "fire",
+        "value": 1.035
+      }
+    },
+    "Sanguine": {
+      "1": {
+        "type": "stat_flat_multi",
+        "stats": {
+          "faith": 1,
+          "arcane": 1
+        }
+      }
+    },
+    "Scaled": {
+      "1": {
+        "type": "damage_mult_vs_enemy_type",
+        "damage_type": "all",
+        "enemy_type": "dragon",
+        "value": 1.05
+      }
+    },
+    "Serrated": {
+      "1": {
+        "type": "damage_mult",
+        "damage_type": "slash",
+        "value": 1.035
+      }
+    },
+    "Silver": {
+      "1": {
+        "type": "stat_flat_multi",
+        "stats": {
+          "intelligence": 1,
+          "arcane": 1
+        }
+      }
+    },
+    "Smiting": {
+      "1": {
+        "type": "damage_mult_vs_enemy_type",
+        "damage_type": "all",
+        "enemy_type": "undead",
+        "value": 1.05
+      }
+    },
+    "Smoldering": {
+      "1": {
+        "type": "hp_fp_stamina_mult",
+        "hp": 1.02,
+        "fp": 1.03,
+        "stamina": 1.04
+      }
+    },
+    "Sovereign": {
+      "1": {
+        "type": "poise_and_equip_load",
+        "poise": 4,
+        "equip_load_mult": 1.01
+      }
+    },
+    "Venomous": {
+      "1": {
+        "type": "stat_flat",
+        "stat": "arcane",
+        "value": 2
+      }
+    },
+    "Voltaic": {
+      "1": {
+        "type": "damage_mult",
+        "damage_type": "lightning",
+        "value": 1.035
+      }
+    }
+  }
+}

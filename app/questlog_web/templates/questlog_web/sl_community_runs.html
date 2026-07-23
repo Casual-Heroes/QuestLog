@@ -48,105 +48,70 @@
     </div>
   </div>
 
-  {% if runs %}
-  <div class="space-y-2">
-    {% for r in runs %}
-    <a href="/soulslike/runs/{{ r.token }}/"
-       class="group block bg-neutral-900 border rounded-xl p-4 transition
-              {% if r.is_active %}border-neutral-700 hover:border-green-700/50{% else %}border-neutral-800 hover:border-neutral-600{% endif %}">
+  {% if active_runs %}
+  <section class="mb-8">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+      <i class="fas fa-circle-play text-green-500 mr-1"></i>Active Public Runs
+      <span class="ml-1 text-green-700">{{ active_runs|length }}</span>
+    </h2>
+    <div class="space-y-2">
+      {% for r in active_runs %}
+        {% include "questlog_web/partials/sl_community_run_card.html" with r=r %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
-      <div class="flex items-start gap-3">
-
-        <!-- Avatar -->
-        <div class="relative flex-shrink-0">
-          {% if r.avatar %}
-          <img src="{{ r.avatar }}" class="w-9 h-9 rounded-xl object-cover" alt="{{ r.username }}">
-          {% else %}
-          <div class="w-9 h-9 rounded-xl bg-neutral-700 flex items-center justify-center text-white font-bold text-sm">{{ r.username|first|upper }}</div>
-          {% endif %}
-          {% if r.is_live %}
-          <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-neutral-900 animate-pulse"></span>
-          {% endif %}
-        </div>
-
-        <!-- Main info -->
+  {% if ready_builds %}
+  <section class="mb-8">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+      <i class="fas fa-shield-halved text-amber-500 mr-1"></i>Ready to Run
+      <span class="ml-1 text-gray-700">{{ ready_builds|length }}</span>
+    </h2>
+    <p class="text-[11px] text-gray-600 mb-3">Public builds waiting for their next journey.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {% for b in ready_builds %}
+      <a href="/soulslike/builder/?view={{ b.share_token }}&game={{ b.builder_game }}"
+         class="group flex items-center gap-3 bg-neutral-900 border border-neutral-800 hover:border-amber-800/60 rounded-xl px-4 py-3 transition">
+        {% if b.avatar %}
+        <img src="{{ b.avatar }}" class="w-9 h-9 rounded-xl object-cover flex-shrink-0" alt="{{ b.username }}">
+        {% else %}
+        <div class="w-9 h-9 rounded-xl bg-neutral-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{{ b.username|first|upper }}</div>
+        {% endif %}
         <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-0.5 flex-wrap">
-            <!-- Status -->
-            {% if r.is_active %}
-            <span class="flex items-center gap-1 text-[10px] text-green-400 font-bold">
-              <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>LIVE
-            </span>
-            {% else %}
-            <span class="text-[10px] text-gray-600 font-semibold">COMPLETED</span>
-            {% endif %}
-            <!-- Game badge -->
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-700 text-gray-400 font-bold">{{ r.game_label }}</span>
-            {% if r.is_hardcore %}
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-900/40 text-red-400 font-bold"><i class="fas fa-fire mr-0.5"></i>HC</span>
-            {% endif %}
-            {% if r.is_live and r.stream_url %}
-            <a href="{{ r.stream_url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-               class="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-900/30 text-red-400 hover:text-red-300 font-bold transition">
-              <span class="w-1 h-1 rounded-full bg-red-500 animate-pulse"></span>Streaming
-              <i class="fas fa-external-link-alt text-[8px]"></i>
-            </a>
-            {% endif %}
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-neutral-700 text-gray-400 font-bold">{{ b.game_label }}</span>
+            {% if b.playstyle %}<span class="text-[10px] text-gray-600">{{ b.playstyle }}</span>{% endif %}
           </div>
-
-          <div class="text-white font-semibold text-sm truncate group-hover:text-amber-300 transition">
-            {{ r.username }} - {{ r.build_name }}
-          </div>
-
-          <!-- Stats row -->
-          <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-            <span class="text-[11px] text-red-400 font-bold">
-              <i class="fas fa-skull mr-0.5 text-[9px]"></i>{{ r.deaths }} deaths
-            </span>
-            {% if r.items_total > 0 %}
-            <span class="text-[11px] text-green-600">
-              <i class="fas fa-check-circle mr-0.5 text-[9px]"></i>{{ r.items_collected }}/{{ r.items_total }} items
-            </span>
-            {% endif %}
-            {% if r.bosses_total > 0 %}
-            <span class="text-[11px] text-gray-500">
-              <i class="fas fa-dragon mr-0.5 text-[9px] text-amber-600"></i>{{ r.bosses_killed }}/{{ r.bosses_total }} bosses
-            </span>
-            {% if r.boss_pct > 0 %}
-            <div class="flex items-center gap-1">
-              <div class="w-16 h-1 bg-neutral-700 rounded-full overflow-hidden">
-                <div class="h-full bg-amber-600 rounded-full" style="width:{{ r.boss_pct }}%"></div>
-              </div>
-              <span class="text-[10px] text-gray-600">{{ r.boss_pct }}%</span>
-            </div>
-            {% endif %}
-            {% endif %}
-            {% if r.session_sec > 0 %}
-            <span class="text-[11px] text-gray-600">
-              <i class="fas fa-clock mr-0.5 text-[9px]"></i>{{ r.session_fmt }}
-            </span>
-            {% endif %}
-            {% if r.is_hardcore and r.hc_score > 0 %}
-            <span class="text-[11px] text-red-500 font-bold">
-              <i class="fas fa-fire mr-0.5 text-[9px]"></i>{{ r.hc_score }} HC pts
-            </span>
-            {% endif %}
-          </div>
+          <p class="text-white text-sm font-semibold truncate group-hover:text-amber-300 transition">{{ b.name }}</p>
+          <p class="text-gray-600 text-[11px]">{{ b.username }} · Lv. {{ b.level }}</p>
         </div>
+        <i class="fas fa-chevron-right text-gray-700 group-hover:text-amber-600 transition text-xs"></i>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
-        <!-- Arrow -->
-        <i class="fas fa-chevron-right text-gray-700 group-hover:text-gray-400 transition text-xs flex-shrink-0 mt-1"></i>
+  {% if completed_runs %}
+  <section class="mb-8">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+      <i class="fas fa-circle-check text-gray-500 mr-1"></i>Recently Completed
+      <span class="ml-1 text-gray-700">{{ completed_runs|length }}</span>
+    </h2>
+    <div class="space-y-2">
+      {% for r in completed_runs %}
+        {% include "questlog_web/partials/sl_community_run_card.html" with r=r %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
-      </div>
-    </a>
-    {% endfor %}
-  </div>
-
-  {% else %}
+  {% if not active_runs and not ready_builds and not completed_runs %}
   <div class="text-center py-16">
     <i class="fas fa-users text-4xl text-neutral-700 mb-4 block"></i>
-    <p class="text-gray-500 text-sm mb-2">No public runs yet.</p>
-    <p class="text-gray-600 text-xs mb-6">Start a run from a public build and it will appear here.</p>
+    <p class="text-gray-500 text-sm mb-2">No public runs or ready builds yet.</p>
+    <p class="text-gray-600 text-xs mb-6">Make a build public and it will appear here.</p>
     {% if web_user %}
     <a href="/soulslike/my-builds/" class="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-700 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition">
       <i class="fas fa-shield-halved"></i> My Builds
@@ -160,7 +125,7 @@
   {% endif %}
 
   <p class="text-center text-[10px] text-gray-700 mt-6">
-    Only runs from public builds appear here. <a href="/soulslike/builder/" class="text-gray-600 hover:text-gray-400">Make your build public</a> to show up.
+    Only public builds and public runs appear here. <a href="/soulslike/builder/" class="text-gray-600 hover:text-gray-400">Make your build public</a> to show up.
   </p>
 
 </div>

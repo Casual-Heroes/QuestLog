@@ -286,7 +286,6 @@ function buildCard(u) {
   if (u.is_mod && !u.is_admin) badges.push(`<span class="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 text-[10px] rounded-full font-medium"><i class="fas fa-user-shield mr-0.5"></i>Mod</span>`);
   if (u.is_contributor) badges.push(`<span class="px-1.5 py-0.5 bg-violet-600/20 text-violet-300 text-[10px] rounded-full font-medium"><i class="fas fa-pen mr-0.5"></i>Contributor</span>`);
   if (u.is_ffxiv_member) badges.push(`<span class="px-1.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] rounded-full font-medium flex items-center gap-0.5"><img src="/static/img/games/guilds/ffxiv_logo.png" class="w-2.5 h-2.5 object-contain"> FFXIV</span>`);
-  if (u.is_eso_member) badges.push(`<span class="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] rounded-full font-medium flex items-center gap-0.5"><img src="/static/img/games/guilds/esoguild.png" class="w-2.5 h-2.5 object-contain"> ESO</span>`);
   const badgeRow = badges.length ? `<div class="flex flex-wrap gap-1 mt-1">${badges.join('')}</div>` : '';
 
   const streaming = [];

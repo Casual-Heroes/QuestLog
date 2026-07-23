@@ -2,12 +2,223 @@
 Blocks probe requests for common attack targets before they reach Django.
 Stops path traversal, WordPress scanners, config file snooping, etc.
 """
-from django.http import HttpResponseNotFound
+from django.core.cache import cache
+from django.conf import settings
+from django.http import (
+    HttpResponse,
+    HttpResponseForbidden,
+    HttpResponseNotFound,
+    JsonResponse,
+)
 from django.shortcuts import render
+import hashlib
 import logging
 import os
 
 logger = logging.getLogger(__name__)
+
+
+# Public pages and APIs whose records can be cheaply enumerated. Live overlay,
+# catalog-sync, authentication, and ordinary content routes are deliberately
+# excluded so this protection cannot break the desktop app or OBS sources.
+SCRAPE_PROTECTED_PREFIXES = (
+    '/api/gamers/',
+    '/api/creators/',
+    '/api/communities/',
+    '/api/soulslike/builds/',
+    '/api/soulslike/builds/browse/',
+    '/gamers/',
+    '/creators/',
+    '/communities/',
+    '/u/',
+    '/soulslike/builds/',
+    '/soulslike/community-runs/',
+)
+
+# These agents explicitly identify bulk data, SEO, or AI crawlers. This is
+# origin enforcement for clients that ignore robots.txt. Generic HTTP clients
+# are denied only on the enumerable surfaces above, not across app APIs.
+DENIED_SCRAPER_AGENTS = (
+    'ahrefsbot',
+    'amazonbot',
+    'anthropic-ai',
+    'blexbot',
+    'bytespider',
+    'ccbot',
+    'chatgpt-user',
+    'claude-web',
+    'claudebot',
+    'cohere-ai',
+    'dataforseobot',
+    'diffbot',
+    'dotbot',
+    'gptbot',
+    'imagesiftbot',
+    'meta-externalagent',
+    'mj12bot',
+    'omgilibot',
+    'perplexitybot',
+    'petalbot',
+    'semrushbot',
+    'serpstatbot',
+    'youbot',
+)
+
+GENERIC_AUTOMATION_AGENTS = (
+    'aiohttp',
+    'curl/',
+    'go-http-client',
+    'httpx/',
+    'libwww-perl',
+    'python-requests',
+    'scrapy',
+    'wget/',
+)
+
+# Verified-bot status is best enforced by Cloudflare. At origin, allow the
+# search/social preview agents the site intentionally supports.
+TRUSTED_PUBLIC_AGENTS = (
+    'applebot',
+    'bingbot',
+    'discordbot',
+    'duckduckbot',
+    'facebookexternalhit',
+    'googlebot',
+    'linkedinbot',
+    'slackbot',
+    'telegrambot',
+    'twitterbot',
+)
+
+
+class ScrapingProtectionMiddleware:
+    """
+    Add origin-side friction to bulk enumeration without hiding public pages.
+
+    - Known scraper/automation user agents are denied on directory surfaces.
+    - Anonymous clients share a conservative per-IP request budget.
+    - Authenticated humans and intentional search/social crawlers are exempt.
+    - JSON APIs receive no-index headers so search engines do not index raw
+      records alongside their human-facing pages.
+
+    Cloudflare Bot Fight Mode and edge rate limiting remain the first line of
+    defense; this middleware is a fail-safe when traffic reaches the origin.
+    """
+
+    WINDOW_SECONDS = max(
+        10, int(os.getenv('SCRAPE_RATE_WINDOW_SECONDS', '60'))
+    )
+    ANONYMOUS_REQUEST_LIMIT = max(
+        5, int(os.getenv('SCRAPE_RATE_LIMIT', '30'))
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        path = request.path.lower()
+        method = request.method.upper()
+
+        if method in ('GET', 'HEAD') and self._is_protected(path):
+            user_agent = request.META.get('HTTP_USER_AGENT', '').lower()
+            trusted_agent = any(
+                agent in user_agent for agent in TRUSTED_PUBLIC_AGENTS
+            )
+
+            if not trusted_agent and self._is_automation(user_agent):
+                logger.warning(
+                    "Blocked scraper user-agent from %s on %s",
+                    self._client_ip(request),
+                    request.path,
+                )
+                return self._blocked_response(path)
+
+            if not trusted_agent and not self._is_authenticated(request):
+                retry_after = self._consume_anonymous_budget(request)
+                if retry_after is not None:
+                    logger.warning(
+                        "Rate-limited anonymous enumeration from %s on %s",
+                        self._client_ip(request),
+                        request.path,
+                    )
+                    return self._rate_limited_response(path, retry_after)
+
+        response = self.get_response(request)
+        if method in ('GET', 'HEAD') and path.startswith('/api/'):
+            response['X-Robots-Tag'] = 'noindex, nofollow, nosnippet'
+        return response
+
+    @staticmethod
+    def _is_protected(path):
+        return any(path.startswith(prefix) for prefix in SCRAPE_PROTECTED_PREFIXES)
+
+    @staticmethod
+    def _is_automation(user_agent):
+        return any(agent in user_agent for agent in (
+            DENIED_SCRAPER_AGENTS + GENERIC_AUTOMATION_AGENTS
+        ))
+
+    @staticmethod
+    def _is_authenticated(request):
+        try:
+            return bool(
+                request.session.get('web_user_id')
+                or request.user.is_authenticated
+            )
+        except (AttributeError, TypeError):
+            return False
+
+    def _consume_anonymous_budget(self, request):
+        ip = self._client_ip(request)
+        digest = hashlib.sha256(ip.encode('utf-8')).hexdigest()[:24]
+        key = f'scrape-budget:{digest}'
+        try:
+            if cache.add(key, 1, timeout=self.WINDOW_SECONDS):
+                count = 1
+            else:
+                count = cache.incr(key)
+        except (ValueError, TypeError):
+            # A cache expiry race can remove the key between add() and incr().
+            cache.set(key, 1, timeout=self.WINDOW_SECONDS)
+            count = 1
+        if count > self.ANONYMOUS_REQUEST_LIMIT:
+            return self.WINDOW_SECONDS
+        return None
+
+    @staticmethod
+    def _client_ip(request):
+        return (
+            request.META.get('HTTP_CF_CONNECTING_IP', '').strip()
+            or request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+            or request.META.get('REMOTE_ADDR', '')
+            or 'unknown'
+        )
+
+    @staticmethod
+    def _blocked_response(path):
+        if path.startswith('/api/'):
+            response = JsonResponse({'error': 'Automated access denied'}, status=403)
+        else:
+            response = HttpResponseForbidden('Automated access denied')
+        response['X-Robots-Tag'] = 'noindex, nofollow, nosnippet'
+        return response
+
+    @staticmethod
+    def _rate_limited_response(path, retry_after):
+        if path.startswith('/api/'):
+            response = JsonResponse(
+                {'error': 'Too many directory requests; please try again shortly'},
+                status=429,
+            )
+        else:
+            response = HttpResponse(
+                'Too many requests; please try again shortly',
+                status=429,
+                content_type='text/plain',
+            )
+        response['Retry-After'] = str(retry_after)
+        response['X-Robots-Tag'] = 'noindex, nofollow, nosnippet'
+        return response
 
 # Maintenance mode flag file - if this file exists, the site is in maintenance mode
 # Override with MAINTENANCE_FLAG env var for custom deployment paths
@@ -159,6 +370,16 @@ class SecurityMiddleware:
     def __call__(self, request):
         path = request.path.lower()
 
+        # ESO is archived rather than deleted. Block every public page and API
+        # before URL resolution while leaving the admin review API available.
+        if not settings.PUBLIC_ESO_ENABLED and (
+            path == '/eso'
+            or path.startswith('/eso/')
+            or path.startswith('/api/eso/')
+        ):
+            response = HttpResponseNotFound()
+            response['X-Robots-Tag'] = 'noindex, nofollow, nosnippet'
+            return response
 
         for pattern in BLOCKED_PATTERNS:
             if pattern in path:

@@ -77,7 +77,7 @@ const TOKEN = '{{ token }}';
 const POLL_URL = '{{ poll_url|escapejs }}';
 
 function load() {
-  fetch(POLL_URL)
+  fetch(POLL_URL, {cache:'no-store'})
     .then(r => r.json()).then(d => {
       if (d.error) return;
       document.getElementById('death-count').textContent = d.deaths || 0;

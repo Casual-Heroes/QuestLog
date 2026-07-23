@@ -4,6 +4,10 @@ import json
 import logging
 import re
 import time
+import unicodedata
+from copy import deepcopy
+from functools import lru_cache
+from pathlib import Path
 
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
@@ -28,8 +32,655 @@ from .helpers import (
     fluxer_login_required, create_notification, sanitize_text,
 )
 from .fluxer_webhooks import queue_lfg_embed_edit_for_group as _queue_lfg_embed_edit
+from .soulslike_boss_catalog import supplemental_bosses
 
 logger = logging.getLogger(__name__)
+
+
+_ERR_BUILDER_REGULATION_PATH = (
+    Path(__file__).resolve().parent
+    / 'data'
+    / 'err_builder_regulation_v2_2_9_5.json'
+)
+_ERR_ENKINDLING_DETERMINISTIC_PATH = (
+    Path(__file__).resolve().parent
+    / 'data'
+    / 'err_enkindling_deterministic_v2_2_9_5.json'
+)
+_ERR_TALISMAN_DETERMINISTIC_PATH = (
+    Path(__file__).resolve().parent
+    / 'data'
+    / 'err_talisman_deterministic_v2_2_9_5.json'
+)
+_ERR_BINDING_RUNE_DETERMINISTIC_PATH = (
+    Path(__file__).resolve().parent
+    / 'data'
+    / 'err_binding_rune_deterministic_v2_2_9_5.json'
+)
+_ERR_FORTUNE_DETERMINISTIC_PATH = (
+    Path(__file__).resolve().parent
+    / 'data'
+    / 'err_fortune_deterministic_v2_2_9_5.json'
+)
+_VANILLA_BUILDER_REGULATION_PATH = (
+    Path(__file__).resolve().parent
+    / 'data'
+    / 'vanilla_builder_regulation_7b6d07c3.json'
+)
+
+
+_VANILLA_PVE_PVP_ATTACK_TALISMANS = {
+    'Magic Scorpion Charm': 1,
+    'Fire Scorpion Charm': 2,
+    'Lightning Scorpion Charm': 3,
+    'Sacred Scorpion Charm': 4,
+}
+
+_VANILLA_CRYSTAL_TEAR_MODIFIERS = {
+    'Crimsonspill Crystal Tear': {
+        'source_speffect_id': 3500,
+        'duration_seconds': 180,
+        'modifiers': {'hp': 1.10},
+    },
+    'Greenspill Crystal Tear': {
+        'source_speffect_id': 3501,
+        'duration_seconds': 180,
+        'modifiers': {'stamina': 1.15},
+    },
+    'Winged Crystal Tear': {
+        'source_speffect_id': 511012,
+        'duration_seconds': 180,
+        'modifiers': {'eqload': 4.5},
+    },
+    'Strength-knot Crystal Tear': {
+        'source_speffect_id': 3515,
+        'duration_seconds': 180,
+        'modifiers': {'statFlat': {'strength': 10}},
+    },
+    'Dexterity-knot Crystal Tear': {
+        'source_speffect_id': 3516,
+        'duration_seconds': 180,
+        'modifiers': {'statFlat': {'dexterity': 10}},
+    },
+    'Intelligence-knot Crystal Tear': {
+        'source_speffect_id': 3517,
+        'duration_seconds': 180,
+        'modifiers': {'statFlat': {'intelligence': 10}},
+    },
+    'Faith-knot Crystal Tear': {
+        'source_speffect_id': 3518,
+        'duration_seconds': 180,
+        'modifiers': {'statFlat': {'faith': 10}},
+    },
+    'Flame-Shrouding Cracked Tear': {
+        'source_speffect_id': 511028,
+        'duration_seconds': 180,
+        'modifiers': {
+            'attackPve': {'2': 1.20},
+            'attackPvp': {'2': 1.125},
+        },
+    },
+    'Magic-Shrouding Cracked Tear': {
+        'source_speffect_id': 511029,
+        'duration_seconds': 180,
+        'modifiers': {
+            'attackPve': {'1': 1.20},
+            'attackPvp': {'1': 1.125},
+        },
+    },
+    'Lightning-Shrouding Cracked Tear': {
+        'source_speffect_id': 511030,
+        'duration_seconds': 180,
+        'modifiers': {
+            'attackPve': {'3': 1.20},
+            'attackPvp': {'3': 1.125},
+        },
+    },
+    'Holy-Shrouding Cracked Tear': {
+        'source_speffect_id': 511031,
+        'duration_seconds': 180,
+        'modifiers': {
+            'attackPve': {'4': 1.20},
+            'attackPvp': {'4': 1.125},
+        },
+    },
+    'Bloodsucking Cracked Tear': {
+        'source_speffect_id': 20511050,
+        'duration_seconds': 180,
+        'modifiers': {
+            'attackPve': {
+                '0': 1.20, '1': 1.20, '2': 1.20, '3': 1.20, '4': 1.20,
+            },
+            'attackPvp': {
+                '0': 1.125, '1': 1.125, '2': 1.125,
+                '3': 1.125, '4': 1.125,
+            },
+        },
+    },
+}
+
+
+@lru_cache(maxsize=1)
+def _err_builder_regulation():
+    """Load ERR regulation values plus the deterministic Enkindling contract.
+
+    Enkindling is packaged with the immutable calculation bundle so the desktop
+    app can calculate saved/local builds on a first offline launch. The live
+    Enkindling endpoint remains the source for descriptions and AoW eligibility.
+    """
+    with _ERR_BUILDER_REGULATION_PATH.open(encoding='utf-8') as source:
+        regulation = json.load(source)
+    with _ERR_ENKINDLING_DETERMINISTIC_PATH.open(encoding='utf-8') as source:
+        regulation['enkindling'] = json.load(source)
+    with _ERR_TALISMAN_DETERMINISTIC_PATH.open(encoding='utf-8') as source:
+        talisman_contract = json.load(source)
+    with _ERR_BINDING_RUNE_DETERMINISTIC_PATH.open(encoding='utf-8') as source:
+        regulation['binding_rune_calculation_contract'] = json.load(source)
+    with _ERR_FORTUNE_DETERMINISTIC_PATH.open(encoding='utf-8') as source:
+        regulation['fortune_calculation_contract'] = json.load(source)
+    regulation['talisman_calculation_contract'] = talisman_contract
+    for name, modifiers in talisman_contract['talismans'].items():
+        if name in regulation.get('talismans', {}):
+            regulation['talismans'][name]['modifiers'] = modifiers
+    return regulation
+
+
+@lru_cache(maxsize=1)
+def _vanilla_builder_regulation():
+    """Load deterministic sheet values verified against Vanilla regulation.bin.
+
+    The raw export includes some attack rates whose activation depends on
+    combat state or move type. Those are useful factual source values, but they
+    must not be presented as permanent sheet AR. Only effects determined by the
+    saved build itself are exposed to the website and desktop app.
+    """
+    with _VANILLA_BUILDER_REGULATION_PATH.open(encoding='utf-8') as source:
+        regulation = json.load(source)
+
+    deterministic_keys = {
+        'statFlat', 'hp', 'fp', 'stamina', 'eqload',
+    }
+    for name, talisman in regulation.get('talismans', {}).items():
+        raw_modifiers = talisman.get('modifiers') or {}
+        modifiers = {
+            key: deepcopy(raw_modifiers[key])
+            for key in deterministic_keys
+            if key in raw_modifiers
+        }
+        damage_type = _VANILLA_PVE_PVP_ATTACK_TALISMANS.get(name)
+        if damage_type is not None:
+            modifiers['attackPve'] = {str(damage_type): 1.12}
+            modifiers['attackPvp'] = {str(damage_type): 1.08}
+        elif name == 'Blue Dancer Charm':
+            modifiers['physicalEquipScaling'] = 'vanilla_blue_dancer'
+        elif name == "Bull-Goat's Talisman":
+            # toughnessDamageCutRate=0.75: effective poise is base / 0.75.
+            modifiers['poiseMult'] = 1 / 0.75
+        talisman['modifiers'] = modifiers
+
+    regulation['crystal_tears'] = deepcopy(
+        _VANILLA_CRYSTAL_TEAR_MODIFIERS
+    )
+    regulation['calculation_scope'] = (
+        'deterministic_build_state_only'
+    )
+    return regulation
+
+
+def _builder_name_key(value):
+    """Normalize public/Paramdex punctuation without changing stored names."""
+    value = unicodedata.normalize('NFKD', value or '')
+    return ''.join(
+        character for character in value
+        if not unicodedata.combining(character)
+    ).casefold().replace('’', "'").strip()
+
+
+@lru_cache(maxsize=1)
+def _err_regulation_armor_by_name():
+    return {
+        _builder_name_key(name): values
+        for name, values in _err_builder_regulation().get('armor', {}).items()
+    }
+
+
+@lru_cache(maxsize=1)
+def _vanilla_regulation_armor_by_name():
+    return {
+        _builder_name_key(name): values
+        for name, values in _vanilla_builder_regulation().get('armor', {}).items()
+    }
+
+
+def _current_err_armor(name):
+    key = _builder_name_key(name)
+    # The shared ER catalog calls this piece simply "Gauntlets" while Paramdex
+    # and the current ERR regulation identify it as "Chain Gauntlets".
+    if key == 'gauntlets':
+        key = 'chain gauntlets'
+    return _err_regulation_armor_by_name().get(key)
+
+
+def _current_vanilla_armor(name):
+    return _vanilla_regulation_armor_by_name().get(_builder_name_key(name))
+
+
+@lru_cache(maxsize=1)
+def _err_regulation_talismans_by_name():
+    return {
+        _builder_name_key(name): values
+        for name, values in _err_builder_regulation().get('talismans', {}).items()
+    }
+
+
+@lru_cache(maxsize=1)
+def _vanilla_regulation_talismans_by_name():
+    return {
+        _builder_name_key(name): values
+        for name, values in _vanilla_builder_regulation().get(
+            'talismans', {}
+        ).items()
+    }
+
+
+def _current_err_talisman(name):
+    return _err_regulation_talismans_by_name().get(_builder_name_key(name))
+
+
+def _current_vanilla_talisman(name):
+    return _vanilla_regulation_talismans_by_name().get(
+        _builder_name_key(name)
+    )
+
+
+@lru_cache(maxsize=1)
+def _vanilla_regulation_weapons_by_name():
+    return {
+        _builder_name_key(name): values
+        for name, values in _vanilla_builder_regulation().get(
+            'weapons', {}
+        ).items()
+    }
+
+
+def _current_vanilla_weapon_variants(name):
+    return _vanilla_regulation_weapons_by_name().get(
+        _builder_name_key(name)
+    )
+
+
+_BUILD_COLLECTION_TYPES = {
+    'weapon', 'aow', 'armor', 'talisman', 'spell', 'spirit_ash',
+    'crystal_tear', 'fortune', 'minor_fortune', 'curio', 'binding_rune',
+}
+
+
+def _normalize_build_collection_items(raw_items):
+    """Sanitize and de-duplicate build checklist items without changing history."""
+    normalized = []
+    seen = set()
+    if not isinstance(raw_items, list):
+        return normalized
+    for raw in raw_items[:200]:
+        if not isinstance(raw, dict):
+            continue
+        item_type = str(raw.get('item_type') or '')[:16]
+        if item_type not in _BUILD_COLLECTION_TYPES:
+            continue
+        item_id = safe_int(raw.get('item_id'), None)
+        raw_name = raw.get('item_name')
+        if raw_name is None:
+            continue
+        item_name = sanitize_text(str(raw_name)[:200])
+        location_hint = sanitize_text(str(raw.get('location_hint') or '')[:300])
+        if not item_name:
+            continue
+        identity = (item_type, item_id or 0, _builder_name_key(item_name))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        normalized.append({
+            'item_type': item_type,
+            'item_id': item_id,
+            'item_name': item_name,
+            'location_hint': location_hint,
+        })
+    return normalized
+
+
+def _lookup_collection_catalog(db, table, ids, extra_columns=''):
+    clean_ids = []
+    for value in ids:
+        item_id = safe_int(value, None)
+        if item_id and item_id not in clean_ids:
+            clean_ids.append(item_id)
+    if not clean_ids:
+        return {}
+    suffix = f", {extra_columns}" if extra_columns else ''
+    rows = db.execute(
+        text(f"SELECT id, name{suffix} FROM {table} WHERE id IN :ids").bindparams(
+            bindparam('ids', expanding=True)
+        ),
+        {'ids': clean_ids},
+    ).fetchall()
+    return {int(row[0]): row for row in rows}
+
+
+def _build_collection_items_from_payload(db, data, game):
+    """Return every collectable currently selected by a browser/app build save."""
+    supplied = _normalize_build_collection_items(data.get('collection_items'))
+    if supplied:
+        return supplied
+
+    items = []
+    weapon_slots = ('rh1', 'rh2', 'rh3', 'lh1', 'lh2', 'lh3')
+    weapon_rows = _lookup_collection_catalog(
+        db, 'sl_weapons', [data.get(f'{slot}_weapon_id') for slot in weapon_slots],
+        'special_ability',
+    )
+    for slot in weapon_slots:
+        weapon_id = safe_int(data.get(f'{slot}_weapon_id'), None)
+        weapon = weapon_rows.get(weapon_id)
+        if weapon:
+            items.append({
+                'item_type': 'weapon', 'item_id': weapon_id,
+                'item_name': weapon[1], 'location_hint': '',
+            })
+        aow_name = sanitize_text(str(data.get(f'{slot}_aow_name') or '')[:200])
+        built_in_skill = str(weapon[2] or '') if weapon and len(weapon) > 2 else ''
+        if aow_name and aow_name not in {
+            'No Skill', 'Stamp (Upward Cut)', 'Kick', 'Quickstep', 'Parry',
+            built_in_skill,
+        }:
+            items.append({
+                'item_type': 'aow', 'item_id': None,
+                'item_name': aow_name, 'location_hint': '',
+            })
+
+    armor_fields = ('helm_id', 'chest_id', 'gauntlet_id', 'leg_id')
+    armor_rows = _lookup_collection_catalog(
+        db, 'sl_armor', [data.get(field) for field in armor_fields]
+    )
+    for field in armor_fields:
+        armor_id = safe_int(data.get(field), None)
+        armor = armor_rows.get(armor_id)
+        if armor:
+            items.append({
+                'item_type': 'armor', 'item_id': armor_id,
+                'item_name': armor[1], 'location_hint': '',
+            })
+
+    talisman_fields = (
+        'talisman_1_id', 'talisman_2_id', 'talisman_3_id', 'talisman_4_id',
+    )
+    talisman_rows = _lookup_collection_catalog(
+        db, 'sl_talismans', [data.get(field) for field in talisman_fields]
+    )
+    for field in talisman_fields:
+        talisman_id = safe_int(data.get(field), None)
+        talisman = talisman_rows.get(talisman_id)
+        if talisman:
+            items.append({
+                'item_type': 'talisman', 'item_id': talisman_id,
+                'item_name': talisman[1], 'location_hint': '',
+            })
+
+    raw_spells = data.get('spells')
+    if isinstance(raw_spells, list):
+        vanilla_ids = [
+            value for value in raw_spells
+            if 0 < safe_int(value, 0) < 10000
+        ]
+        err_ids = [safe_int(value, 0) - 10000 for value in raw_spells if safe_int(value, 0) >= 10000]
+        spell_rows = _lookup_collection_catalog(db, 'sl_spells', vanilla_ids)
+        err_spell_rows = _lookup_collection_catalog(db, 'sl_err_spells', err_ids)
+        for value in raw_spells:
+            spell_id = safe_int(value, None)
+            row = err_spell_rows.get(spell_id - 10000) if spell_id and spell_id >= 10000 else spell_rows.get(spell_id)
+            if row:
+                items.append({
+                    'item_type': 'spell', 'item_id': spell_id,
+                    'item_name': row[1], 'location_hint': '',
+                })
+
+    for item_type, key, hint in (
+        ('spirit_ash', 'spirit_ash_name', ''),
+        ('crystal_tear', 'tear_1_name', 'Tear 1'),
+        ('crystal_tear', 'tear_2_name', 'Tear 2'),
+        ('fortune', 'fortune_name', 'Main Fortune'),
+        ('minor_fortune', 'minor_fortune_name', 'Minor Fortune'),
+    ):
+        item_name = sanitize_text(str(data.get(key) or '')[:200])
+        if item_name and (game == 'err' or item_type not in {'fortune', 'minor_fortune'}):
+            items.append({
+                'item_type': item_type, 'item_id': None,
+                'item_name': item_name, 'location_hint': hint,
+            })
+
+    if game == 'err':
+        curios = data.get('curio_selections')
+        if isinstance(curios, dict):
+            for name, state in curios.items():
+                if state == 'active' or (isinstance(state, dict) and state.get('active')):
+                    items.append({
+                        'item_type': 'curio', 'item_id': None,
+                        'item_name': name, 'location_hint': '',
+                    })
+        runes = data.get('rune_inventory')
+        if isinstance(runes, list):
+            for rune in runes:
+                if isinstance(rune, dict) and safe_int(rune.get('copies'), 0) > 0:
+                    items.append({
+                        'item_type': 'binding_rune', 'item_id': None,
+                        'item_name': rune.get('name'), 'location_hint': '',
+                    })
+
+    return _normalize_build_collection_items(items)
+
+
+def _sync_linked_run_collection_items(
+    db, build_id, user_id, game, build_name, desired,
+    collected_talisman_ids=None,
+):
+    """Add build items to linked runs without deleting or uncollecting history."""
+    desired = _normalize_build_collection_items(desired)
+    collected_talisman_ids = {
+        safe_int(value, None) for value in (collected_talisman_ids or [])
+    }
+    collected_talisman_ids.discard(None)
+    game_mode = 'err' if game == 'err' else 'vanilla'
+    sessions = db.execute(text(
+        "SELECT id FROM sl_collection_sessions "
+        "WHERE user_id=:uid AND ended_at IS NULL AND game_mode=:mode "
+        "AND (build_id=:bid OR (build_id IS NULL AND build_name=:name))"
+    ), {
+        'uid': user_id,
+        'mode': game_mode,
+        'bid': build_id,
+        'name': build_name,
+    }).fetchall()
+
+    summary = {
+        'runs': len(sessions), 'added': 0, 'removed': 0,
+        'updated': 0, 'preserved': 0,
+    }
+    now = int(time.time())
+    for session in sessions:
+        session_id = session[0]
+        existing = db.execute(text(
+            "SELECT id, item_type, item_id, item_name, is_collected "
+            "FROM sl_collection_item_status WHERE session_id=:sid"
+        ), {'sid': session_id}).fetchall()
+        by_item_id = {
+            (row[1], int(row[2])): row
+            for row in existing if safe_int(row[2], None)
+        }
+        by_name = {
+            (row[1], _builder_name_key(row[3])): row
+            for row in existing if row[3]
+        }
+
+        for item in desired:
+            item_type = item['item_type']
+            item_id = item.get('item_id')
+            item_name = item['item_name']
+            row = (
+                by_item_id.get((item_type, item_id)) if item_id else None
+            ) or by_name.get(
+                (item_type, _builder_name_key(item_name))
+            )
+            should_collect = (
+                item_type == 'talisman' and item_id in collected_talisman_ids
+            )
+            if row:
+                db.execute(text(
+                    "UPDATE sl_collection_item_status SET "
+                    "item_id=:item_id, item_name=:name, location_hint=:hint, "
+                    "collected_at=CASE WHEN :was_collected=0 AND :collected=1 THEN :now ELSE collected_at END, "
+                    "collection_method=CASE WHEN :was_collected=0 AND :collected=1 THEN 'build_sync' ELSE collection_method END, "
+                    "is_collected=CASE WHEN :was_collected=1 OR :collected=1 THEN 1 ELSE 0 END "
+                    "WHERE id=:row_id"
+                ), {
+                    'row_id': row[0],
+                    'item_id': item_id or 0,
+                    'name': item_name,
+                    'hint': item.get('location_hint') or '',
+                    'collected': 1 if should_collect else 0,
+                    'was_collected': 1 if row[4] else 0,
+                    'now': now,
+                })
+                summary['updated'] += 1
+                if row[4]:
+                    summary['preserved'] += 1
+                continue
+
+            db.execute(text(
+                "INSERT INTO sl_collection_item_status "
+                "(session_id, item_type, item_id, item_name, location_hint, "
+                "is_collected, collected_at, collection_method) "
+                "VALUES (:sid, :item_type, :item_id, :name, :hint, "
+                ":collected, :collected_at, :method)"
+            ), {
+                'sid': session_id,
+                'item_type': item_type,
+                'item_id': item_id or 0,
+                'name': item_name,
+                'hint': item.get('location_hint') or '',
+                'collected': 1 if should_collect else 0,
+                'collected_at': now if should_collect else None,
+                'method': 'build_sync' if should_collect else None,
+            })
+            summary['added'] += 1
+
+    return summary
+
+
+def _sync_linked_run_build_items(
+    db, build_id, user_id, game, build_name, data,
+    collected_talisman_ids=None,
+):
+    desired = _build_collection_items_from_payload(db, data, game)
+    return _sync_linked_run_collection_items(
+        db, build_id, user_id, game, build_name, desired,
+        collected_talisman_ids=collected_talisman_ids,
+    )
+
+
+def _sync_linked_run_talismans(
+    db, build_id, user_id, game, build_name, talisman_ids,
+    collected_talisman_ids=None,
+):
+    """Compatibility wrapper; talisman synchronization is now additive."""
+    rows = _lookup_collection_catalog(db, 'sl_talismans', talisman_ids)
+    desired = [
+        {
+            'item_type': 'talisman', 'item_id': item_id,
+            'item_name': row[1], 'location_hint': '',
+        }
+        for item_id, row in rows.items()
+    ]
+    return _sync_linked_run_collection_items(
+        db, build_id, user_id, game, build_name, desired,
+        collected_talisman_ids=collected_talisman_ids,
+    )
+
+
+_ERR_WEAPON_AFFINITY_RE = re.compile(
+    r"(?:Added the|replaced with the)\s+"
+    r"([A-Za-z]+(?:\s+and\s+[A-Za-z]+)*)\s+affinity effects?",
+    re.IGNORECASE,
+)
+
+
+def _err_weapon_affinities(change_text, skill_affinity=None):
+    """Extract factual ERR affinity names without returning the source prose."""
+    affinities = []
+    match = _ERR_WEAPON_AFFINITY_RE.search(change_text or '')
+    if match:
+        affinities.extend(
+            name.strip().title()
+            for name in re.split(r'\s+and\s+', match.group(1), flags=re.IGNORECASE)
+            if name.strip()
+        )
+    if skill_affinity and skill_affinity not in affinities:
+        affinities.append(skill_affinity)
+    return affinities
+
+
+# The original ERR AR import associated several affinity rows with the wrong
+# reinforcement profile. All other imported weapon fields match the regulation
+# data, so normalize only the profile returned by the API rather than rewriting
+# the database. Fated is weapon-specific; its correct profile is currently held
+# by that weapon's mis-associated Soporific row.
+_ERR_REINFORCE_TYPE_BY_AFFINITY = {
+    'Fell': 10500,
+    'Bolt': 11300,
+    'Soporific': 11400,
+    'Frenzied': 11500,
+    'Magma': 11600,
+    'Rotten': 11700,
+    'Cursed': 11800,
+    'Night': 11900,
+    'Gravitational': 12000,
+    'Blessed': 12100,
+    'Bestial': 12200,
+}
+
+# sl_reinforce_types currently has empty max_scaling_mult JSON for ERR. These
+# max-upgrade values come from the local ERR v2.2.9.5 ReinforceParamWeapon
+# extraction and match the Thomas Clark calculator data. Profiles not listed
+# here use the regulation default multiplier of 1.0 for every attribute.
+_ERR_MAX_SCALING_BY_REINFORCE_TYPE = {
+    10100: {'str': 1.2, 'dex': 0.65, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10200: {'str': 0.65, 'dex': 1.2, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10300: {'str': 1.1, 'dex': 1.1, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10400: {'str': 0.65, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10500: {'str': 0.5, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10600: {'str': 0.5, 'dex': 0.65, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10700: {'str': 0.5, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10800: {'str': 0.5, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    10900: {'str': 0.5, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    11000: {'str': 0.625, 'dex': 0.625, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    11100: {'str': 0.625, 'dex': 0.625, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    11200: {'str': 0.5, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    11300: {'str': 0.5, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    11400: {'str': 0.25, 'dex': 0.25, 'int': 0.75, 'fai': 0.75, 'arc': 1.0},
+    11500: {'str': 0.5, 'dex': 0.5, 'int': 0.5, 'fai': 0.5, 'arc': 1.0},
+    11600: {'str': 0.5, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    11700: {'str': 0.55, 'dex': 0.6, 'int': 0.85, 'fai': 0.85, 'arc': 1.0},
+    11800: {'str': 0.375, 'dex': 0.375, 'int': 0.62499994, 'fai': 0.62499994, 'arc': 1.0},
+    11900: {'str': 0.5, 'dex': 0.65, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    12000: {'str': 0.6, 'dex': 0.55, 'int': 0.85, 'fai': 0.85, 'arc': 1.0},
+    12100: {'str': 0.65, 'dex': 0.5, 'int': 1.0, 'fai': 1.0, 'arc': 1.0},
+    12200: {'str': 0.85, 'dex': 0.85, 'int': 0.85, 'fai': 0.85, 'arc': 1.0},
+}
+
+
+def _effective_err_reinforce_type(affinity, stored_type, fated_type=None):
+    """Return the ERR regulation reinforcement profile for an affinity row."""
+    if affinity == 'Fated' and fated_type is not None:
+        return fated_type
+    return _ERR_REINFORCE_TYPE_BY_AFFINITY.get(affinity, stored_type)
 
 
 @ensure_csrf_cookie
@@ -5682,9 +6333,14 @@ def _sanitize_rune_inventory(raw_runes: list) -> list:
 
 _ENKINDLE_RARITIES = {'common', 'rare', 'legendary'}
 _ENKINDLE_RARITY_TIER = {'common': 1, 'rare': 2, 'legendary': 3}
+_ENKINDLE_RARITY_ALIASES = {
+    '1': 'common', '1-star': 'common', '1_star': 'common',
+    '2': 'rare', '2-star': 'rare', '2_star': 'rare',
+    '3': 'legendary', '3-star': 'legendary', '3_star': 'legendary',
+}
 
 
-def _sanitize_enkindling(aow_name, affix_name, rarity):
+def _sanitize_enkindling(aow_name, affix_name, rarity, db=None):
     """
     Validates one weapon slot's Enkindling selection before saving. Rejects (returns
     None, None) if the affix isn't actually eligible for that AoW (per
@@ -5695,21 +6351,39 @@ def _sanitize_enkindling(aow_name, affix_name, rarity):
     if not aow_name or not affix_name or not rarity:
         return None, None
     rarity = str(rarity).strip().lower()
+    rarity = _ENKINDLE_RARITY_ALIASES.get(rarity, rarity)
     if rarity not in _ENKINDLE_RARITIES:
         return None, None
     affix_name = sanitize_text(str(affix_name)[:64])
-    try:
-        with get_db_session() as db:
-            row = db.execute(text("""
+    def _find_eligible(active_db):
+        # Mundane is universal and is also what the eligible-affix endpoint
+        # returns when an Ash of War has no matching/seeded eligibility rows.
+        if affix_name.casefold() == 'mundane':
+            return active_db.execute(text("""
+                SELECT name FROM sl_err_enkindling_affixes
+                WHERE LOWER(name) = 'mundane'
+            """)).fetchone()
+        return active_db.execute(text("""
                 SELECT 1 FROM sl_err_aow_eligible_affixes e
                 JOIN sl_err_aow_skills s ON s.id = e.aow_id
                 JOIN sl_err_enkindling_affixes a ON a.id = e.affix_id
-                WHERE s.name = :aow AND a.name = :affix
+                WHERE LOWER(s.name) = LOWER(:aow) AND LOWER(a.name) = LOWER(:affix)
             """), {'aow': str(aow_name)[:200], 'affix': affix_name}).fetchone()
+
+    try:
+        if db is not None:
+            row = _find_eligible(db)
+        else:
+            with get_db_session() as active_db:
+                row = _find_eligible(active_db)
     except Exception:
         logger.warning("_sanitize_enkindling: DB unavailable, rejecting")
         return None, None
     if not row:
+        logger.warning(
+            "Rejected Enkindling selection aow=%r affix=%r rarity=%r",
+            aow_name, affix_name, rarity,
+        )
         return None, None
     return affix_name, rarity
 
@@ -5717,7 +6391,17 @@ def _sanitize_enkindling(aow_name, affix_name, rarity):
 _ENKINDLE_SLOTS = ('rh1', 'rh2', 'rh3', 'lh1', 'lh2', 'lh3')
 
 
-def _build_enkindling_save_data(data, game):
+def _enkindling_payload_value(data, key):
+    """Read an Enkindling field from current flat payloads or app response shapes."""
+    if key in data:
+        return True, data.get(key)
+    weapons = data.get('weapons')
+    if isinstance(weapons, dict) and key in weapons:
+        return True, weapons.get(key)
+    return False, None
+
+
+def _build_enkindling_save_data(data, game, db=None):
     """
     Validates all 6 weapon slots' Enkindling selections (ERR only) against
     sl_err_aow_eligible_affixes, keyed by each slot's already-equipped aow_name.
@@ -5728,20 +6412,39 @@ def _build_enkindling_save_data(data, game):
     out = {}
     for slot in _ENKINDLE_SLOTS:
         if game != 'err':
+            out[f'{slot}_enk_provided'] = 0
             out[f'{slot}_enk_affix'] = None
             out[f'{slot}_enk_rarity'] = None
             continue
-        aow_name = data.get(f'{slot}_aow_name')
-        affix = data.get(f'{slot}_enkindle_affix')
-        rarity = data.get(f'{slot}_enkindle_rarity')
-        v_affix, v_rarity = _sanitize_enkindling(aow_name, affix, rarity)
+
+        affix_found, affix = _enkindling_payload_value(data, f'{slot}_enkindle_affix')
+        rarity_found, rarity = _enkindling_payload_value(data, f'{slot}_enkindle_rarity')
+        nested = data.get('enkindling') or data.get('enkindle')
+        if isinstance(nested, dict) and isinstance(nested.get(slot), dict):
+            slot_data = nested[slot]
+            if not affix_found and 'affix' in slot_data:
+                affix_found, affix = True, slot_data.get('affix')
+            if not rarity_found and 'rarity' in slot_data:
+                rarity_found, rarity = True, slot_data.get('rarity')
+
+        provided = affix_found or rarity_found
+        _, aow_name = _enkindling_payload_value(data, f'{slot}_aow_name')
+        if not aow_name:
+            _, aow_name = _enkindling_payload_value(data, f'{slot}_aow')
+        v_affix, v_rarity = _sanitize_enkindling(
+            aow_name, affix, rarity, db=db
+        ) if provided else (None, None)
+        out[f'{slot}_enk_provided'] = 1 if provided else 0
         out[f'{slot}_enk_affix'] = v_affix
         out[f'{slot}_enk_rarity'] = v_rarity
     return out
 
 
 _ENKINDLE_SET_CLAUSE = ", ".join(
-    f"{slot}_enkindle_affix=:{slot}_enk_affix, {slot}_enkindle_rarity=:{slot}_enk_rarity"
+    f"{slot}_enkindle_affix=CASE WHEN :{slot}_enk_provided=1 "
+    f"THEN :{slot}_enk_affix ELSE {slot}_enkindle_affix END, "
+    f"{slot}_enkindle_rarity=CASE WHEN :{slot}_enk_provided=1 "
+    f"THEN :{slot}_enk_rarity ELSE {slot}_enkindle_rarity END"
     for slot in _ENKINDLE_SLOTS
 )
 _ENKINDLE_INSERT_COLS = ", ".join(
@@ -6262,12 +6965,39 @@ def api_sl_classes(request):
             "dexterity, intelligence, faith, arcane FROM sl_classes "
             "WHERE game = :g ORDER BY starting_level"
         ), {'g': game}).fetchall()
-    return JsonResponse({'classes': [
+    classes = [
         {'id': r[0], 'name': r[1], 'level': r[2],
          'vigor': r[3], 'mind': r[4], 'endurance': r[5], 'strength': r[6],
          'dexterity': r[7], 'intelligence': r[8], 'faith': r[9], 'arcane': r[10]}
         for r in rows
-    ]})
+    ]
+    response = {'classes': classes}
+    if game in ('elden_ring', 'err'):
+        # Keep the database IDs because saved builds refer to them, but replace
+        # every calculated class value with the current regulation values.
+        regulation = (
+            _err_builder_regulation()
+            if game == 'err'
+            else _vanilla_builder_regulation()
+        )
+        current_by_name = {
+            value['name'].casefold(): value for value in regulation['classes']
+        }
+        for value in classes:
+            current = current_by_name.get(value['name'].casefold())
+            if current:
+                value.update({
+                    key: current[key]
+                    for key in (
+                        'level', 'vigor', 'mind', 'endurance', 'strength',
+                        'dexterity', 'intelligence', 'faith', 'arcane'
+                    )
+                })
+        if game == 'err':
+            response['regulation_version'] = regulation['regulation_version']
+        else:
+            response['regulation_sha256'] = regulation['regulation_sha256']
+    return JsonResponse(response)
 
 
 @require_http_methods(['GET'])
@@ -6290,10 +7020,24 @@ def api_sl_derived_curves(request):
     """
     GET /api/soulslike/derived-curves/?game=err
     Exact lookup-table curves for derived stats (HP/FP/Stamina/rune cost) where the
-    game provides authoritative per-point data instead of a closed-form formula.
-    Empty for games that use the hardcoded formula (e.g. vanilla elden_ring).
+    active game's regulation provides authoritative per-point data.
     """
     game = request.GET.get('game', 'elden_ring')[:32]
+    if game in ('elden_ring', 'err'):
+        regulation = (
+            _err_builder_regulation()
+            if game == 'err'
+            else _vanilla_builder_regulation()
+        )
+        response = {
+            'curves': regulation['derived_curves'],
+            'weight_sources': regulation.get('weight_sources', {}),
+        }
+        if game == 'err':
+            response['regulation_version'] = regulation['regulation_version']
+        else:
+            response['regulation_sha256'] = regulation['regulation_sha256']
+        return JsonResponse(response)
     with get_db_session() as db:
         rows = db.execute(text(
             "SELECT stat, curve_json FROM sl_derived_stat_curves WHERE game = :g"
@@ -6318,7 +7062,17 @@ def api_sl_weapons(request):
             # infusable = has more than just Standard affinity in AR data
             "(SELECT COUNT(DISTINCT affinity) FROM sl_weapon_ar_data ar "
             " WHERE ar.weapon_name = w.name AND ar.game = :g) AS aff_count, "
-            "w.is_locked_skill "
+            "w.is_locked_skill, "
+            # ERR unique/locked weapons can retain the affinity associated with
+            # their fixed skill even though they cannot be infused. This is a
+            # different concept from the AR variant affinity above.
+            "(SELECT a.affinity FROM sl_err_aow_skills a "
+            " WHERE :g = 'err' AND a.affinity IS NOT NULL AND a.affinity <> '' "
+            " AND (a.unique_weapon_name = w.name OR a.name = w.special_ability) "
+            " ORDER BY CASE WHEN a.unique_weapon_name = w.name THEN 0 ELSE 1 END, a.id "
+            " LIMIT 1) AS native_affinity "
+            ", (SELECT c.change_text FROM sl_err_vanilla_weapon_changes c "
+            " WHERE :g = 'err' AND c.weapon_name = w.name LIMIT 1) AS err_change_text "
             "FROM sl_weapons w WHERE w.game = :g"
         )
         params: dict = {'g': game, 'lim': limit}
@@ -6341,21 +7095,66 @@ def api_sl_weapons(request):
             "SELECT DISTINCT weapon_type FROM sl_weapons WHERE game = :g ORDER BY weapon_type"
         ), {'g': game}).fetchall()
 
-    return JsonResponse({
-        'weapons': [
+    weapons = []
+    current_builder_weapons = (
+        _err_builder_regulation()['weapons']
+        if game == 'err'
+        else (
+            _vanilla_builder_regulation()['weapons']
+            if game == 'elden_ring'
+            else {}
+        )
+    )
+    for r in rows:
+        affinities = _err_weapon_affinities(r[26], r[25]) if game == 'err' else []
+        current_variant = None
+        if game in ('elden_ring', 'err'):
+            current_variants = (
+                current_builder_weapons.get(r[1], {})
+                if game == 'err'
+                else (_current_vanilla_weapon_variants(r[1]) or {})
+            )
+            current_variant = current_variants.get('Standard')
+            if current_variant is None and current_variants:
+                current_variant = next(iter(current_variants.values()))
+        current_attack = (current_variant or {}).get('attack', {})
+        current_requirements = (current_variant or {}).get('requirements', {})
+        weapons.append(
             {'id': r[0], 'name': r[1], 'type': r[2],
-             'damage': {'phy': r[3], 'mag': r[4], 'fir': r[5], 'lit': r[6], 'hol': r[7]},
-             'critical': r[8], 'weight': float(r[9] or 0),
+             'damage': {
+                 'phy': current_attack.get('0', 0) if current_variant else r[3],
+                 'mag': current_attack.get('1', 0) if current_variant else r[4],
+                 'fir': current_attack.get('2', 0) if current_variant else r[5],
+                 'lit': current_attack.get('3', 0) if current_variant else r[6],
+                 'hol': current_attack.get('4', 0) if current_variant else r[7],
+             },
+             'critical': r[8],
+             'weight': float((current_variant or {}).get('weight', r[9]) or 0),
              'scaling': {'str': r[10], 'dex': r[11], 'int': r[12], 'fai': r[13], 'arc': r[14]},
-             'requirements': {'str': r[15], 'dex': r[16], 'int': r[17], 'fai': r[18], 'arc': r[19]},
-             'is_somber': bool(r[20]), 'special': r[21] or '', 'image_url': r[22] or '',
+             'requirements': {
+                 'str': current_requirements.get('str', 0) if current_variant else r[15],
+                 'dex': current_requirements.get('dex', 0) if current_variant else r[16],
+                 'int': current_requirements.get('int', 0) if current_variant else r[17],
+                 'fai': current_requirements.get('fai', 0) if current_variant else r[18],
+                 'arc': current_requirements.get('arc', 0) if current_variant else r[19],
+             },
+             'is_somber': (
+                 current_variant.get('max_upgrade') == 10
+                 if current_variant else bool(r[20])
+             ), 'special': r[21] or '', 'image_url': r[22] or '',
              # is_infusable: can apply affinities (Heavy/Blood/etc)
              'is_infusable': r[23] != 1,
              # is_locked_skill: AoW/skill CANNOT be swapped - true for unique weapons
              'is_locked_skill': bool(r[24]),
-             'default_skill': r[21] or ''}
-            for r in rows
-        ],
+             'default_skill': r[21] or '',
+             # ERR fixed affinity effects. `affinity` keeps simple clients
+             # compatible; `affinities` preserves multi-affinity weapons.
+             'affinity': affinities[0] if affinities else None,
+             'affinities': affinities}
+        )
+
+    return JsonResponse({
+        'weapons': weapons,
         'weapon_types': [r[0] for r in types],
     })
 
@@ -6445,11 +7244,37 @@ def api_sl_talismans(request):
         cleaned = re.sub(r'\s*Players can use Talismans.*$', '', cleaned, flags=re.IGNORECASE)
         return cleaned.strip()
 
-    return JsonResponse({'talismans': [
-        {'id': r[0], 'name': r[1], 'effect': _clean_effect(r[2], r[1]),
-         'weight': float(r[3] or 0), 'image_url': r[4] or ''}
-        for r in rows
-    ]})
+    talismans = []
+    for r in rows:
+        current = (
+            _current_err_talisman(r[1])
+            if game == 'err'
+            else (
+                _current_vanilla_talisman(r[1])
+                if game == 'elden_ring'
+                else None
+            )
+        )
+        talismans.append({
+            'id': r[0], 'name': r[1], 'effect': _clean_effect(r[2], r[1]),
+            'weight': float((current or {}).get('weight', r[3]) or 0),
+            'equip_load_mult': float(
+                (current or {}).get(
+                    'equip_load_mult',
+                    (current or {}).get('modifiers', {}).get('eqload', 1),
+                ) or 1
+            ),
+            'modifiers': (current or {}).get('modifiers', {}),
+            'image_url': r[4] or '',
+        })
+    response = {'talismans': talismans}
+    if game == 'err':
+        response['regulation_version'] = _err_builder_regulation()['regulation_version']
+    elif game == 'elden_ring':
+        response['regulation_sha256'] = _vanilla_builder_regulation()[
+            'regulation_sha256'
+        ]
+    return JsonResponse(response)
 
 
 @require_http_methods(['GET'])
@@ -6582,15 +7407,33 @@ def api_sl_err_enkindling(request):
         except (TypeError, ValueError):
             return None
 
+    # Description text remains database-backed, but deterministic calculator
+    # values come from the checked-in current regulation contract. This prevents
+    # older prose/static_effect seed values from overriding regulation.bin and
+    # gives the website and downloadable desktop-app bundle the same numbers.
+    deterministic = _err_builder_regulation()['enkindling']['affixes']
+
+    def _static_effect(name, star, raw):
+        return deterministic.get(name, {}).get(str(star), _parse(raw))
+
     return JsonResponse({
         'system_overview': {r[0]: r[1] for r in system},
         'affixes': [
             {
                 'name': r[0], 'affinity': r[1],
                 'tiers': [
-                    {'star': 1, 'text': r[2] or '', 'static_effect': _parse(r[5])},
-                    {'star': 2, 'text': r[3] or '', 'static_effect': _parse(r[6])},
-                    {'star': 3, 'text': r[4] or '', 'static_effect': _parse(r[7])},
+                    {
+                        'star': 1, 'text': r[2] or '',
+                        'static_effect': _static_effect(r[0], 1, r[5]),
+                    },
+                    {
+                        'star': 2, 'text': r[3] or '',
+                        'static_effect': _static_effect(r[0], 2, r[6]),
+                    },
+                    {
+                        'star': 3, 'text': r[4] or '',
+                        'static_effect': _static_effect(r[0], 3, r[7]),
+                    },
                 ],
             }
             for r in rows
@@ -6683,6 +7526,9 @@ def api_sl_err_fortunes(request):
         try: return _json.loads(val)
         except Exception: return [val]
 
+    fortune_contract = _err_builder_regulation()['fortune_calculation_contract']
+    main_modifiers = fortune_contract['main_fortunes']
+    minor_modifiers = fortune_contract['minor_fortune']
     return JsonResponse({'fortunes': [
         {
             'id':            r[0],
@@ -6694,6 +7540,8 @@ def api_sl_err_fortunes(request):
             'unique_effects': r[6] or '',
             'how_to_unlock': r[7] or '',
             'minor_effects':  r[8] or '',
+            'modifiers': main_modifiers.get(r[1], {}),
+            'minor_modifiers': minor_modifiers,
         }
         for r in rows
     ]})
@@ -6715,11 +7563,15 @@ def api_sl_err_runeforging(request):
             "FROM sl_err_binding_runes ORDER BY rune_type, name"
         )).fetchall()
 
+    rune_contract = _err_builder_regulation()[
+        'binding_rune_calculation_contract'
+    ]['runes']
     runes_by_category = {}
     for name, rune_type, effect, max_forge, ng_plus in runes:
         runes_by_category.setdefault(rune_type, []).append({
             'name': name, 'effect': effect or '',
             'max_forge_level': max_forge, 'ng_plus_only': bool(ng_plus),
+            'modifiers': rune_contract.get(name, {}),
         })
 
     return JsonResponse({
@@ -6889,6 +7741,23 @@ def api_sl_ar_data(request):
     Weapon-specific AR rows are fetched per-weapon via api_sl_weapon_ar_variants.
     """
     game = request.GET.get('game', 'elden_ring')[:32]
+    if game in ('elden_ring', 'err'):
+        regulation = (
+            _err_builder_regulation()
+            if game == 'err'
+            else _vanilla_builder_regulation()
+        )
+        response = {
+            'curves': regulation['curves'],
+            'aec': regulation['aec'],
+            'reinforce': regulation['reinforce'],
+        }
+        if game == 'err':
+            response['regulation_version'] = regulation['regulation_version']
+        else:
+            response['regulation_sha256'] = regulation['regulation_sha256']
+        return JsonResponse(response)
+
     with get_db_session() as db:
         curve_rows = db.execute(text(
             "SELECT id, curve_json FROM sl_correction_graphs WHERE game = :g"
@@ -6900,15 +7769,21 @@ def api_sl_ar_data(request):
             "SELECT id, max_attack_mult, max_scaling_mult, max_level FROM sl_reinforce_types WHERE game = :g"
         ), {'g': game}).fetchall()
 
+    def _reinforce_payload(row):
+        scaling = json.loads(row[2])
+        if game == 'err':
+            scaling = _ERR_MAX_SCALING_BY_REINFORCE_TYPE.get(row[0], scaling)
+        return {
+            'attack': json.loads(row[1]),
+            'scaling': scaling,
+            'max_level': row[3],
+        }
+
     return JsonResponse({
         'curves': {str(r[0]): json.loads(r[1]) for r in curve_rows},
         'aec': {str(r[0]): json.loads(r[1]) for r in aec_rows},
         # reinforce[typeId] = { attack: {0: mult, ...}, scaling: {str: mult, ...}, max_level: 25 }
-        'reinforce': {str(r[0]): {
-            'attack': json.loads(r[1]),
-            'scaling': json.loads(r[2]),
-            'max_level': r[3],
-        } for r in reinforce_rows},
+        'reinforce': {str(r[0]): _reinforce_payload(r) for r in reinforce_rows},
     })
 
 
@@ -6916,6 +7791,38 @@ def api_sl_ar_data(request):
 def api_sl_weapon_ar_variants(request, weapon_name):
     """GET /api/soulslike/weapons/<name>/ar-variants/ - all affinity AR data for one weapon."""
     game = request.GET.get('game', 'elden_ring')[:32]
+    if game in ('elden_ring', 'err'):
+        regulation = (
+            _err_builder_regulation()
+            if game == 'err'
+            else _vanilla_builder_regulation()
+        )
+        current_variants = (
+            regulation['weapons'].get(weapon_name)
+            if game == 'err'
+            else _current_vanilla_weapon_variants(weapon_name)
+        )
+        if current_variants is not None:
+            response = {
+                'variants': [
+                    {
+                        'affinity': affinity,
+                        'is_dlc': bool(values.get('is_dlc', False)),
+                        **values,
+                    }
+                    for affinity, values in current_variants.items()
+                ]
+            }
+            if game == 'err':
+                response['regulation_version'] = regulation[
+                    'regulation_version'
+                ]
+            else:
+                response['regulation_sha256'] = regulation[
+                    'regulation_sha256'
+                ]
+            return JsonResponse(response)
+
     with get_db_session() as db:
         rows = db.execute(text("""
             SELECT affinity, is_dlc, requirements_json, attack_json,
@@ -6923,6 +7830,10 @@ def api_sl_weapon_ar_variants(request, weapon_name):
                    reinforce_type_id
             FROM sl_weapon_ar_data WHERE weapon_name = :name AND game = :g
         """), {'name': weapon_name, 'g': game}).fetchall()
+
+    fated_type = None
+    if game == 'err':
+        fated_type = next((r[7] for r in rows if r[0] == 'Soporific'), None)
 
     return JsonResponse({'variants': [
         {
@@ -6933,7 +7844,10 @@ def api_sl_weapon_ar_variants(request, weapon_name):
             'scaling': json.loads(r[4]) if r[4] else {},
             'aec_id': r[5],
             'calc_correct_graph_ids': json.loads(r[6]) if r[6] else {},
-            'reinforce_type_id': r[7],
+            'reinforce_type_id': (
+                _effective_err_reinforce_type(r[0], r[7], fated_type)
+                if game == 'err' else r[7]
+            ),
         }
         for r in rows
     ]})
@@ -6951,13 +7865,19 @@ def api_sl_boss_registry(request):
             "SELECT boss_key, boss_name, location, region, tier, sort_order "
             "FROM sl_boss_registry WHERE game=:g AND game_mode=:m ORDER BY sort_order"
         ), {'g': game, 'm': mode}).fetchall()
+    bosses = [
+        {'key': r[0], 'name': r[1], 'location': r[2],
+         'region': r[3], 'tier': r[4]}
+        for r in rows
+    ]
+    existing_keys = {boss['key'] for boss in bosses}
+    bosses.extend(
+        boss for boss in supplemental_bosses(game, mode)
+        if boss['key'] not in existing_keys
+    )
     return JsonResponse({
-        'game': game, 'mode': mode, 'total': len(rows),
-        'bosses': [
-            {'key': r[0], 'name': r[1], 'location': r[2],
-             'region': r[3], 'tier': r[4]}
-            for r in rows
-        ]
+        'game': game, 'mode': mode, 'total': len(bosses),
+        'bosses': bosses,
     })
 
 
@@ -6997,7 +7917,8 @@ def api_sl_crystal_tears(request):
             ]})
         else:
             # ER vanilla crystal tears - hardcoded since no separate table exists yet
-            # These are the canonical ER tears from the wiki
+            # Names remain the public catalog; calculable values are overlaid
+            # from the supplied Vanilla regulation snapshot below.
             er_tears = [
                 {'name': 'Crimson Crystal Tear', 'effect': 'Partially restores HP'},
                 {'name': 'Cerulean Crystal Tear', 'effect': 'Partially restores FP'},
@@ -7030,12 +7951,24 @@ def api_sl_crystal_tears(request):
                 {'name': 'Deflecting Hardtear', 'effect': 'Temporarily allows attacking without breaking guard'},
                 {'name': 'Crimsonspill Crystal Tear', 'effect': 'Temporarily boosts max HP'},
             ]
-            return JsonResponse({'tears': er_tears})
+            regulation = _vanilla_builder_regulation()
+            regulation_tears = regulation.get('crystal_tears', {})
+            for tear in er_tears:
+                current = regulation_tears.get(tear['name']) or {}
+                tear.update(deepcopy(current))
+            return JsonResponse({
+                'tears': er_tears,
+                'regulation_sha256': regulation['regulation_sha256'],
+            })
 
 
 @require_http_methods(['GET'])
 def api_sl_armor(request):
     game  = request.GET.get('game', 'elden_ring')[:32]
+    # ERR retains the ER catalog/IDs used by saved builds, but its regulation
+    # changes armor weight and poise. Query the shared catalog and overlay the
+    # current regulation values without rewriting the database.
+    catalog_game = 'elden_ring' if game == 'err' else game
     q     = request.GET.get('q', '')[:100]
     limit = safe_int(request.GET.get('limit', 1000), 1000, 1, 1000)
 
@@ -7045,21 +7978,39 @@ def api_sl_armor(request):
                 "SELECT id, name, armor_type, physical_defense, magic_defense, "
                 "fire_defense, lightning_defense, holy_defense, poise, weight, image_url "
                 "FROM sl_armor WHERE game = :g AND name LIKE :q ORDER BY name LIMIT :lim"
-            ), {'g': game, 'q': f'%{q}%', 'lim': limit}).fetchall()
+            ), {'g': catalog_game, 'q': f'%{q}%', 'lim': limit}).fetchall()
         else:
             rows = db.execute(text(
                 "SELECT id, name, armor_type, physical_defense, magic_defense, "
                 "fire_defense, lightning_defense, holy_defense, poise, weight, image_url "
                 "FROM sl_armor WHERE game = :g ORDER BY name LIMIT :lim"
-            ), {'g': game, 'lim': limit}).fetchall()
+            ), {'g': catalog_game, 'lim': limit}).fetchall()
 
-    return JsonResponse({'armor': [
-        {'id': r[0], 'name': r[1], 'type': r[2] or 'set',
+    armor = []
+    for r in rows:
+        current = (
+            _current_err_armor(r[1])
+            if game == 'err'
+            else (
+                _current_vanilla_armor(r[1])
+                if game == 'elden_ring'
+                else None
+            )
+        )
+        armor.append({'id': r[0], 'name': r[1], 'type': r[2] or 'set',
          'defense': {'phy': float(r[3] or 0), 'mag': float(r[4] or 0),
                      'fir': float(r[5] or 0), 'lit': float(r[6] or 0), 'hol': float(r[7] or 0)},
-         'poise': float(r[8] or 0), 'weight': float(r[9] or 0), 'image_url': r[10] or ''}
-        for r in rows
-    ]})
+         'poise': float((current or {}).get('poise', r[8]) or 0),
+         'weight': float((current or {}).get('weight', r[9]) or 0),
+         'image_url': r[10] or ''})
+    response = {'armor': armor}
+    if game == 'err':
+        response['regulation_version'] = _err_builder_regulation()['regulation_version']
+    elif game == 'elden_ring':
+        response['regulation_sha256'] = _vanilla_builder_regulation()[
+            'regulation_sha256'
+        ]
+    return JsonResponse(response)
 
 
 @web_verified_required
@@ -7149,7 +8100,7 @@ def api_sl_builds(request):
                 "curio_selections=:curio, rune_inventory=:runes, "
                 "fortune_name=:fortune, minor_fortune_name=:mfortune, "
             ) if game == 'err' else ""
-            enk_data = _build_enkindling_save_data(data, game)
+            enk_data = _build_enkindling_save_data(data, game, db=db)
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -7202,10 +8153,31 @@ def api_sl_builds(request):
                 **(enk_data if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
+            raw_collected_talismans = data.get('collected_talisman_ids')
+            item_sync = _sync_linked_run_build_items(
+                db,
+                build_id,
+                uid,
+                game,
+                name,
+                data,
+                raw_collected_talismans
+                if isinstance(raw_collected_talismans, list) else None,
+            )
             db.commit()
             token = existing_token
-            logger.info("sl_build_update uid=%s game=%s build_id=%s", uid, game, build_id)
-            return JsonResponse({'ok': True, 'build_id': build_id, 'share_token': token, 'updated': True})
+            logger.info(
+                "sl_build_update uid=%s game=%s build_id=%s talisman_runs=%s",
+                uid, game, build_id, item_sync['runs'],
+            )
+            return JsonResponse({
+                'ok': True,
+                'build_id': build_id,
+                'share_token': token,
+                'updated': True,
+                'item_sync': item_sync,
+                'talisman_sync': item_sync,
+            })
 
         # New build - cap at 50
         build_count = db.execute(text(
@@ -7259,7 +8231,7 @@ def api_sl_builds(request):
         }
 
         if game == 'err':
-            enk_data = _build_enkindling_save_data(data, game)
+            enk_data = _build_enkindling_save_data(data, game, db=db)
             db.execute(text(f"""
                 INSERT INTO sl_err_builds
                     (user_id, name, description, class_id,
@@ -7407,14 +8379,13 @@ def api_sl_build_delete_desktop(request, build_id):
 
 
 @require_http_methods(['GET'])
-def api_sl_build_detail_desktop(request, build_id):
+def api_sl_build_detail_desktop(request, build_ref):
     """
-    GET /api/soulslike/desktop/builds/<id>/?game=elden_ring
+    GET /api/soulslike/desktop/builds/<id-or-share-token>/?game=elden_ring
     Header: X-Listener-Key: ql_xxx
-    Desktop app build detail - same response shape as api_sl_build_detail (share_token
-    based, session auth) but keyed by build_id + API key auth, since the desktop app
-    only ever has the numeric id from /desktop/builds/ (list), never a share_token.
-    Owner only - no public/share_token access path here (use the web share link for that).
+    Desktop app build detail - same response shape as api_sl_build_detail, with
+    API-key ownership enforced. Accept both identifiers because released clients
+    have used both the numeric id and share token returned by the desktop list.
     """
     gate = _check_app_version(request)
     if gate: return gate
@@ -7424,9 +8395,10 @@ def api_sl_build_detail_desktop(request, build_id):
     uid, _ = user
 
     game  = request.GET.get('game', 'elden_ring')[:32]
-    bid = int(build_id) if str(build_id).isdigit() else 0
-    if not bid:
-        return JsonResponse({'error': 'Invalid build id'}, status=400)
+    build_ref = str(build_ref)[:100]
+    is_numeric_id = build_ref.isdigit()
+    lookup_clause = "b.id = :build_ref" if is_numeric_id else "b.share_token = :build_ref"
+    lookup_value = int(build_ref) if is_numeric_id else build_ref
     _GAME_TABLES = {'elden_ring': 'sl_er_builds', 'err': 'sl_err_builds'}
     table = _GAME_TABLES.get(game, 'sl_er_builds')
 
@@ -7446,8 +8418,8 @@ def api_sl_build_detail_desktop(request, build_id):
             f"{'b.fortune_name, b.minor_fortune_name' if table == 'sl_err_builds' else 'NULL as fortune_name, NULL as minor_fortune_name'}, "
             f"{_enkindle_select_cols(table)} "
             f"FROM {table} b JOIN web_users u ON u.id = b.user_id "
-            f"WHERE b.id = :bid AND b.user_id = :uid"
-        ), {'bid': bid, 'uid': uid}).mappings().fetchone()
+            f"WHERE {lookup_clause} AND b.user_id = :uid"
+        ), {'build_ref': lookup_value, 'uid': uid}).mappings().fetchone()
 
         if not row:
             return JsonResponse({'error': 'Build not found'}, status=404)
@@ -7460,7 +8432,14 @@ def api_sl_build_detail_desktop(request, build_id):
         def _armor_id_name(aid):
             if not aid: return None
             r = db.execute(text("SELECT id, name, armor_type, weight, poise FROM sl_armor WHERE id=:id"), {'id': aid}).fetchone()
-            return {'id': r[0], 'name': r[1], 'type': r[2], 'weight': float(r[3] or 0), 'poise': float(r[4] or 0)} if r else None
+            if not r:
+                return None
+            current = _current_err_armor(r[1]) if game == 'err' else None
+            return {
+                'id': r[0], 'name': r[1], 'type': r[2],
+                'weight': float((current or {}).get('weight', r[3]) or 0),
+                'poise': float((current or {}).get('poise', r[4]) or 0),
+            }
 
         def _talisman_id_name(tid):
             if not tid: return None
@@ -7666,7 +8645,14 @@ def api_sl_build_detail(request, share_token):
     def _armor_id_name(aid):
         if not aid: return None
         r = db.execute(text("SELECT id, name, armor_type, weight, poise FROM sl_armor WHERE id=:id"), {'id': aid}).fetchone()
-        return {'id': r[0], 'name': r[1], 'type': r[2], 'weight': float(r[3] or 0), 'poise': float(r[4] or 0)} if r else None
+        if not r:
+            return None
+        current = _current_err_armor(r[1]) if game == 'err' else None
+        return {
+            'id': r[0], 'name': r[1], 'type': r[2],
+            'weight': float((current or {}).get('weight', r[3]) or 0),
+            'poise': float((current or {}).get('poise', r[4]) or 0),
+        }
 
     def _talisman_id_name(tid):
         if not tid: return None
@@ -7980,13 +8966,23 @@ def api_sl_desktop_profile(request):
             "intelligence, faith, arcane, class_id, updated_at, "
             "spirit_ash_name, spirit_ash_upgrade, tear_1_name, tear_2_name, scadutree_level"
         )
+        _PROFILE_ENKINDLE_NULLS = ", ".join(
+            f"NULL as {slot}_enkindle_affix, NULL as {slot}_enkindle_rarity"
+            for slot in _ENKINDLE_SLOTS
+        )
+        _PROFILE_ENKINDLE_COLS = ", ".join(
+            f"{slot}_enkindle_affix, {slot}_enkindle_rarity"
+            for slot in _ENKINDLE_SLOTS
+        )
         er_builds = db.execute(text(
-            f"SELECT {_BUILD_COLS}, NULL as fortune_name, NULL as minor_fortune_name, NULL as curio_selections, NULL as rune_inventory "
+            f"SELECT {_BUILD_COLS}, NULL as fortune_name, NULL as minor_fortune_name, "
+            f"NULL as curio_selections, NULL as rune_inventory, {_PROFILE_ENKINDLE_NULLS} "
             "FROM sl_er_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
         ), {'uid': uid}).fetchall()
 
         err_builds = db.execute(text(
-            f"SELECT {_BUILD_COLS}, fortune_name, minor_fortune_name, curio_selections, rune_inventory "
+            f"SELECT {_BUILD_COLS}, fortune_name, minor_fortune_name, "
+            f"curio_selections, rune_inventory, {_PROFILE_ENKINDLE_COLS} "
             "FROM sl_err_builds WHERE user_id=:uid ORDER BY updated_at DESC LIMIT 50"
         ), {'uid': uid}).fetchall()
 
@@ -8009,6 +9005,12 @@ def api_sl_desktop_profile(request):
                     'lh1': r[15], 'lh1_aow': r[16], 'lh1_affinity': r[17],
                     'lh2': r[18], 'lh2_aow': r[19], 'lh2_affinity': r[20],
                     'lh3': r[21], 'lh3_aow': r[22], 'lh3_affinity': r[23],
+                    'rh1_enkindle_affix': r[52], 'rh1_enkindle_rarity': r[53],
+                    'rh2_enkindle_affix': r[54], 'rh2_enkindle_rarity': r[55],
+                    'rh3_enkindle_affix': r[56], 'rh3_enkindle_rarity': r[57],
+                    'lh1_enkindle_affix': r[58], 'lh1_enkindle_rarity': r[59],
+                    'lh2_enkindle_affix': r[60], 'lh2_enkindle_rarity': r[61],
+                    'lh3_enkindle_affix': r[62], 'lh3_enkindle_rarity': r[63],
                 },
                 'armor': {
                     'helm': r[24], 'chest': r[25],
@@ -8236,7 +9238,7 @@ def api_sl_builds_desktop(request):
                 "curio_selections=:curio, rune_inventory=:runes, "
                 "fortune_name=:fortune, minor_fortune_name=:mfortune, "
             ) if game == 'err' else ""
-            enk_data = _build_enkindling_save_data(data, game)
+            enk_data = _build_enkindling_save_data(data, game, db=db)
             db.execute(text(
                 f"UPDATE {table} SET "
                 "description=:desc, class_id=:cls, "
@@ -8289,9 +9291,26 @@ def api_sl_builds_desktop(request):
                 **(enk_data if game == 'err' else {}),
                 'now': now, 'bid': build_id, 'uid': uid,
             })
+            raw_collected_talismans = data.get('collected_talisman_ids')
+            item_sync = _sync_linked_run_build_items(
+                db,
+                build_id,
+                uid,
+                game,
+                name,
+                data,
+                raw_collected_talismans
+                if isinstance(raw_collected_talismans, list) else None,
+            )
             db.commit()
-            return JsonResponse({'ok': True, 'build_id': build_id,
-                                 'share_token': existing[1], 'updated': True})
+            return JsonResponse({
+                'ok': True,
+                'build_id': build_id,
+                'share_token': existing[1],
+                'updated': True,
+                'item_sync': item_sync,
+                'talisman_sync': item_sync,
+            })
 
         build_count = db.execute(text(
             f"SELECT COUNT(*) FROM {table} WHERE user_id=:uid"
@@ -8331,7 +9350,7 @@ def api_sl_builds_desktop(request):
 
         if game == 'err':
             # ERR INSERT - includes curio_selections, rune_inventory, fortune_name
-            enk_data = _build_enkindling_save_data(data, game)
+            enk_data = _build_enkindling_save_data(data, game, db=db)
             db.execute(text(f"""
                 INSERT INTO sl_err_builds
                     (user_id, name, description, class_id,
