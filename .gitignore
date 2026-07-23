@@ -86,6 +86,8 @@ env/
 venv/
 .venv/
 chwebsiteprj/
+.dev-state/
+.worktrees/
 .git_backup/
 /hosting
 /docs
