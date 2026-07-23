@@ -20,7 +20,10 @@ _requests_global.Session.request = _default_timeout_request
 from django.core.wsgi import get_wsgi_application
 from dotenv import load_dotenv
 
-load_dotenv('/srv/secrets/ch_env/.env')
+# Legacy production deployments still use this file. Explicit development or
+# staging environments must never backfill missing variables from it.
+if not os.getenv('QUESTLOG_ENV_FILE'):
+    load_dotenv('/srv/secrets/ch_env/.env')
 
 # Add project directory to Python path BEFORE loading Django
 sys.path.insert(0, "/srv/ch-webserver")
