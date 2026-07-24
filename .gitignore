@@ -50,6 +50,14 @@ QUESTLOG_TESTING_CHECKLIST.md
 *.jpeg
 *.svg
 *.json
+# Checked-in factual numeric data generated from locally supplied ER/ERR
+# regulation files. Required by the builder at runtime; contains no wiki prose.
+!app/questlog_web/data/err_builder_regulation_v2_2_9_5.json
+!app/questlog_web/data/err_binding_rune_deterministic_v2_2_9_5.json
+!app/questlog_web/data/err_enkindling_deterministic_v2_2_9_5.json
+!app/questlog_web/data/err_fortune_deterministic_v2_2_9_5.json
+!app/questlog_web/data/err_talisman_deterministic_v2_2_9_5.json
+!app/questlog_web/data/vanilla_builder_regulation_7b6d07c3.json
 *.gif
 *.css
 *.js
@@ -63,7 +71,6 @@ testapi.py
 testampsettings.py
 teststats.py
 .settings.py
-**/settings.py
 **/wsgi.py
 *.sql
 *.md
@@ -73,10 +80,14 @@ teststats.py
 
 # Ignore environments
 .env
+.env.*
+!.env.example
 env/
 venv/
 .venv/
 chwebsiteprj/
+.dev-state/
+.worktrees/
 .git_backup/
 /hosting
 /docs

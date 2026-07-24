@@ -372,6 +372,20 @@
           </div>
           {% endfor %}
         </div>
+        <div class="px-3 py-2 border-t border-white/5">
+          <div class="flex items-center justify-between gap-3">
+            <label for="level-override" class="text-xs text-gray-500">Current rune level</label>
+            <div class="flex items-center gap-1.5">
+              <input type="number" min="1" max="713" id="level-override"
+                     readonly oninput="onLevelOverride(this.value)"
+                     class="w-20 bg-neutral-900 border border-neutral-700 focus:border-amber-600 rounded px-2 py-1 text-xs text-white focus:outline-none text-center">
+              <button type="button" id="level-override-toggle" onclick="toggleLevelOverride()"
+                      title="Unlock the stored/current level for a manual correction"
+                      class="text-[10px] text-gray-500 hover:text-amber-500 transition">Override</button>
+            </div>
+          </div>
+          <p class="text-[10px] text-gray-600 mt-1" id="minimum-level-note">Minimum from base stats: 1</p>
+        </div>
         <div class="px-3 py-2 border-t border-white/5 flex items-center justify-between">
           <span class="text-xs text-gray-500">Runes to next level</span>
           <span class="text-xs text-amber-500 font-bold" id="rune-cost">-</span>
@@ -438,6 +452,12 @@
                 <i class="fas fa-times"></i>
               </button>
             </div>
+            <div id="upgrade-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50">
+              <i class="fas fa-hammer text-sky-700 text-[10px] flex-shrink-0"></i>
+              <label for="upgrade-{{ wslot }}" class="text-[10px] text-gray-500 uppercase tracking-wider flex-1">Upgrade</label>
+              <select id="upgrade-{{ wslot }}" onchange="setWeaponUpgradeLevel('{{ wslot }}', this.value)"
+                      class="w-20 bg-neutral-900 border border-neutral-700 rounded text-[11px] text-sky-400 px-1 py-0.5 outline-none focus:border-sky-600"></select>
+            </div>
             <div id="aow-row-{{ wslot }}" class="hidden border-t border-amber-900/20 px-2 py-1 flex items-center gap-2 bg-neutral-950/50 cursor-pointer hover:bg-amber-900/10 transition"
                  onclick="openAowPicker('{{ wslot }}')">
               <i class="fas fa-fire text-amber-700 text-[10px] flex-shrink-0"></i>
@@ -490,6 +510,12 @@
                       id="clear-{{ wslot }}" style="display:none" title="Clear weapon">
                 <i class="fas fa-times"></i>
               </button>
+            </div>
+            <div id="upgrade-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50">
+              <i class="fas fa-hammer text-sky-700 text-[10px] flex-shrink-0"></i>
+              <label for="upgrade-{{ wslot }}" class="text-[10px] text-gray-500 uppercase tracking-wider flex-1">Upgrade</label>
+              <select id="upgrade-{{ wslot }}" onchange="setWeaponUpgradeLevel('{{ wslot }}', this.value)"
+                      class="w-20 bg-neutral-900 border border-neutral-700 rounded text-[11px] text-sky-400 px-1 py-0.5 outline-none focus:border-sky-600"></select>
             </div>
             <div id="aow-row-{{ wslot }}" class="hidden border-t border-neutral-700/30 px-2 py-1 flex items-center gap-2 bg-neutral-950/50 cursor-pointer hover:bg-amber-900/10 transition"
                  onclick="openAowPicker('{{ wslot }}')">
@@ -1059,22 +1085,26 @@ document.addEventListener('DOMContentLoaded', function() {
   const gameParam = urlParams.get('game') || urlParams.get('mode');
   if (loadToken || viewToken) {
     if (gameParam && gameParam !== BUILD.game) {
-      selectGame(gameParam, gameParam === 'err' ? 'Elden Ring Reforged' : 'Elden Ring');
+      selectGame(gameParam, gameParam === 'err' ? 'Elden Ring Reforged' : 'Elden Ring', true);
     }
-    AR_DATA_READY.then(() => {
-      setTimeout(() => {
-        if (loadToken) loadBuild(loadToken);
-        else loadBuildViewOnly(viewToken);
-      }, 800);
+    Promise.all([
+      AR_DATA_READY, CLASSES_READY, WEAPONS_READY,
+      SPELLS_READY, TALISMANS_READY, ARMOR_READY, ENKINDLING_READY,
+    ]).then(() => {
+      if (loadToken) loadBuild(loadToken);
+      else loadBuildViewOnly(viewToken);
     });
   }
 });
 
 // ── State ────────────────────────────────────────────────────────────────────
 const BUILD = {
+  id: null,                     // saved build id used to hydrate linked run items
+  share_token: null,            // keeps the active saved build reloadable by URL
   game: 'elden_ring',
   class_id: null,
   class_name: '',
+  level_override: null,       // actual in-game level; null uses minimum from base stats
   stats: { vigor:10, mind:10, endurance:10, strength:10, dexterity:10, intelligence:10, faith:10, arcane:10 },
   class_base: { vigor:10, mind:10, endurance:10, strength:10, dexterity:10, intelligence:10, faith:10, arcane:10 },
   slots: {
@@ -1096,12 +1126,18 @@ const BUILD = {
 };
 
 let CLASSES = [];
+let CLASSES_READY = Promise.resolve();
 let STAT_CAPS = {};
 let ALL_WEAPONS = [];
+let WEAPONS_READY = Promise.resolve();
 let ALL_SPELLS = [];
+let SPELLS_READY = Promise.resolve();
 let ALL_TALISMANS = [];
+let TALISMANS_READY = Promise.resolve();
 let ALL_AOW = [];
 let ALL_ARMOR = [];
+let ARMOR_READY = Promise.resolve();
+let ENKINDLING_READY = Promise.resolve();
 let WEAPON_TYPES = [];
 let ALL_CURIOS = [];
 let CURIOS_SYSTEM_NOTE = '';
@@ -1129,48 +1165,81 @@ let pickerSearch = '';
 
 // ── Data loading ─────────────────────────────────────────────────────────────
 function loadClasses() {
-  fetch('/api/soulslike/classes/?game=' + BUILD.game)
+  const requestedGame = BUILD.game;
+  CLASSES_READY = fetch('/api/soulslike/classes/?game=' + requestedGame)
     .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
       CLASSES = d.classes || [];
       renderClassGrid();
       runOptimizer();
     }).catch(() => {});
+  return CLASSES_READY;
 }
 
 function loadStatCaps() {
-  fetch('/api/soulslike/stat-caps/?game=' + BUILD.game)
+  const requestedGame = BUILD.game;
+  STAT_CAPS = {};
+  fetch('/api/soulslike/stat-caps/?game=' + requestedGame)
     .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
       (d.caps || []).forEach(c => { STAT_CAPS[c.stat] = c; });
       updateAllStatBars();
     }).catch(() => {});
 }
 
-// Exact lookup-table curves for derived stats (HP/FP/Stamina/rune cost) - only
-// populated for games where the formula is published directly (e.g. ERR's official
-// balance spreadsheet). Empty for games using the closed-form vanilla formula.
+// Exact lookup-table curves for derived stats. Vanilla values come from
+// regulation.bin; ERR values come from its separate regulation export.
 let DERIVED_CURVES = {};
+let ERR_WEIGHT_SOURCES = {};
 function loadDerivedCurves() {
-  fetch('/api/soulslike/derived-curves/?game=' + BUILD.game)
-    .then(r => r.json()).then(d => { DERIVED_CURVES = d.curves || {}; })
-    .catch(() => { DERIVED_CURVES = {}; });
+  const requestedGame = BUILD.game;
+  DERIVED_CURVES = {};
+  ERR_WEIGHT_SOURCES = {};
+  fetch('/api/soulslike/derived-curves/?game=' + requestedGame)
+    .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
+      DERIVED_CURVES = d.curves || {};
+      ERR_WEIGHT_SOURCES = d.weight_sources || {};
+      // The request is asynchronous; refresh immediately so the initial page
+      // does not keep displaying the vanilla fallback values for an ERR build.
+      updateDerivedStats();
+    })
+    .catch(() => {
+      if (BUILD.game !== requestedGame) return;
+      DERIVED_CURVES = {};
+      ERR_WEIGHT_SOURCES = {};
+    });
 }
 
 function loadWeapons() {
-  fetch('/api/soulslike/weapons/?game=' + BUILD.game + '&limit=1000')
+  const requestedGame = BUILD.game;
+  WEAPONS_READY = fetch('/api/soulslike/weapons/?game=' + requestedGame + '&limit=1000')
     .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
       ALL_WEAPONS = d.weapons || [];
       WEAPON_TYPES = d.weapon_types || [];
     }).catch(() => {});
+  return WEAPONS_READY;
 }
 
 function loadSpells() {
-  fetch('/api/soulslike/spells/?game=' + BUILD.game + '&limit=1000')
-    .then(r => r.json()).then(d => { ALL_SPELLS = d.spells || []; }).catch(() => {});
+  const requestedGame = BUILD.game;
+  SPELLS_READY = fetch('/api/soulslike/spells/?game=' + requestedGame + '&limit=1000')
+    .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
+      ALL_SPELLS = d.spells || [];
+    }).catch(() => {});
+  return SPELLS_READY;
 }
 
 function loadTalismans() {
-  fetch('/api/soulslike/talismans/?game=' + BUILD.game + '&limit=1000')
-    .then(r => r.json()).then(d => { ALL_TALISMANS = d.talismans || []; }).catch(() => {});
+  const requestedGame = BUILD.game;
+  TALISMANS_READY = fetch('/api/soulslike/talismans/?game=' + requestedGame + '&limit=1000')
+    .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
+      ALL_TALISMANS = d.talismans || [];
+    }).catch(() => {});
+  return TALISMANS_READY;
 }
 
 function loadAow() {
@@ -1194,11 +1263,15 @@ function loadAow() {
 }
 
 function loadArmor() {
-  // ERR reuses vanilla ER's armor catalog (confirmed: no notable armor piece changes),
-  // so the item list always loads from elden_ring even in ERR mode.
-  const armorGame = BUILD.game === 'err' ? 'elden_ring' : BUILD.game;
-  fetch('/api/soulslike/armor/?game=' + armorGame + '&limit=1000')
-    .then(r => r.json()).then(d => { ALL_ARMOR = d.armor || []; }).catch(() => {});
+  const requestedGame = BUILD.game;
+  // The API preserves shared ER catalog IDs while overlaying ERR regulation
+  // weight/poise values, so saved build references remain stable.
+  ARMOR_READY = fetch('/api/soulslike/armor/?game=' + requestedGame + '&limit=1000')
+    .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
+      ALL_ARMOR = d.armor || [];
+    }).catch(() => {});
+  return ARMOR_READY;
 }
 
 // name -> {name, affinity, tiers:[{star,text,static_effect}]}, used to look up
@@ -1206,12 +1279,27 @@ function loadArmor() {
 let ENKINDLING_AFFIXES_BY_NAME = {};
 
 function loadEnkindlingAffixes() {
-  if (BUILD.game !== 'err') return;
-  fetch('/api/soulslike/err/enkindling/')
+  const requestedGame = BUILD.game;
+  if (requestedGame !== 'err') {
+    ENKINDLING_AFFIXES_BY_NAME = {};
+    ENKINDLING_READY = Promise.resolve();
+    return ENKINDLING_READY;
+  }
+  ENKINDLING_READY = fetch('/api/soulslike/err/enkindling/')
     .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
       ENKINDLING_AFFIXES_BY_NAME = {};
       (d.affixes || []).forEach(a => { ENKINDLING_AFFIXES_BY_NAME[a.name] = a; });
+      // Saved builds can restore before this independent request completes.
+      // Recalculate every Enkindling consumer when the affix rules arrive so
+      // Smoldering/resources, stat bonuses, load, poise, and typed AR cannot
+      // remain stuck at their pre-Enkindling values.
+      updateAllStatBars();
+      updateDerivedStats();
+      updateAllWeaponARs();
+      updatePoise();
     }).catch(() => {});
+  return ENKINDLING_READY;
 }
 
 const _ENKINDLE_RARITY_TIER = { common: 1, rare: 2, legendary: 3 };
@@ -1265,6 +1353,31 @@ function calcEnkindleModifiers() {
     });
   });
   return mods;
+}
+
+// Returns sheet-AR multipliers for one weapon slot, indexed using the same
+// damage-type IDs as the regulation export:
+// 0 physical, 1 magic, 2 fire, 3 lightning, 4 holy.
+// Move-specific ("slash"), spell-only, enemy-category, timed, and triggered
+// effects are deliberately not presented as permanent weapon sheet AR.
+function calcEnkindleSlotAttack(slot) {
+  const attack = {0: 1, 1: 1, 2: 1, 3: 1, 4: 1};
+  const sel = BUILD.enkindle?.[slot];
+  if (BUILD.game !== 'err' || !sel?.affix) return attack;
+  const affix = ENKINDLING_AFFIXES_BY_NAME[sel.affix];
+  const maxTier = _ENKINDLE_RARITY_TIER[sel.rarity] || 1;
+  const damageTypeIds = {
+    physical: [0], magic: [1], fire: [2], lightning: [3], holy: [4],
+    all: [0, 1, 2, 3, 4],
+  };
+  (affix?.tiers || []).forEach(tier => {
+    const effect = tier.static_effect;
+    if (tier.star > maxTier || effect?.type !== 'damage_mult') return;
+    (damageTypeIds[effect.damage_type] || []).forEach(damageType => {
+      attack[damageType] *= effect.value;
+    });
+  });
+  return attack;
 }
 
 function loadCurios() {
@@ -1439,8 +1552,10 @@ function loadAffinities() {
 let AR_DATA_READY = Promise.resolve();
 
 function loadArData() {
-  AR_DATA_READY = fetch('/api/soulslike/ar-data/?game=' + BUILD.game)
+  const requestedGame = BUILD.game;
+  AR_DATA_READY = fetch('/api/soulslike/ar-data/?game=' + requestedGame)
     .then(r => r.json()).then(d => {
+      if (BUILD.game !== requestedGame) return;
       AR_CURVES = d.curves || {};
       AR_AEC = d.aec || {};
       AR_REINFORCE = d.reinforce || {};
@@ -1472,20 +1587,30 @@ function fetchWeaponArVariants(weaponName) {
 // Compute total AR for a given weapon variant + player stats. Returns { total, breakdown }
 // Damage type index -> display name
 const DMG_LABELS = { 0: 'Phys', 1: 'Mag', 2: 'Fire', 3: 'Lit', 4: 'Holy' };
+// Match the reference calculator's display truncation while avoiding a value
+// such as 265.999999999 being shown one point low due to floating-point noise.
+function truncateGameValue(value) {
+  return Math.floor(value + 0.000000001);
+}
 
-function computeAR(variant, stats) {
+function computeAR(variant, stats, requestedUpgradeLevel = null) {
   if (!variant) return null;
 
   const aec = AR_AEC[String(variant.aec_id)] || {};
   const requirements = variant.requirements || {};
 
-  // Get max-level reinforce multipliers - always use max upgrade for build planning
+  // Use the selected in-game upgrade level from the active game's separate
+  // regulation export.
   const reinforce = AR_REINFORCE[String(variant.reinforce_type_id)] || null;
-  // For ERR: attack scales, scaling does NOT (reinforce.scaling is empty {}). ER: both scale.
-  const atkMult  = reinforce ? (reinforce.attack  || {}) : {};
-  const sclMult  = reinforce ? (reinforce.scaling || {}) : {};
+  const maxUpgrade = variant.max_upgrade ?? reinforce?.max_level ?? 0;
+  const upgradeLevel = requestedUpgradeLevel == null
+    ? maxUpgrade
+    : Math.max(0, Math.min(maxUpgrade, parseInt(requestedUpgradeLevel, 10) || 0));
+  const reinforceLevel = reinforce?.levels?.[upgradeLevel] || reinforce;
+  const atkMult  = reinforceLevel ? (reinforceLevel.attack  || {}) : {};
+  const sclMult  = reinforceLevel ? (reinforceLevel.scaling || {}) : {};
 
-  // ineffective = stats below requirement - weapon applies -40% penalty per missing stat
+  // ERR and vanilla have separate regulation settings for unmet requirements.
   const ineffective = ['str', 'dex', 'int', 'fai', 'arc'].filter(statKey => {
     const req = requirements[statKey];
     return req && (stats[STAT_KEY_MAP[statKey]] || 1) < req;
@@ -1499,54 +1624,79 @@ function computeAR(variant, stats) {
   }).join(', ');
 
   const breakdown = {};   // { dmgIdx: { base, scaling, total } }
+  const spellScaling = {};
+  const isCastingTool = !!(variant.sorcery_tool || variant.incantation_tool);
   let total = 0;
 
   [0, 1, 2, 3, 4].forEach(dmgIdx => {
-    const rawBase = variant.attack[String(dmgIdx)];
-    if (!rawBase) { breakdown[dmgIdx] = null; return; }
+    const rawBase = variant.attack[String(dmgIdx)] || 0;
+    if (!rawBase && !isCastingTool) { breakdown[dmgIdx] = null; return; }
 
-    // Apply max-level attack multiplier to base damage
-    const atkMultVal = parseFloat(atkMult[String(dmgIdx)] || atkMult['0'] || 1);
+    // Apply the selected reinforcement level's attack multiplier to base damage.
+    const atkMultVal = parseFloat(atkMult[String(dmgIdx)] ?? 1);
     const maxBase = rawBase * atkMultVal;
 
     const scalingAttrs = aec[String(dmgIdx)] || {};
     let scalingBonus = 0;
+    let totalScaling = 1;
 
     const anyIneffective = ineffective.some(k => scalingAttrs[k]);
     if (anyIneffective) {
-      // Requirement not met - 40% penalty on the whole value
-      const penalized = maxBase * 0.6;
-      breakdown[dmgIdx] = { base: Math.round(penalized), scaling: 0, total: Math.round(penalized) };
-      total += penalized;
-      return;
+      // ERR retains 50% attack; vanilla retains 60% attack.
+      const ineffectiveAttributePenalty = BUILD.game === 'err' ? 0.5 : 0.4;
+      totalScaling = 1 - ineffectiveAttributePenalty;
+    } else {
+      const graphId = (variant.calc_correct_graph_ids && variant.calc_correct_graph_ids[String(dmgIdx)] != null)
+        ? variant.calc_correct_graph_ids[String(dmgIdx)] : DEFAULT_DAMAGE_GRAPH_ID;
+      const curve = AR_CURVES[String(graphId)];
+
+      ['str', 'dex', 'int', 'fai', 'arc'].forEach(statKey => {
+        const attributeCorrect = scalingAttrs[statKey];
+        if (!attributeCorrect) return;
+        // Most correction entries are boolean and use the weapon's upgraded
+        // attribute scaling directly. A few vanilla DLC weapons use a numeric
+        // correction ratio; preserve the reference calculator's separate branch.
+        const sclMultVal = parseFloat(sclMult[statKey] ?? 1);
+        const baseScaling = variant.scaling[statKey] || 0;
+        const upgradedScaling = baseScaling * sclMultVal;
+        const scaling = attributeCorrect === true
+          ? upgradedScaling
+          : (baseScaling ? (attributeCorrect * upgradedScaling) / baseScaling : 0);
+        if (!scaling || !curve) return;
+        const statValue = stats[STAT_KEY_MAP[statKey]] || 1;
+        const correction = curve[Math.min(149, Math.max(0, statValue))] || 0;
+        scalingBonus += correction * scaling;
+      });
+      totalScaling += scalingBonus;
     }
 
-    const graphId = (variant.calc_correct_graph_ids && variant.calc_correct_graph_ids[String(dmgIdx)] != null)
-      ? variant.calc_correct_graph_ids[String(dmgIdx)] : DEFAULT_DAMAGE_GRAPH_ID;
-    const curve = AR_CURVES[String(graphId)];
+    if (isCastingTool) spellScaling[dmgIdx] = truncateGameValue(100 * totalScaling);
+    if (!rawBase) { breakdown[dmgIdx] = null; return; }
 
-    ['str', 'dex', 'int', 'fai', 'arc'].forEach(statKey => {
-      if (!scalingAttrs[statKey]) return;
-      // Scaling value - multiplied by max-level scaling mult (1.0 for ERR)
-      const sclMultVal = parseFloat(sclMult[statKey] || 1);
-      const scaling = (variant.scaling[statKey] || 0) * sclMultVal;
-      if (!scaling || !curve) return;
-      const statValue = stats[STAT_KEY_MAP[statKey]] || 1;
-      const correction = curve[Math.min(149, Math.max(0, statValue))] || 0;
-      scalingBonus += correction * scaling;
-    });
-
-    const scalingValue = maxBase * scalingBonus;
-    const dmgTotal = maxBase + scalingValue;
+    const dmgTotal = maxBase * totalScaling;
+    const scalingValue = dmgTotal - maxBase;
     breakdown[dmgIdx] = {
-      base: Math.floor(maxBase),
-      scaling: Math.floor(scalingValue),
-      total: Math.floor(dmgTotal),
+      base: truncateGameValue(maxBase),
+      scaling: truncateGameValue(scalingValue),
+      total: truncateGameValue(dmgTotal),
     };
     total += dmgTotal;
   });
 
-  return { total: Math.floor(total), breakdown, ineffective, reqMissingText };
+  return { total: truncateGameValue(total), breakdown, spellScaling, ineffective, reqMissingText, upgradeLevel, maxUpgrade };
+}
+
+function getSpellScalingLabel(variant, result) {
+  const parts = [];
+  if (variant.sorcery_tool) {
+    const value = result.spellScaling?.[1] ?? result.spellScaling?.[0];
+    if (value != null) parts.push('Sorc ' + value);
+  }
+  if (variant.incantation_tool) {
+    const value = result.spellScaling?.[4] ?? result.spellScaling?.[0];
+    if (value != null) parts.push('Incant ' + value);
+  }
+  return parts.join(' · ');
 }
 
 function updateWeaponAR(slot) {
@@ -1561,40 +1711,48 @@ function updateWeaponAR(slot) {
                  || variants.find(v => v.affinity === 'Standard')
                  || variants[0];
 
-    // ERR uses effective stats (with rune bonuses); ER uses base BUILD.stats
-    const statsForAR = (BUILD.game === 'err') ? getEffectiveStats() : BUILD.stats;
-    const result = computeAR(variant, statsForAR);
+    const statsForAR = getEffectiveStats();
+    const maxUpgrade = variant.max_upgrade ?? AR_REINFORCE[String(variant.reinforce_type_id)]?.max_level ?? 0;
+    if (weapon.upgradeLevel == null || weapon.upgradeLevel > maxUpgrade) {
+      weapon.upgradeLevel = maxUpgrade;
+    }
+    renderWeaponUpgradeControl(slot, maxUpgrade, weapon.upgradeLevel);
+    const result = computeAR(variant, statsForAR, weapon.upgradeLevel);
     if (!result || !arEl) return;
 
     const scaduLevel = BUILD.scadutree || 0;
     const scaduMult = SCADU_DMG_MULT[scaduLevel] || 1;
-    // Enkindling static damage_mult effects apply last, after Scadutree - this slot's
-    // own Enkindled AoW affix only (not other slots' selections).
-    const enkSel = BUILD.enkindle?.[slot];
-    let enkMult = 1;
-    if (enkSel?.affix && BUILD.game === 'err') {
-      const affix = ENKINDLING_AFFIXES_BY_NAME[enkSel.affix];
-      const maxTier = _ENKINDLE_RARITY_TIER[enkSel.rarity] || 1;
-      (affix?.tiers || []).forEach(t => {
-        if (t.star > maxTier || !t.static_effect) return;
-        if (t.static_effect.type === 'damage_mult') enkMult *= t.static_effect.value;
-      });
-    }
-    const effectiveAR = Math.floor(result.total * scaduMult * enkMult);
+    // Enkindling attack effects are typed. Astral boosts only magic, Ruinous
+    // only fire, and Voltaic only lightning on this weapon slot.
+    const enkindleAttack = calcEnkindleSlotAttack(slot);
+    const talismanAttack = calcTalismanModifiers().attack;
+    const physickAttack = calcPhysickModifiers().attack;
+    const effectiveAR = Math.floor([0,1,2,3,4].reduce((sum, damageType) => {
+      const damage = result.breakdown[damageType]?.total || 0;
+      return sum + damage * (talismanAttack[damageType] || 1)
+        * (physickAttack[damageType] || 1)
+        * (enkindleAttack[damageType] || 1);
+    }, 0) * scaduMult);
+    const castingLabel = getSpellScalingLabel(variant, result);
 
     const reqSuffix = result.ineffective?.length ? ' ⚠' : '';
     const reqTitle = result.ineffective?.length
-      ? `Requirements not met (-40% penalty). Missing: ${result.reqMissingText}` : '';
+      ? `Requirements not met (${BUILD.game === 'err' ? '-50%' : '-40%'} penalty). Missing: ${result.reqMissingText}` : '';
+
+    const arText = 'AR ' + effectiveAR + (castingLabel ? ' · ' + castingLabel : '');
 
     if (scaduLevel > 0) {
-      arEl.textContent = 'AR ' + effectiveAR + ' ★' + scaduLevel + reqSuffix;
-      arEl.title = reqTitle || ('Base AR: ' + result.total + ' x Scadutree ' + scaduMult.toFixed(3));
+      arEl.textContent = arText + ' ★' + scaduLevel + reqSuffix;
+      arEl.title = reqTitle || ('Calculated AR before Scadutree: ' + Math.floor(effectiveAR / scaduMult));
     } else {
-      arEl.textContent = 'AR ' + effectiveAR + reqSuffix;
+      arEl.textContent = arText + reqSuffix;
       arEl.title = reqTitle;
     }
     arEl.style.color = result.ineffective?.length ? '#f87171' : '';  // red if req not met
     arEl.classList.remove('hidden');
+    // Affinity variants can change actual equipped weight (notably
+    // Gravitational and a handful of Fated weapons).
+    updateEquipLoad();
   });
 }
 
@@ -1611,9 +1769,11 @@ function updateARSummary() {
   if (!listEl) return;
 
   const slots = ['rh1','rh2','rh3','lh1','lh2','lh3'];
-  const statsForAR = (BUILD.game === 'err') ? getEffectiveStats() : BUILD.stats;
+  const statsForAR = getEffectiveStats();
   const scaduLevel = BUILD.scadutree || 0;
   const scaduMult  = SCADU_DMG_MULT[scaduLevel] || 1;
+  const talismanAttack = calcTalismanModifiers().attack;
+  const physickAttack = calcPhysickModifiers().attack;
 
   if (tagEl) {
     tagEl.textContent = scaduLevel > 0 ? 'Scadu ' + scaduMult.toFixed(3) + 'x' : '';
@@ -1629,36 +1789,40 @@ function updateARSummary() {
   Promise.all(armed.map(slot => {
     const w = BUILD.slots[slot];
     const equippedAffinity = w.equippedAffinity || 'Standard';
+    const fixedAffinities = getFixedWeaponAffinities(w);
     return fetchWeaponArVariants(w.name).then(variants => {
       const variant = variants.find(v => v.affinity === equippedAffinity)
                    || variants.find(v => v.affinity === 'Standard')
                    || variants[0];
       if (!variant) return null;
-      const result = computeAR(variant, statsForAR);
+      const maxUpgrade = variant.max_upgrade ?? AR_REINFORCE[String(variant.reinforce_type_id)]?.max_level ?? 0;
+      if (w.upgradeLevel == null || w.upgradeLevel > maxUpgrade) w.upgradeLevel = maxUpgrade;
+      const result = computeAR(variant, statsForAR, w.upgradeLevel);
       if (!result) return null;
-      // Enkindling static damage_mult effects apply last, after Scadutree - this slot's
-      // own Enkindled AoW affix only (not other slots' selections). Mirrors updateWeaponAR.
-      const enkSel = BUILD.enkindle?.[slot];
-      let enkMult = 1;
-      if (enkSel?.affix && BUILD.game === 'err') {
-        const affix = ENKINDLING_AFFIXES_BY_NAME[enkSel.affix];
-        const maxTier = _ENKINDLE_RARITY_TIER[enkSel.rarity] || 1;
-        (affix?.tiers || []).forEach(t => {
-          if (t.star > maxTier || !t.static_effect) return;
-          if (t.static_effect.type === 'damage_mult') enkMult *= t.static_effect.value;
-        });
-      }
-      const effAR = Math.floor(result.total * scaduMult * enkMult);
+      // Mirrors updateWeaponAR: apply only the selected slot's typed,
+      // unconditional Enkindling attack multiplier to each matching component.
+      const enkindleAttack = calcEnkindleSlotAttack(slot);
+      const effAR = Math.floor([0,1,2,3,4].reduce((sum, damageType) => {
+        const damage = result.breakdown[damageType]?.total || 0;
+        return sum + damage * (talismanAttack[damageType] || 1)
+          * (physickAttack[damageType] || 1)
+          * (enkindleAttack[damageType] || 1);
+      }, 0) * scaduMult);
       // Build per-damage-type breakdown string: "204+210" for phys, show others if present
       const dmgParts = [0,1,2,3,4].map(i => {
         const b = result.breakdown[i];
         if (!b || b.total === 0) return null;
-        const val = Math.floor(b.total * scaduMult * enkMult);
+        const attackMult = (talismanAttack[i] || 1)
+          * (physickAttack[i] || 1)
+          * (enkindleAttack[i] || 1);
+        const val = Math.floor(b.total * attackMult * scaduMult);
         return b.scaling > 0
-          ? `<span class="text-gray-400">${Math.floor(b.base * scaduMult * enkMult)}</span><span class="text-gray-600">+</span><span class="text-amber-300">${Math.floor(b.scaling * scaduMult * enkMult)}</span>`
+          ? `<span class="text-gray-400">${Math.floor(b.base * attackMult * scaduMult)}</span><span class="text-gray-600">+</span><span class="text-amber-300">${Math.floor(b.scaling * attackMult * scaduMult)}</span>`
           : `<span class="text-gray-400">${val}</span>`;
       }).filter(Boolean);
-      return { slot, name: w.name, affinity: equippedAffinity, effAR, dmgParts,
+      return { slot, name: w.name, affinity: equippedAffinity, upgradeLevel: result.upgradeLevel,
+               affinityLabel: fixedAffinities.join(' / ') || equippedAffinity,
+               effAR, dmgParts, castingLabel: getSpellScalingLabel(variant, result),
                ineffective: result.ineffective, reqMissing: result.reqMissingText };
     });
   })).then(results => {
@@ -1669,35 +1833,41 @@ function updateARSummary() {
     }
     listEl.innerHTML = valid.map(r => {
       const scaduBadge = scaduLevel > 0 ? `<span class="text-[9px] text-amber-500 ml-1">★${scaduLevel}</span>` : '';
-      const affinityTag = (r.affinity && r.affinity !== 'Standard')
-        ? `<span class="text-[9px] text-purple-400">${escapeHtml(r.affinity)}</span>` : '';
+      const affinityTag = (r.affinityLabel && r.affinityLabel !== 'Standard')
+        ? `<span class="text-[9px] text-purple-400">${escapeHtml(r.affinityLabel)}</span>` : '';
       const reqWarning = r.ineffective?.length
-        ? `<span class="text-[9px] text-red-500 ml-1" title="Requirements not met - -40% damage penalty. Missing: ${escapeHtml(r.reqMissing || '')}">⚠ Req</span>` : '';
+        ? `<span class="text-[9px] text-red-500 ml-1" title="Requirements not met. Missing: ${escapeHtml(r.reqMissing || '')}">⚠ Req</span>` : '';
       return `
         <div class="px-1 py-1.5 rounded hover:bg-white/5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 min-w-0">
               <span class="text-[9px] text-gray-500 font-mono w-6 shrink-0">${SLOT_LABELS[r.slot]}</span>
-              <span class="text-xs text-gray-300 truncate">${escapeHtml(r.name)}</span>
+              <span class="text-xs text-gray-300 truncate">${escapeHtml(r.name)} <span class="text-sky-500">+${r.upgradeLevel}</span></span>
               ${affinityTag}${reqWarning}
             </div>
             <div class="text-right shrink-0 ml-2 flex items-center gap-1">
               <span class="text-sm font-bold text-amber-400">${r.effAR}</span>${scaduBadge}
             </div>
           </div>
-          ${r.dmgParts.length > 1 ? `<div class="text-[10px] ml-7.5 mt-0.5 flex gap-2">${r.dmgParts.join('<span class="text-neutral-700 mx-0.5">|</span>')}</div>` : ''}
+          ${(r.dmgParts.length > 1 || r.castingLabel) ? `<div class="text-[10px] ml-7.5 mt-0.5 flex gap-2">${r.dmgParts.join('<span class="text-neutral-700 mx-0.5">|</span>')}${r.castingLabel ? `<span class="text-sky-400">${escapeHtml(r.castingLabel)}</span>` : ''}</div>` : ''}
         </div>`;
     }).join('');
   });
 }
 
-// Returns BUILD.stats merged with ERR binding rune bonuses for AR calculation
+// Returns base stats merged with permanent bonuses that affect requirements and
+// scaling. Talisman/fortune bonuses therefore feed AR without adding rune levels.
 function getEffectiveStats() {
-  const bonuses = calcRuneStatBonuses();
+  const bonuses = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
+  const fortuneBonuses = calcFortuneStatBonuses();
   const enkindleMods = calcEnkindleModifiers();
+  const talismanMods = calcTalismanModifiers();
+  const physickMods = calcPhysickModifiers();
   const eff = {};
   ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'].forEach(k => {
-    eff[k] = Math.min(99, (BUILD.stats[k] || 10) + (bonuses[k] || 0) + (enkindleMods.statFlat[k] || 0));
+    eff[k] = Math.min(99, (BUILD.stats[k] || 10) + (bonuses[k] || 0) +
+      (fortuneBonuses[k] || 0) + (enkindleMods.statFlat[k] || 0) +
+      (talismanMods.statFlat[k] || 0) + (physickMods.statFlat[k] || 0));
   });
   return eff;
 }
@@ -1722,6 +1892,29 @@ function onScaduChange(val) {
 }
 
 // ── Weapon upgrade levels ─────────────────────────────────────────────────────
+function renderWeaponUpgradeControl(slot, maxUpgrade, selectedUpgrade) {
+  const row = document.getElementById('upgrade-row-' + slot);
+  const select = document.getElementById('upgrade-' + slot);
+  if (!row || !select || !BUILD.slots[slot]) return;
+
+  const optionSignature = String(maxUpgrade);
+  if (select.dataset.maxUpgrade !== optionSignature) {
+    select.innerHTML = Array.from({length: maxUpgrade + 1}, (_, level) =>
+      `<option value="${level}">+${level}</option>`
+    ).join('');
+    select.dataset.maxUpgrade = optionSignature;
+  }
+  select.value = String(Math.max(0, Math.min(maxUpgrade, selectedUpgrade ?? maxUpgrade)));
+  row.classList.remove('hidden');
+}
+
+function setWeaponUpgradeLevel(slot, value) {
+  const weapon = BUILD.slots[slot];
+  if (!weapon) return;
+  weapon.upgradeLevel = Math.max(0, parseInt(value, 10) || 0);
+  updateWeaponAR(slot);
+  updateARSummary();
+}
 
 // ── Spirit Ashes ──────────────────────────────────────────────────────────────
 let ALL_SPIRIT_ASHES = [];
@@ -1753,6 +1946,15 @@ function loadMyBuilds() {
     });
 }
 
+function setActiveBuildUrl(mode, shareToken, game = BUILD.game) {
+  const url = new URL('/soulslike/builder/', window.location.origin);
+  if (mode && shareToken) {
+    url.searchParams.set(mode, shareToken);
+    url.searchParams.set('game', game);
+  }
+  window.history.replaceState({}, '', url.pathname + url.search);
+}
+
 function loadBuild(shareToken) {
   fetch('/api/soulslike/builds/' + shareToken + '/?game=' + BUILD.game)
     .then(r => r.json()).then(d => {
@@ -1763,7 +1965,9 @@ function loadBuild(shareToken) {
       window._viewOnlyBuild = null;
       document.getElementById('build-name')?.removeAttribute('readonly');
       document.getElementById('build-description')?.removeAttribute('readonly');
-      window.history.replaceState({}, '', '/soulslike/builder/');
+      // Keep the saved build in the address bar. A browser refresh now reloads
+      // this build instead of initializing an empty planner.
+      setActiveBuildUrl('load', d.share_token || shareToken, BUILD.game);
       // Show loaded notification
       const banner = document.getElementById('save-banner');
       banner.innerHTML = '<i class="fas fa-download mr-2"></i>Build "' + escapeHtml(d.name) + '" loaded! <a href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>';
@@ -1787,7 +1991,7 @@ function loadBuildViewOnly(shareToken) {
           .then(r => r.json()).then(d2 => {
             if (d2.error) { showViewError(); return; }
             // Switch game mode first
-            selectGame(other, other === 'err' ? 'Elden Ring Reforged' : 'Elden Ring');
+            selectGame(other, other === 'err' ? 'Elden Ring Reforged' : 'Elden Ring', true);
             setTimeout(() => applyViewOnlyBuild(d2), 600);
           });
       }
@@ -1805,6 +2009,7 @@ function showViewError() {
 function applyViewOnlyBuild(d) {
   // Load the build data into the builder
   loadBuildData(d);
+  setActiveBuildUrl('view', d.share_token, BUILD.game);
 
   // Show view-only banner with author + fork option
   const viewBanner = document.getElementById('view-only-banner');
@@ -1845,12 +2050,14 @@ function forkBuild() {
   document.getElementById('view-only-banner')?.classList.add('hidden');
   window._viewOnlyBuild = null;
   // Update URL to remove ?view= param
-  window.history.replaceState({}, '', '/soulslike/builder/');
+  setActiveBuildUrl(null, null);
   saveBuild();
 }
 
 // Shared build data applier used by both loadBuild and loadBuildViewOnly
 function loadBuildData(d) {
+  BUILD.id = Number.isFinite(parseInt(d.id, 10)) ? parseInt(d.id, 10) : null;
+  BUILD.share_token = d.share_token || null;
   Object.keys(BUILD.slots).forEach(s => { if (BUILD.slots[s]) clearSlot(s); });
   BUILD.spells = [];
   renderEquippedSpells();
@@ -1866,12 +2073,20 @@ function loadBuildData(d) {
 
   if (d.stats) {
     Object.keys(d.stats).forEach(k => {
-      BUILD.stats[k] = d.stats[k];
-      BUILD.class_base[k] = BUILD.class_base[k] || d.stats[k];
+      // A saved allocated value below the selected class's starting stat is
+      // impossible in game, so normalize only that invalid case. Do not infer
+      // unrecorded allocated points from the character's total rune level.
+      const classMinimum = BUILD.class_base[k] || 1;
+      BUILD.stats[k] = Math.max(classMinimum, Number(d.stats[k]) || classMinimum);
+      BUILD.class_base[k] = BUILD.class_base[k] || BUILD.stats[k];
       const inp = document.getElementById('stat-' + k);
-      if (inp) inp.value = d.stats[k];
+      if (inp) inp.value = BUILD.stats[k];
     });
   }
+  const savedLevel = parseInt(d.total_level ?? d.level, 10);
+  BUILD.level_override = Number.isFinite(savedLevel) ? savedLevel : null;
+  const levelInput = document.getElementById('level-override');
+  if (levelInput) levelInput.value = BUILD.level_override ?? '';
 
   const weaponSlots = ['rh1','rh2','rh3','lh1','lh2','lh3'];
   const weaponPromises = weaponSlots.map(slot => {
@@ -1911,15 +2126,16 @@ function loadBuildData(d) {
     weaponSlots.forEach(slot => {
       if (!BUILD.slots[slot]) return;
       // Restore affinity first (affects AR variant selection)
-      const affinity = d.weapons?.[slot + '_affinity'];
+      const fixedAffinities = getFixedWeaponAffinities(BUILD.slots[slot]);
+      const affinity = fixedAffinities[0] || d.weapons?.[slot + '_affinity'];
       if (affinity && BUILD.slots[slot]) {
         BUILD.slots[slot].equippedAffinity = affinity;
         // Update the affinity label in the weapon slot UI
         const affinityNameEl = document.getElementById('affinity-' + slot + '-name');
-        if (affinityNameEl) affinityNameEl.textContent = affinity;
+        if (affinityNameEl) affinityNameEl.textContent = fixedAffinities.join(' / ') || affinity;
       }
       // Restore AoW
-      const aowName = d.weapons?.[slot + '_aow'];
+      const aowName = d.weapons?.[slot + '_aow'] || BUILD.slots[slot]?.default_skill;
       if (aowName) {
         const found = ALL_AOW.find(a => a.name === aowName);
         if (found) {
@@ -2217,9 +2433,20 @@ function updatePhysickEffect() {
   const effectEl = document.getElementById('physick-combined-effect');
   const textEl = document.getElementById('physick-effect-text');
   const filled = BUILD.tears.filter(Boolean);
-  if (!filled.length) { effectEl?.classList.add('hidden'); return; }
+  if (!filled.length) {
+    effectEl?.classList.add('hidden');
+    updateAllStatBars();
+    updateDerivedStats();
+    updateAllWeaponARs();
+    updatePoise();
+    return;
+  }
   effectEl?.classList.remove('hidden');
   if (textEl) textEl.textContent = filled.map(t => t.name + ': ' + (t.effect || '')).join('\n\n');
+  updateAllStatBars();
+  updateDerivedStats();
+  updateAllWeaponARs();
+  updatePoise();
 }
 
 // ── Class picker ─────────────────────────────────────────────────────────────
@@ -2353,29 +2580,29 @@ function runOptimizer() {
 
 // ── Stat calculator ───────────────────────────────────────────────────────────
 function onStatPreview(stat) {
-  // Called on every keystroke - update bar/AR live but don't clamp the input
-  // so user can type multi-digit numbers freely (e.g. "30" without "3" being clamped to min)
+  // The field mirrors the in-game status screen, so it displays the final stat
+  // after permanent equipment bonuses. Keep the allocated value internally for
+  // rune-level calculations by subtracting those flat bonuses while editing.
   const el = document.getElementById('stat-' + stat);
-  const runeBonus = parseInt(el.dataset.runeBonus || 0);
   const displayedVal = parseInt(el.value) || 0;
   if (isNaN(displayedVal) || displayedVal === 0) return;  // mid-type, don't commit
-  const baseVal = Math.max(1, Math.min(99, displayedVal - runeBonus));
+  const bonus = flatStatBonusBreakdown(stat).total;
+  const minVal = BUILD.class_base[stat] || 1;
+  const baseVal = Math.max(minVal, Math.min(99, displayedVal - bonus));
   BUILD.stats[stat] = baseVal;
-  updateStatBar(stat);
   updateDerivedStats();
   updateAllWeaponARs();
 }
 
 function onStatChange(stat) {
-  // Called on blur/enter - clamp to valid range and commit
+  // Commit an in-game displayed value back to its allocated rune-level value.
   const el = document.getElementById('stat-' + stat);
-  const runeBonus = parseInt(el.dataset.runeBonus || 0);
   let displayedVal = parseInt(el.value) || 1;
-  let baseVal = displayedVal - runeBonus;
+  const bonus = flatStatBonusBreakdown(stat).total;
   const minVal = BUILD.class_base[stat] || 1;
-  baseVal = Math.max(minVal, Math.min(99 - runeBonus, baseVal));
+  const baseVal = Math.max(minVal, Math.min(99, displayedVal - bonus));
   BUILD.stats[stat] = baseVal;
-  updateStatBar(stat);  // re-sets input.value = baseVal + runeBonus
+  updateStatBar(stat);
   updateDerivedStats();
   updateAllWeaponARs();
 }
@@ -2384,31 +2611,47 @@ function updateAllStatBars() {
   Object.keys(BUILD.stats).forEach(updateStatBar);
 }
 
-function updateStatBar(stat) {
+function flatStatBonusBreakdown(stat) {
   const runeBonuses    = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
   const fortuneBonuses = calcFortuneStatBonuses();
   const enkindleBonuses = calcEnkindleModifiers().statFlat;
+  const talismanBonuses = calcTalismanModifiers().statFlat;
+  const physickBonuses = calcPhysickModifiers().statFlat;
+  const result = {
+    rune: runeBonuses[stat] || 0,
+    fortune: fortuneBonuses[stat] || 0,
+    enkindle: enkindleBonuses[stat] || 0,
+    talisman: talismanBonuses[stat] || 0,
+    physick: physickBonuses[stat] || 0,
+  };
+  result.total = result.rune + result.fortune + result.enkindle +
+    result.talisman + result.physick;
+  return result;
+}
+
+function updateStatBar(stat) {
+  const bonuses = flatStatBonusBreakdown(stat);
   const base  = BUILD.stats[stat] || 10;
-  const rune  = runeBonuses[stat] || 0;
-  const fort  = fortuneBonuses[stat] || 0;
-  const enk   = enkindleBonuses[stat] || 0;
-  const bonus = rune + fort + enk;
+  const bonus = bonuses.total;
   const val   = Math.min(99, base + bonus);
   const input = document.getElementById('stat-' + stat);
   if (input) {
+    // Match the in-game status screen: the stat field itself changes when a
+    // talisman, Enkindling affix, Fortune, rune, or Physick changes the stat.
     input.value = val;
     if (bonus !== 0) {
       const parts = [];
-      if (rune !== 0)  parts.push((rune > 0 ? '+' : '') + rune + ' Rune');
-      if (fort !== 0)  parts.push((fort > 0 ? '+' : '') + fort + ' Fortune');
-      if (enk !== 0)   parts.push((enk > 0 ? '+' : '') + enk + ' Enkindle');
-      input.title = `Base: ${base} | ${parts.join(', ')}`;
-      input.style.color = bonus > 0 ? '#fbbf24' : '#f87171';
-      input.dataset.runeBonus = bonus;
+      if (bonuses.rune !== 0) parts.push((bonuses.rune > 0 ? '+' : '') + bonuses.rune + ' Rune');
+      if (bonuses.fortune !== 0) parts.push((bonuses.fortune > 0 ? '+' : '') + bonuses.fortune + ' Fortune');
+      if (bonuses.enkindle !== 0) parts.push((bonuses.enkindle > 0 ? '+' : '') + bonuses.enkindle + ' Enkindle');
+      if (bonuses.talisman !== 0) parts.push((bonuses.talisman > 0 ? '+' : '') + bonuses.talisman + ' Talisman');
+      if (bonuses.physick !== 0) parts.push((bonuses.physick > 0 ? '+' : '') + bonuses.physick + ' Physick');
+      const detail = `Base: ${base} | Displayed: ${val} | ${parts.join(', ')}`;
+      input.title = detail;
+      input.style.color = bonus > 0 ? '#60a5fa' : '#f87171';
     } else {
       input.title = '';
       input.style.color = '';
-      delete input.dataset.runeBonus;
     }
   }
   const cap = STAT_CAPS[stat];
@@ -2450,11 +2693,18 @@ function updateStatBar(stat) {
 
 // Rune cost to level up
 function runeCostToLevel(level) {
-  // ERR: exact lookup table from the mod's official balance spreadsheet
-  if (DERIVED_CURVES.rune_cost_to_level) {
-    const curve = DERIVED_CURVES.rune_cost_to_level;
-    const nextLevel = Math.min(curve.length, level + 1);
-    return curve[nextLevel - 1] || 0;
+  const maxLevel = BUILD.game === 'err' ? 200 : 713;
+  if (level >= maxLevel) return 0;
+  if (BUILD.game === 'err') {
+    // ERR v2.2.9.5 CalcCorrectGraph row 200 (Soul Level - Souls Required).
+    // The in-game calculation uses the current level plus 81. This deliberately
+    // yields 59,175 at current level 105; the progression sheet's 59,715 entry
+    // for level 106 is a transposition and does not match regulation.bin.
+    const adjustedLevel = level + 81;
+    const growth = Math.max(0, (adjustedLevel - 91) * 0.015);
+    return Math.max(0, Math.floor(
+      (growth + 0.34) * adjustedLevel * adjustedLevel - 1886
+    ));
   }
   // Vanilla ER: exact formula verified against Fextralife wiki table
   const L = (level + 1) + 81;
@@ -2466,8 +2716,8 @@ function runeCostToLevel(level) {
 const FORTUNE_DERIVED_MULTS = {
   // HP multipliers
   'Bold':        { hp: 1.05, fp: 0.94 },
-  'Cunning':     { hp: 0.95, stamina: 1.12 },
-  'Wise':        { fp: 1.085, stamina: 0.93 },
+  'Cunning':     { hp: 0.95, stamina: 1.10 },
+  'Wise':        { fp: 1.075, stamina: 0.93 },
   'Assassin':    { hp: 0.91 },
   'Barbarian':   { stamina: 1.15, fp: 0.9 },
   'Cleric':      { hp: 1.1, stamina: 0.85 },
@@ -2496,24 +2746,217 @@ const FORTUNE_STAT_BONUSES = {
   'Warmaster':  { strength: 1, dexterity: 1 },
 };
 
+// Permanent/calculable ERR talisman effects. Conditional combat buffs (for
+// example "after a critical hit" or "while at full HP") are deliberately not
+// treated as permanent sheet stats. Values are the current ERR rank values,
+// not the vanilla descriptions still attached to a few legacy +1/+2 DB rows.
+const ERR_TALISMAN_MODIFIERS = {
+  'Crimson Amber Medallion':    { statFlat: { vigor: 3 }, hp: 1.01 },
+  'Crimson Amber Medallion +1': { statFlat: { vigor: 2 }, hp: 1.05 },
+  'Crimson Amber Medallion +2': { hp: 1.10 },
+  'Crimson Amber Medallion +3': { hp: 1.11 },
+  'Cerulean Amber Medallion':    { statFlat: { mind: 3 }, fp: 1.01 },
+  'Cerulean Amber Medallion +1': { statFlat: { mind: 2 }, fp: 1.055 },
+  'Cerulean Amber Medallion +2': { fp: 1.11 },
+  'Cerulean Amber Medallion +3': { fp: 1.12 },
+  'Viridian Amber Medallion':    { statFlat: { endurance: 3 }, stamina: 1.01 },
+  'Viridian Amber Medallion +1': { statFlat: { endurance: 2 }, stamina: 1.06 },
+  'Viridian Amber Medallion +2': { stamina: 1.12 },
+  'Viridian Amber Medallion +3': { stamina: 1.13 },
+  "Erdtree's Favor":    { hp: 1.03, stamina: 1.06, eqload: 1.01 },
+  "Erdtree's Favor +1": { hp: 1.04, stamina: 1.08, eqload: 1.015 },
+  "Erdtree's Favor +2": { hp: 1.05, stamina: 1.10, eqload: 1.02 },
+  'Arsenal Charm':       { eqload: 1.06 },
+  'Arsenal Charm +1':    { eqload: 1.07 },
+  "Great-Jar's Arsenal": { eqload: 1.08 },
+  "Radagon's Scarseal": { statFlat: { vigor: 2, endurance: 2, strength: 2, dexterity: 2 } },
+  "Radagon's Soreseal": { statFlat: { vigor: 4, endurance: 4, strength: 4, dexterity: 4 } },
+  "Marika's Scarseal":  { statFlat: { mind: 2, intelligence: 2, faith: 2, arcane: 2 } },
+  "Marika's Soreseal":  { statFlat: { mind: 4, intelligence: 4, faith: 4, arcane: 4 } },
+  'Starscourge Heirloom':          { statFlat: { strength: 6 } },
+  'Prosthesis-Wearer Heirloom':   { statFlat: { dexterity: 6 } },
+  'Stargazer Heirloom':            { statFlat: { intelligence: 6 } },
+  'Two Fingers Heirloom':          { statFlat: { faith: 6 } },
+  'Outer God Heirloom':            { statFlat: { arcane: 6 } },
+  "Millicent's Prosthesis":       { statFlat: { dexterity: 3 } },
+  'Primal Glintstone Blade':       { hp: 0.75 },
+  'Magic Scorpion Charm':          { attack: { 1: 1.15 } },
+  'Fire Scorpion Charm':           { attack: { 2: 1.15 } },
+  'Lightning Scorpion Charm':      { attack: { 3: 1.15 } },
+  'Sacred Scorpion Charm':         { attack: { 4: 1.15 } },
+  'Blue Dancer Charm':             { physicalEquipScaling: true },
+  'Prodigious Crown Pendant':      { elementalEquipScaling: true },
+};
+
+function lowEquipAttackMultiplier(weight) {
+  const points = [[10,1.12],[15,1.107],[20,1.097],[25,1.087],[30,1.077],
+                  [35,1.067],[40,1.051],[45,1.021],[50,1.0]];
+  if (weight <= points[0][0]) return points[0][1];
+  if (weight >= points[points.length - 1][0]) return 1;
+  for (let i = 1; i < points.length; i++) {
+    if (weight > points[i][0]) continue;
+    const [x0, y0] = points[i - 1];
+    const [x1, y1] = points[i];
+    return y0 + ((weight - x0) / (x1 - x0)) * (y1 - y0);
+  }
+  return 1;
+}
+
+// Vanilla Blue Dancer Charm uses the game's weight-state curve. It is always
+// deterministic from the equipped build, so it can be calculated without a
+// combat trigger. The stateInfo 315 curve has breakpoints at 8/16/20/30
+// absolute weight and reaches no bonus at 30.
+function vanillaBlueDancerMultiplier(weight) {
+  const points = [[0,1.15],[8,1.135],[16,1.09],[20,1.0375],[30,1.0]];
+  if (weight <= points[0][0]) return points[0][1];
+  if (weight >= points[points.length - 1][0]) return 1;
+  for (let i = 1; i < points.length; i++) {
+    if (weight > points[i][0]) continue;
+    const [x0, y0] = points[i - 1];
+    const [x1, y1] = points[i];
+    return y0 + ((weight - x0) / (x1 - x0)) * (y1 - y0);
+  }
+  return 1;
+}
+
+function calcTalismanModifiers() {
+  const result = {
+    statFlat: {}, hp: 1, fp: 1, stamina: 1, eqload: 1,
+    poiseFlat: 0, poiseMult: 1,
+    attack: { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1 },
+  };
+  const equippedWeight = calculateEquippedWeight();
+  ['talisman1','talisman2','talisman3','talisman4'].forEach(slot => {
+    const equipped = BUILD.slots[slot];
+    const fallback = BUILD.game === 'err'
+      ? (ERR_TALISMAN_MODIFIERS[equipped?.name] || {})
+      : {};
+    const supplied = equipped?.modifiers || {};
+    // Older/current ERR catalog rows include `modifiers: {}`. An empty object
+    // is truthy in JavaScript and previously suppressed the correct fallback,
+    // which is why Viridian Amber Medallion displayed but granted no Endurance.
+    const modifier = {
+      ...fallback,
+      ...supplied,
+      statFlat: {...(fallback.statFlat || {}), ...(supplied.statFlat || {})},
+      attack: {...(fallback.attack || {}), ...(supplied.attack || {})},
+      attackPve: {...(fallback.attackPve || {}), ...(supplied.attackPve || {})},
+      attackPvp: {...(fallback.attackPvp || {}), ...(supplied.attackPvp || {})},
+    };
+    Object.entries(modifier.statFlat || {}).forEach(([stat, value]) => {
+      result.statFlat[stat] = (result.statFlat[stat] || 0) + value;
+    });
+    ['hp','fp','stamina'].forEach(key => {
+      if (modifier[key] != null) result[key] *= modifier[key];
+    });
+    // This value is exported from the talisman's current ERR SpEffect row.
+    // The hardcoded value is only a fallback while the catalog request loads.
+    const equipLoadMult = Number(equipped?.equip_load_mult ?? modifier.eqload ?? 1);
+    if (Number.isFinite(equipLoadMult)) result.eqload *= equipLoadMult;
+    result.poiseFlat += modifier.poiseFlat || 0;
+    if (modifier.poiseMult != null) result.poiseMult *= modifier.poiseMult;
+    const attackModifiers = BUILD.playstyle_tag === 'pvp'
+      ? (modifier.attackPvp || modifier.attack || {})
+      : (modifier.attackPve || modifier.attack || {});
+    Object.entries(attackModifiers).forEach(([damageType, value]) => {
+      result.attack[damageType] *= value;
+    });
+    const errLoadMultiplier = lowEquipAttackMultiplier(equippedWeight);
+    if (modifier.physicalEquipScaling === 'vanilla_blue_dancer') {
+      result.attack[0] *= vanillaBlueDancerMultiplier(equippedWeight);
+    } else if (modifier.physicalEquipScaling) {
+      result.attack[0] *= errLoadMultiplier;
+    }
+    if (modifier.elementalEquipScaling) {
+      [1,2,3,4].forEach(damageType => {
+        result.attack[damageType] *= errLoadMultiplier;
+      });
+    }
+  });
+  return result;
+}
+
+// A selected Vanilla tear is treated as the active Physick configuration.
+// Only deterministic sheet effects are represented here; move-specific,
+// successive-hit, low-HP, recovery, and one-hit protection effects remain
+// descriptive and do not alter the displayed numbers.
+function calcPhysickModifiers() {
+  const result = {
+    statFlat: {}, hp: 1, fp: 1, stamina: 1, eqload: 1,
+    poiseFlat: 0, poiseMult: 1,
+    attack: { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1 },
+  };
+  if (BUILD.game !== 'elden_ring') return result;
+
+  const seen = new Set();
+  (BUILD.tears || []).filter(Boolean).forEach(tear => {
+    if (seen.has(tear.name)) return;
+    seen.add(tear.name);
+    const modifier = tear.modifiers || {};
+    Object.entries(modifier.statFlat || {}).forEach(([stat, value]) => {
+      result.statFlat[stat] = (result.statFlat[stat] || 0) + value;
+    });
+    ['hp','fp','stamina','eqload','poiseMult'].forEach(key => {
+      if (modifier[key] != null) result[key] *= modifier[key];
+    });
+    result.poiseFlat += modifier.poiseFlat || 0;
+    const attackModifiers = BUILD.playstyle_tag === 'pvp'
+      ? (modifier.attackPvp || modifier.attack || {})
+      : (modifier.attackPve || modifier.attack || {});
+    Object.entries(attackModifiers).forEach(([damageType, value]) => {
+      result.attack[damageType] *= value;
+    });
+  });
+  return result;
+}
+
 function calcFortuneStatBonuses() {
   if (!BUILD.fortune || BUILD.game !== 'err') return {};
-  return FORTUNE_STAT_BONUSES[BUILD.fortune.name] || {};
+  return BUILD.fortune.modifiers?.statFlat ||
+    FORTUNE_STAT_BONUSES[BUILD.fortune.name] || {};
 }
 
 function calcFortuneDerivedMults() {
-  if (!BUILD.fortune || BUILD.game !== 'err') return { hp: 1, fp: 1, stamina: 1 };
-  const m = FORTUNE_DERIVED_MULTS[BUILD.fortune.name] || {};
-  return { hp: m.hp || 1, fp: m.fp || 1, stamina: m.stamina || 1 };
+  if (BUILD.game !== 'err') return { hp: 1, fp: 1, stamina: 1 };
+  const fallback = BUILD.fortune
+    ? (FORTUNE_DERIVED_MULTS[BUILD.fortune.name] || {})
+    : {};
+  const m = { ...fallback, ...(BUILD.fortune?.modifiers || {}) };
+  // Current ERR regulation applies the same deterministic x1.01 HP/Stamina
+  // modifier for every actual Minor Fortune row (SpEffects 7401020..7401200).
+  const minorHp = BUILD.minor_fortune
+    ? (BUILD.minor_fortune.minor_modifiers?.hp || 1.01)
+    : 1;
+  const minorStamina = BUILD.minor_fortune
+    ? (BUILD.minor_fortune.minor_modifiers?.stamina || 1.01)
+    : 1;
+  return {
+    hp: (m.hp || 1) * minorHp,
+    fp: m.fp || 1,
+    stamina: (m.stamina || 1) * minorStamina,
+  };
 }
 
-// Rune multiplicative effects on HP/FP/Stamina/EquipLoad
-// Per-copy multiplier compounds: N copies of x1.007 = x(1.007^N)
+// Rune multiplicative effects on HP/FP/Stamina/EquipLoad. Regulation.bin has
+// one SpEffect row for each total-copy tier; copies do not exponentiate the
+// first row. Preserve the exported floats so final flooring matches the game.
 const RUNE_DERIVED_MULTS = {
-  'Cursed Health':   { hp:      1.006 },  // x1.006 Max HP per copy
-  'Cradled Focus':   { fp:      1.007 },  // x1.007 Max FP per copy
-  'Leonine Stamina': { stamina: 1.008 },  // x1.008 Max Stamina per copy
-  'Leonine Weight':  { eqload:  1.004 },  // x1.004 Equip Load per copy
+  'Cursed Health': {
+    resource: 'hp',
+    byCopies: [1, 1.00600004196167, 1.0119999647140503, 1.0180000066757202, 1.0240000486373901, 1.0299999713897705, 1.0360000133514404, 1.0420000553131104, 1.0479999780654907, 1.0540000200271606, 1.059999942779541],
+  },
+  'Cradled Focus': {
+    resource: 'fp',
+    byCopies: [1, 1.0069999694824219, 1.0140000581741333, 1.0210000276565552, 1.027999997138977, 1.034999966621399, 1.0420000553131104, 1.0490000247955322, 1.055999994277954, 1.062999963760376, 1.0700000524520874],
+  },
+  'Leonine Stamina': {
+    resource: 'stamina',
+    byCopies: [1, 1.0080000162124634, 1.0160000324249268, 1.0240000486373901, 1.031999945640564, 1.0399999618530273, 1.0479999780654907, 1.055999994277954, 1.0640000104904175, 1.0720000267028809, 1.0800000429153442],
+  },
+  'Leonine Weight': {
+    resource: 'eqload',
+    byCopies: [1, 1.0010000467300415, 1.0019999742507935, 1.003000020980835, 1.003999948501587, 1.0049999952316284, 1.00600004196167, 1.0069999694824219, 1.0080000162124634, 1.0089999437332153, 1.0099999904632568],
+  },
 };
 
 function calcRuneDerivedMults() {
@@ -2522,11 +2965,10 @@ function calcRuneDerivedMults() {
   for (const r of BUILD.runeInventory) {
     const m = RUNE_DERIVED_MULTS[r.name];
     if (!m || !r.copies) continue;
-    // Compound: N copies = base^N
-    if (m.hp)      result.hp      *= Math.pow(m.hp,      r.copies);
-    if (m.fp)      result.fp      *= Math.pow(m.fp,      r.copies);
-    if (m.stamina) result.stamina *= Math.pow(m.stamina, r.copies);
-    if (m.eqload)  result.eqload  *= Math.pow(m.eqload,  r.copies);
+    const copies = Math.max(
+      0, Math.min(m.byCopies.length - 1, Number(r.copies) || 0)
+    );
+    result[m.resource] *= m.byCopies[copies];
   }
   return result;
 }
@@ -2536,29 +2978,52 @@ function updateDerivedStats() {
   const runeBonuses     = (BUILD.game === 'err') ? calcRuneStatBonuses() : {};
   const fortuneBonuses  = calcFortuneStatBonuses();
   const enkindleMods    = calcEnkindleModifiers();
-  // Effective stats = base + rune bonuses + fortune bonuses + enkindle bonuses, capped at 99
+  const talismanMods    = calcTalismanModifiers();
+  const physickMods     = calcPhysickModifiers();
+  // Effective stats = base + permanent equipment/mod bonuses, capped at 99.
+  // These bonuses do not count as rune levels spent.
   const eff = {};
   ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'].forEach(k => {
-    eff[k] = Math.min(99, (s[k] || 10) + (runeBonuses[k] || 0) + (fortuneBonuses[k] || 0) + (enkindleMods.statFlat[k] || 0));
+    eff[k] = Math.min(99, (s[k] || 10) + (runeBonuses[k] || 0) +
+      (fortuneBonuses[k] || 0) + (enkindleMods.statFlat[k] || 0) +
+      (talismanMods.statFlat[k] || 0) + (physickMods.statFlat[k] || 0));
   });
   // Level = class starting level + points spent above class base (rune/enkindle bonuses don't count toward level)
   const classLevel = BUILD.class_id ? (CLASSES.find(c => c.id === BUILD.class_id)?.level || 1) : 1;
   const keys = ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'];
   const pointsSpent = keys.reduce((sum, k) => sum + Math.max(0, (s[k] || 0) - (BUILD.class_base[k] || 0)), 0);
   const levelCap = BUILD.game === 'err' ? 200 : 713;
-  const totalLevel = Math.min(levelCap, classLevel + pointsSpent);
+  const minimumLevel = Math.min(levelCap, classLevel + pointsSpent);
+  const levelInput = document.getElementById('level-override');
+  // A saved/current level is authoritative because a character can have
+  // unallocated levels. Only raise it automatically when the allocated stats
+  // require a higher minimum; never replace a valid stored level with the
+  // formula-derived minimum.
+  if (Number.isFinite(BUILD.level_override) && BUILD.level_override < minimumLevel) {
+    BUILD.level_override = minimumLevel;
+    if (levelInput) levelInput.value = minimumLevel;
+  }
+  const requestedLevel = Number.isFinite(BUILD.level_override) ? BUILD.level_override : minimumLevel;
+  const totalLevel = Math.min(levelCap, Math.max(minimumLevel, requestedLevel));
   document.getElementById('total-level').textContent = Math.max(1, totalLevel);
+  const minimumNote = document.getElementById('minimum-level-note');
+  if (minimumNote) minimumNote.textContent = `Minimum from base stats: ${Math.max(1, minimumLevel)}`;
+  if (levelInput) {
+    levelInput.max = levelCap;
+    if (levelInput.readOnly) levelInput.value = Math.max(1, totalLevel);
+    levelInput.setCustomValidity('');
+  }
 
   // HP/FP/Stamina: apply fortune multipliers, then rune multipliers, then enkindle multipliers (all compound)
   const fm = calcFortuneDerivedMults();
   const rm = calcRuneDerivedMults();
-  const hp   = Math.floor(calcHP(eff.vigor)          * fm.hp      * rm.hp      * enkindleMods.hpMult);
-  const fp   = Math.floor(calcFP(eff.mind)           * fm.fp      * rm.fp      * enkindleMods.fpMult);
-  const stam = Math.floor(calcStamina(eff.endurance) * fm.stamina * rm.stamina * enkindleMods.staminaMult);
+  const hp   = Math.floor(calcHP(eff.vigor)          * fm.hp      * rm.hp      * talismanMods.hp      * physickMods.hp      * enkindleMods.hpMult);
+  const fp   = Math.floor(calcFP(eff.mind)           * fm.fp      * rm.fp      * talismanMods.fp      * physickMods.fp      * enkindleMods.fpMult);
+  const stam = Math.floor(calcStamina(eff.endurance) * fm.stamina * rm.stamina * talismanMods.stamina * physickMods.stamina * enkindleMods.staminaMult);
   // ERR: base equip load = 100 (Endurance has no effect). ER: use formula.
   const eqLoad = BUILD.game === 'err'
-    ? Math.round(100 * rm.eqload * enkindleMods.equipLoadMult * 10) / 10
-    : Math.floor(calcEquipLoad(eff.endurance) * rm.eqload * enkindleMods.equipLoadMult * 10) / 10;
+    ? Math.round(100 * rm.eqload * talismanMods.eqload * enkindleMods.equipLoadMult * 10) / 10
+    : Math.floor(calcEquipLoad(eff.endurance) * rm.eqload * talismanMods.eqload * physickMods.eqload * enkindleMods.equipLoadMult * 10) / 10;
 
   const el = id => document.getElementById('derived-' + id);
   if (el('hp'))     el('hp').textContent    = hp;
@@ -2575,10 +3040,34 @@ function updateDerivedStats() {
   if (runeEl) runeEl.textContent = runeCost > 0 ? runeCost.toLocaleString() : '-';
 }
 
-// Vanilla ER formulas verified against Fextralife wiki breakpoint tables.
-// ERR uses exact lookup tables (DERIVED_CURVES) from the mod's own balance spreadsheet
-// instead, since ERR's growth curve is non-monotonic (e.g. VIG growth rate INCREASES
-// at stat 30) and can't be expressed as the same kind of piecewise formula.
+function onLevelOverride(rawValue) {
+  if (rawValue === '') {
+    BUILD.level_override = null;
+  } else {
+    const parsed = parseInt(rawValue, 10);
+    BUILD.level_override = Number.isFinite(parsed) ? parsed : null;
+  }
+  updateDerivedStats();
+}
+
+function toggleLevelOverride() {
+  const input = document.getElementById('level-override');
+  const toggle = document.getElementById('level-override-toggle');
+  if (!input) return;
+  if (input.readOnly) {
+    input.readOnly = false;
+    if (toggle) toggle.textContent = 'Lock';
+    input.focus();
+    input.select();
+  } else {
+    onLevelOverride(input.value);
+    input.readOnly = true;
+    if (toggle) toggle.textContent = 'Override';
+  }
+}
+
+// Both games normally use exact exported lookup tables. These formulas remain
+// only as an offline/error fallback if the catalog request is unavailable.
 function calcHP(vig) {
   if (DERIVED_CURVES.vigor_hp) return DERIVED_CURVES.vigor_hp[Math.min(149, Math.max(0, vig))] || 0;
   if (vig <= 25)  return Math.round(300 + (vig - 1) * (500 / 24));
@@ -2604,6 +3093,9 @@ function calcStamina(end) {
 }
 
 function calcEquipLoad(end) {
+  if (DERIVED_CURVES.endurance_equip_load) {
+    return DERIVED_CURVES.endurance_equip_load[Math.min(149, Math.max(0, end))] || 0;
+  }
   // Breakpoints: 1=45.0, 8≈46.5, 25=72.0, 60=120.0, 99=160.0
   if (end <= 8)   return parseFloat((45.0 + (end - 1) * (1.5 / 7)).toFixed(1));
   if (end <= 25)  return parseFloat((46.5 + (end - 8) * (25.5 / 17)).toFixed(1));
@@ -2611,31 +3103,81 @@ function calcEquipLoad(end) {
   return parseFloat((120.0 + (end - 60) * (40.0 / 39)).toFixed(1));
 }
 
+function effectiveWeaponWeight(slot) {
+  const weapon = BUILD.slots[slot];
+  if (!weapon) return 0;
+  if (BUILD.game !== 'err') return weapon.weight || 0;
+
+  const variants = AR_VARIANTS_CACHE[BUILD.game + '|' + weapon.name] || [];
+  const affinity = weapon.equippedAffinity || 'Standard';
+  const selected = variants.find(variant => variant.affinity === affinity);
+  if (selected?.weight != null) return Number(selected.weight) || 0;
+
+  const standard = variants.find(variant => variant.affinity === 'Standard');
+  const baseWeight = Number(standard?.weight ?? weapon.weight) || 0;
+  // Fixed-affinity unique weapons do not have a separate infusable variant row,
+  // but still receive the affinity's deterministic passive.
+  if (getFixedWeaponAffinities(weapon).includes('Gravitational')) {
+    return Math.floor(baseWeight * 0.5 * 10) / 10;
+  }
+  return baseWeight;
+}
+
+function calculateEquippedWeight() {
+  let armorWeight = 0;
+  ['helm','chest','gauntlet','leg'].forEach(slot => {
+    armorWeight += BUILD.slots[slot]?.weight || 0;
+  });
+  if (BUILD.game === 'err') {
+    const rhWeights = ['rh1','rh2','rh3'].map(effectiveWeaponWeight);
+    const lhWeights = ['lh1','lh2','lh3'].map(effectiveWeaponWeight);
+    return armorWeight + Math.max(...rhWeights) + Math.max(...lhWeights);
+  }
+  let talismanWeight = 0;
+  ['talisman1','talisman2','talisman3','talisman4'].forEach(slot => {
+    talismanWeight += BUILD.slots[slot]?.weight || 0;
+  });
+  let weaponWeight = 0;
+  ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
+    weaponWeight += effectiveWeaponWeight(slot);
+  });
+  return armorWeight + talismanWeight + weaponWeight;
+}
+
+function calcPhysickEquipLoadMult() {
+  if (BUILD.game !== 'err') return 1;
+  const current = ERR_WEIGHT_SOURCES.crystal_tears || {};
+  const fallback = { 'Winged Crystal Tear': 1.10 };
+  const selectedNames = new Set((BUILD.tears || []).filter(Boolean).map(tear => tear.name));
+  let multiplier = 1;
+  selectedNames.forEach(name => {
+    multiplier *= Number(current[name] ?? fallback[name] ?? 1) || 1;
+  });
+  return multiplier;
+}
+
 function updateEquipLoad() {
   let eqLoad;
 
   if (BUILD.game === 'err') {
     // ERR: Base equip load = 100. Endurance does NOT affect it.
-    // Only Leonine Weight rune, Fortune of Sentinel (x1.08), Barbarian (x0.84),
-    // Dynasts (x0.85), Bulwark (always Massive) and talismans affect it.
+    // Current regulation sources: runes, fortunes, talismans, Enkindling, and
+    // the selected Winged Crystal Tear Physick effect.
     const rm = calcRuneDerivedMults();
-    // Fortune equip load modifiers
-    const FORTUNE_EQ_MULTS = {
-      'Sentinel':  1.08,
+    const FORTUNE_EQ_MULTS = ERR_WEIGHT_SOURCES.fortunes || {
+      'Sentinel':  1.04,
       'Barbarian': 0.84,
-      'Dynasts':   0.85,
+      'Dynasts':   0.86,
+      'Bulwark':   0.001,
     };
     const fortuneMult = BUILD.fortune ? (FORTUNE_EQ_MULTS[BUILD.fortune.name] || 1.0) : 1.0;
     const enkindleMods = calcEnkindleModifiers();
-    eqLoad = Math.round(100 * fortuneMult * rm.eqload * enkindleMods.equipLoadMult * 10) / 10;
+    const talismanMods = calcTalismanModifiers();
+    const physickMult = calcPhysickEquipLoadMult();
+    eqLoad = Math.round(100 * fortuneMult * rm.eqload * talismanMods.eqload * enkindleMods.equipLoadMult * physickMult * 10) / 10;
 
     // ERR weapon weight: only heaviest RH + heaviest LH (not all 6 slots)
-    const rhWeights = ['rh1','rh2','rh3'].map(s => BUILD.slots[s]?.weight || 0);
-    const lhWeights = ['lh1','lh2','lh3'].map(s => BUILD.slots[s]?.weight || 0);
-    const weaponWeight = Math.max(...rhWeights) + Math.max(...lhWeights);
-    let armorWeight = 0;
-    ['helm','chest','gauntlet','leg'].forEach(s => { armorWeight += BUILD.slots[s]?.weight || 0; });
-    const totalWeight = weaponWeight + armorWeight;
+    const totalWeight = calculateEquippedWeight();
 
     const weightEl = document.getElementById('total-weight');
     if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
@@ -2663,13 +3205,16 @@ function updateEquipLoad() {
     // ER vanilla: Endurance scales equip load
     const runeBonuses = calcRuneStatBonuses();
     const fortuneBonuses = calcFortuneStatBonuses();
-    const effEnd = Math.min(99, (BUILD.stats.endurance || 10) + (runeBonuses.endurance || 0) + (fortuneBonuses.endurance || 0));
-    eqLoad = Math.round(calcEquipLoad(effEnd) * 10) / 10;
+    const talismanMods = calcTalismanModifiers();
+    const physickMods = calcPhysickModifiers();
+    const effEnd = Math.min(99, (BUILD.stats.endurance || 10) + (runeBonuses.endurance || 0) +
+      (fortuneBonuses.endurance || 0) + (talismanMods.statFlat.endurance || 0) +
+      (physickMods.statFlat.endurance || 0));
+    eqLoad = Math.round(
+      calcEquipLoad(effEnd) * talismanMods.eqload * physickMods.eqload * 10
+    ) / 10;
 
-    let totalWeight = 0;
-    ['helm','chest','gauntlet','leg','rh1','rh2','rh3','lh1','lh2','lh3'].forEach(s => {
-      totalWeight += BUILD.slots[s]?.weight || 0;
-    });
+    const totalWeight = calculateEquippedWeight();
 
     const weightEl = document.getElementById('total-weight');
     if (weightEl) weightEl.textContent = totalWeight.toFixed(1);
@@ -2739,6 +3284,8 @@ function clearSlot(slot) {
     if (affinityRow) affinityRow.classList.add('hidden');
     const affinityName = document.getElementById('affinity-' + slot + '-name');
     if (affinityName) affinityName.textContent = 'Standard';
+    const upgradeRow = document.getElementById('upgrade-row-' + slot);
+    if (upgradeRow) upgradeRow.classList.add('hidden');
     document.getElementById('tab-aow')?.classList.add('hidden');
     const arEl = document.getElementById('slot-' + slot + '-ar');
     if (arEl) arEl.classList.add('hidden');
@@ -2747,12 +3294,20 @@ function clearSlot(slot) {
     if (enkindleRow) enkindleRow.classList.add('hidden');
     updateARSummary();
   }
+  if (SLOT_CATEGORY[slot] === 'talisman') {
+    updateAllStatBars();
+    updateDerivedStats();
+    updateAllWeaponARs();
+  }
+  if (SLOT_CATEGORY[slot] === 'armor') updateAllWeaponARs();
   updateEquipLoad();
   updatePoise();
 }
 
 // ── Full build reset ──────────────────────────────────────────────────────────
 function resetBuildSilent() {
+  BUILD.id = null;
+  BUILD.share_token = null;
   // Clear all slots (clearSlot handles AoW rows for weapon slots)
   Object.keys(BUILD.slots).forEach(s => clearSlot(s));
   // Clear AoW state
@@ -2763,6 +3318,14 @@ function resetBuildSilent() {
   // Reset stats to base 10
   BUILD.class_id = null;
   BUILD.class_name = '';
+  BUILD.level_override = null;
+  const levelInput = document.getElementById('level-override');
+  if (levelInput) {
+    levelInput.value = '';
+    levelInput.readOnly = true;
+  }
+  const levelToggle = document.getElementById('level-override-toggle');
+  if (levelToggle) levelToggle.textContent = 'Override';
   const keys = ['vigor','mind','endurance','strength','dexterity','intelligence','faith','arcane'];
   keys.forEach(k => {
     BUILD.stats[k] = 10;
@@ -2786,6 +3349,7 @@ function resetBuildSilent() {
 function resetBuild() {
   if (!confirm('Reset the entire build? This cannot be undone.')) return;
   resetBuildSilent();
+  setActiveBuildUrl(null, null);
 }
 
 // ── Game selector ─────────────────────────────────────────────────────────────
@@ -2794,7 +3358,7 @@ function toggleGameMenu() {
   menu.classList.toggle('hidden');
 }
 
-function selectGame(gameKey, label) {
+function selectGame(gameKey, label, preserveBuildUrl = false) {
   document.getElementById('check-' + BUILD.game)?.classList.add('hidden');
   BUILD.game = gameKey;
   AR_VARIANTS_CACHE = {};  // clear per-weapon cache - variants differ between ER and ERR
@@ -2822,6 +3386,7 @@ function selectGame(gameKey, label) {
   loadCrystalTears();
   {% if web_user %}loadMyBuilds();{% endif %}
   resetBuildSilent();
+  if (!preserveBuildUrl) setActiveBuildUrl(null, null);
   // Curios, Fortunes, and Runeforging are ERR-only; Affinities exist in both games
   ['tab-curios', 'equip-tab-fortunes', 'tab-runeforging'].forEach(id => {
     document.getElementById(id)?.classList.toggle('hidden', gameKey !== 'err');
@@ -3590,6 +4155,10 @@ function renderPickerResults() {
       // is_infusable = affinity (Heavy/Blood/etc) can be applied
       const lockedBadge   = w.is_locked_skill ? `<span class="text-[9px] text-amber-300 bg-amber-900/30 border border-amber-700/50 rounded px-1">Locked Skill</span>` : '';
       const infusableBadge = !w.is_infusable ? `<span class="text-[9px] text-gray-300 bg-neutral-700 border border-neutral-500 rounded px-1">No Infuse</span>` : '';
+      const fixedAffinities = getFixedWeaponAffinities(w);
+      const affinityBadge = fixedAffinities.length
+        ? `<span class="text-[9px] text-purple-300 bg-purple-950/40 border border-purple-800/50 rounded px-1">${escapeHtml(fixedAffinities.join(' / '))}</span>`
+        : '';
       const skillLine = w.default_skill
         ? `<div class="text-[10px] text-amber-700/80 truncate">Skill: ${escapeHtml(w.default_skill)}</div>`
         : '';
@@ -3597,7 +4166,7 @@ function renderPickerResults() {
         <div class="flex-1 min-w-0">
           <div class="sl-item-name flex items-center gap-1 flex-wrap">
             ${escapeHtml(w.name)}
-            ${lockedBadge}${infusableBadge}
+            ${lockedBadge}${infusableBadge}${affinityBadge}
           </div>
           <div class="sl-item-meta flex items-center gap-1 flex-wrap">${escapeHtml(w.type)}
             ${scalingBadges ? `<span class="flex items-center gap-0.5">${scalingBadges}</span>` : ''}
@@ -3964,10 +4533,52 @@ function renderRuneInventory() {
 // ── ERR: Weapon Affinities ────────────────────────────────────────────────────
 let activeAffinitySlot = null;
 
+function getFixedWeaponAffinities(weapon) {
+  if (BUILD.game !== 'err' || !weapon) return [];
+  const values = Array.isArray(weapon.affinities)
+    ? weapon.affinities
+    : (weapon.affinity ? [weapon.affinity] : []);
+  return [...new Set(values.filter(Boolean))];
+}
+
+function renderWeaponAffinityRow(slot, weapon) {
+  const row = document.getElementById('affinity-row-' + slot);
+  const nameEl = document.getElementById('affinity-' + slot + '-name');
+  if (!row || !weapon) return;
+
+  const isInfusable = weapon.is_infusable !== false;
+  const fixedAffinities = getFixedWeaponAffinities(weapon);
+  const hasFixedAffinity = fixedAffinities.length > 0;
+
+  if (!isInfusable && !hasFixedAffinity) {
+    row.classList.add('hidden');
+    return;
+  }
+
+  row.classList.remove('hidden');
+  if (hasFixedAffinity && !isInfusable) {
+    // Keep the existing purple Affinity row, but make fixed unique-weapon
+    // affinities informational because the player cannot change them.
+    weapon.equippedAffinity = fixedAffinities[0];
+    if (nameEl) nameEl.textContent = fixedAffinities.join(' / ');
+    row.onclick = null;
+    row.style.cursor = 'default';
+    row.title = 'Fixed Elden Ring Reforged affinity';
+    row.classList.remove('cursor-pointer', 'hover:bg-purple-900/10');
+  } else {
+    weapon.equippedAffinity = weapon.equippedAffinity || 'Standard';
+    if (nameEl) nameEl.textContent = weapon.equippedAffinity;
+    row.onclick = () => openAffinityPicker(slot);
+    row.style.cursor = '';
+    row.title = 'Choose weapon affinity';
+    row.classList.add('cursor-pointer', 'hover:bg-purple-900/10');
+  }
+}
+
 function openAffinityPicker(weaponSlot) {
   const weapon = BUILD.slots[weaponSlot];
   if (!weapon) return;
-  if (weapon.is_infusable === false) return;  // unique skill weapon - affinity row is hidden
+  if (weapon.is_infusable === false) return;  // fixed unique-weapon affinity is read-only
   activeAffinitySlot = weaponSlot;
   activePicker = { category: 'affinity', slot: weaponSlot };
   document.getElementById('picker-title').textContent = 'Select Affinity for ' + (weapon.name || 'weapon');
@@ -3985,6 +4596,7 @@ function equipAffinity(affinity) {
   if (nameEl) nameEl.textContent = affinity.name;
   updateWeaponAR(slot);
   updateARSummary();
+  updateEquipLoad();
   renderAffinityPicker();  // refresh active highlight
 }
 
@@ -3996,6 +4608,7 @@ function resetAffinity() {
   if (nameEl) nameEl.textContent = 'Standard';
   updateWeaponAR(slot);
   updateARSummary();
+  updateEquipLoad();
   renderAffinityPicker();
 }
 
@@ -4083,11 +4696,14 @@ function toggleErrPanels(isErr) {
   // Show ERR weight approximation note in armor tab and character panel
   document.getElementById('err-weight-note')?.classList.toggle('hidden', !isErr);
   document.getElementById('char-err-weight-note')?.classList.toggle('hidden', !isErr);
-  // Show affinity rows on all weapon slots if ERR and weapon is equipped
+  // Re-evaluate affinity rows when switching modes. Infusable weapons keep the
+  // picker; ERR unique weapons show their fixed affinity read-only.
   ['rh1','rh2','rh3','lh1','lh2','lh3'].forEach(slot => {
     const row = document.getElementById('affinity-row-' + slot);
     if (!row) return;
-    row.classList.toggle('hidden', !isErr || !BUILD.slots[slot]);
+    const weapon = BUILD.slots[slot];
+    if (!weapon) row.classList.add('hidden');
+    else renderWeaponAffinityRow(slot, weapon);
   });
 }
 
@@ -4108,6 +4724,10 @@ function equipItem(category, item) {
   const expectedCategory = SLOT_CATEGORY[slot];
   if (expectedCategory && expectedCategory !== category) return;
 
+  // Slot state is independent: the same weapon can be equipped at different
+  // affinities and upgrade levels in two hands.
+  item = {...item};
+  if (category === 'weapon') item.upgradeLevel = null;
   BUILD.slots[slot] = item;
   const nameEl   = document.getElementById('slot-' + slot + '-name');
   const slotEl   = document.getElementById('slot-' + slot);
@@ -4121,11 +4741,8 @@ function equipItem(category, item) {
     const aowRow    = document.getElementById('aow-row-' + slot);
     const aowName   = document.getElementById('aow-' + slot + '-name');
     const clearAow  = document.getElementById('clear-aow-' + slot);
-    const affinityRow = document.getElementById('affinity-row-' + slot);
-    const affinityName = document.getElementById('affinity-' + slot + '-name');
 
     const isLockedSkill = item.is_locked_skill === true;  // AoW cannot be swapped
-    const isInfusable   = item.is_infusable !== false;    // affinity can be changed
     const defaultSkillLabel = item.default_skill || 'No Skill';
 
     // AoW row: always show when weapon equipped
@@ -4150,17 +4767,9 @@ function equipItem(category, item) {
       }
     }
 
-    // Affinity row: show for ANY infusable weapon in both ER and ERR
-    if (affinityRow) {
-      if (isInfusable) {
-        affinityRow.classList.remove('hidden');
-        item.equippedAffinity = 'Standard';
-        if (affinityName) { affinityName.textContent = 'Standard'; affinityName.style.color = ''; }
-      } else {
-        // Unique skill weapon - hide affinity row
-        affinityRow.classList.add('hidden');
-      }
-    }
+    // Infusable weapons retain the clickable picker. ERR unique weapons use
+    // the same purple row to show their fixed affinity read-only.
+    renderWeaponAffinityRow(slot, item);
 
     // Enkindle row (ERR only): this is the actual weapon-equip path (default AoW
     // shown, no custom swap yet) - equipAow() only fires later if the user swaps
@@ -4179,9 +4788,17 @@ function equipItem(category, item) {
       }
     }
 
-    updateWeaponAR(slot);
-    updateARSummary();
+    // Equipped weight can change Blue Dancer/other deterministic load scaling,
+    // so refresh every equipped weapon rather than only the new slot.
+    updateAllWeaponARs();
   }
+
+  if (category === 'talisman') {
+    updateAllStatBars();
+    updateDerivedStats();
+    updateAllWeaponARs();
+  }
+  if (category === 'armor') updateAllWeaponARs();
 
   updateEquipLoad();
   updatePoise();
@@ -4235,6 +4852,7 @@ function clearAow(weaponSlot) {
 // Cache of eligible-affix lists per AoW name, so switching between slots that
 // share the same AoW doesn't re-fetch.
 const _enkindleEligibleCache = {};
+const _enkindleEligibleRequests = {};
 
 function refreshEnkindleOptions(weaponSlot) {
   const row = document.getElementById('enkindle-row-' + weaponSlot);
@@ -4258,13 +4876,18 @@ function refreshEnkindleOptions(weaponSlot) {
     populate(_enkindleEligibleCache[aowName]);
     return Promise.resolve();
   }
-  return fetch('/api/soulslike/err/enkindling/eligible/?aow=' + encodeURIComponent(aowName))
-    .then(r => r.json())
-    .then(d => {
-      const affixes = d.affixes || [];
-      _enkindleEligibleCache[aowName] = affixes;
-      populate(affixes);
-    })
+  if (!_enkindleEligibleRequests[aowName]) {
+    _enkindleEligibleRequests[aowName] = fetch('/api/soulslike/err/enkindling/eligible/?aow=' + encodeURIComponent(aowName))
+      .then(r => r.json())
+      .then(d => {
+        const affixes = d.affixes || [];
+        _enkindleEligibleCache[aowName] = affixes;
+        return affixes;
+      })
+      .finally(() => { delete _enkindleEligibleRequests[aowName]; });
+  }
+  return _enkindleEligibleRequests[aowName]
+    .then(populate)
     .catch(() => { affixSel.innerHTML = '<option value="">No Enkindling</option>'; });
 }
 
@@ -4301,7 +4924,12 @@ function updatePoise() {
   ['helm','chest','gauntlet','leg'].forEach(slot => {
     if (BUILD.slots[slot]) poise += BUILD.slots[slot].poise || 0;
   });
+  const talismanMods = calcTalismanModifiers();
+  const physickMods = calcPhysickModifiers();
   poise += calcEnkindleModifiers().poiseFlat;
+  poise += talismanMods.poiseFlat;
+  poise += physickMods.poiseFlat;
+  poise *= talismanMods.poiseMult * physickMods.poiseMult;
   const el = document.getElementById('total-poise');
   if (el) el.textContent = poise.toFixed(1);
   // Mirror to CHARACTER panel
@@ -4349,6 +4977,10 @@ function setTag(tag) {
   document.querySelectorAll('#playstyle-tags .sl-tag-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tag === tag);
   });
+  // Vanilla regulation exposes separate PvE/PvP values for a small number of
+  // deterministic equipped effects (for example Scorpion Charms and selected
+  // Shrouding tears). No combat-state toggle is required.
+  updateAllWeaponARs();
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
@@ -4367,17 +4999,17 @@ function saveBuild() {
     class_id: BUILD.class_id,
     ...BUILD.stats,
     total_level: parseInt(document.getElementById('total-level').textContent) || 1,
-    rh1_weapon_id: BUILD.slots.rh1?.id || null, rh1_aow_name: BUILD.aow.rh1?.name || null, rh1_affinity: BUILD.slots.rh1?.equippedAffinity || null,
+    rh1_weapon_id: BUILD.slots.rh1?.id || null, rh1_aow_name: BUILD.aow.rh1?.name || BUILD.slots.rh1?.default_skill || null, rh1_affinity: BUILD.slots.rh1?.equippedAffinity || null,
     rh1_enkindle_affix: BUILD.enkindle.rh1?.affix || null, rh1_enkindle_rarity: BUILD.enkindle.rh1?.rarity || null,
-    rh2_weapon_id: BUILD.slots.rh2?.id || null, rh2_aow_name: BUILD.aow.rh2?.name || null, rh2_affinity: BUILD.slots.rh2?.equippedAffinity || null,
+    rh2_weapon_id: BUILD.slots.rh2?.id || null, rh2_aow_name: BUILD.aow.rh2?.name || BUILD.slots.rh2?.default_skill || null, rh2_affinity: BUILD.slots.rh2?.equippedAffinity || null,
     rh2_enkindle_affix: BUILD.enkindle.rh2?.affix || null, rh2_enkindle_rarity: BUILD.enkindle.rh2?.rarity || null,
-    rh3_weapon_id: BUILD.slots.rh3?.id || null, rh3_aow_name: BUILD.aow.rh3?.name || null, rh3_affinity: BUILD.slots.rh3?.equippedAffinity || null,
+    rh3_weapon_id: BUILD.slots.rh3?.id || null, rh3_aow_name: BUILD.aow.rh3?.name || BUILD.slots.rh3?.default_skill || null, rh3_affinity: BUILD.slots.rh3?.equippedAffinity || null,
     rh3_enkindle_affix: BUILD.enkindle.rh3?.affix || null, rh3_enkindle_rarity: BUILD.enkindle.rh3?.rarity || null,
-    lh1_weapon_id: BUILD.slots.lh1?.id || null, lh1_aow_name: BUILD.aow.lh1?.name || null, lh1_affinity: BUILD.slots.lh1?.equippedAffinity || null,
+    lh1_weapon_id: BUILD.slots.lh1?.id || null, lh1_aow_name: BUILD.aow.lh1?.name || BUILD.slots.lh1?.default_skill || null, lh1_affinity: BUILD.slots.lh1?.equippedAffinity || null,
     lh1_enkindle_affix: BUILD.enkindle.lh1?.affix || null, lh1_enkindle_rarity: BUILD.enkindle.lh1?.rarity || null,
-    lh2_weapon_id: BUILD.slots.lh2?.id || null, lh2_aow_name: BUILD.aow.lh2?.name || null, lh2_affinity: BUILD.slots.lh2?.equippedAffinity || null,
+    lh2_weapon_id: BUILD.slots.lh2?.id || null, lh2_aow_name: BUILD.aow.lh2?.name || BUILD.slots.lh2?.default_skill || null, lh2_affinity: BUILD.slots.lh2?.equippedAffinity || null,
     lh2_enkindle_affix: BUILD.enkindle.lh2?.affix || null, lh2_enkindle_rarity: BUILD.enkindle.lh2?.rarity || null,
-    lh3_weapon_id: BUILD.slots.lh3?.id || null, lh3_aow_name: BUILD.aow.lh3?.name || null, lh3_affinity: BUILD.slots.lh3?.equippedAffinity || null,
+    lh3_weapon_id: BUILD.slots.lh3?.id || null, lh3_aow_name: BUILD.aow.lh3?.name || BUILD.slots.lh3?.default_skill || null, lh3_affinity: BUILD.slots.lh3?.equippedAffinity || null,
     lh3_enkindle_affix: BUILD.enkindle.lh3?.affix || null, lh3_enkindle_rarity: BUILD.enkindle.lh3?.rarity || null,
     shield_id:           BUILD.slots.shield?.id    || null,
     helm_id:             BUILD.slots.helm?.id      || null,
@@ -4402,18 +5034,28 @@ function saveBuild() {
     minor_fortune_name: BUILD.minor_fortune?.name || null,
     curio_selections:   BUILD.curioSelections || null,
     rune_inventory:     BUILD.runeInventory || null,
+    collection_items:   buildCollectionItems(),
   };
   csrfFetch('/api/soulslike/builds/?game=' + BUILD.game, {
     method: 'POST',
     body: JSON.stringify(payload),
   }).then(r => r.json()).then(d => {
     if (d.ok) {
+      BUILD.id = Number.isFinite(parseInt(d.build_id, 10))
+        ? parseInt(d.build_id, 10) : BUILD.id;
+      BUILD.share_token = d.share_token || BUILD.share_token;
+      if (BUILD.share_token) {
+        setActiveBuildUrl('load', BUILD.share_token, BUILD.game);
+      }
       const banner = document.getElementById('save-banner');
-      const bannerText = banner.querySelector('i');
       banner.classList.remove('hidden');
       if (d.updated) {
         // Show "updated" instead of "saved" for overwrites
-        banner.childNodes[1] && (banner.innerHTML = '<i class="fas fa-check mr-2"></i>Build updated! <a href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>');
+        const linkedRuns = parseInt(d.item_sync?.runs ?? d.talisman_sync?.runs, 10) || 0;
+        const runNote = linkedRuns
+          ? ` Linked run${linkedRuns === 1 ? '' : 's'} updated.`
+          : '';
+        banner.innerHTML = '<i class="fas fa-check mr-2"></i>Build updated!'+runNote+' <a href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>';
       }
       setTimeout(() => { banner.classList.add('hidden'); banner.innerHTML = '<i class="fas fa-check mr-2"></i>Build saved! <a id="save-link" href="/soulslike/builds/" class="text-green-300 underline ml-1">My Builds</a>'; }, 5000);
       loadMyBuilds();  // refresh the My Builds list
@@ -4546,7 +5188,10 @@ function buildCollectionItems() {
     if (BUILD.minor_fortune) {
       items.push({ item_type: 'minor_fortune', item_id: null, item_name: BUILD.minor_fortune.name });
     }
-    // Curios - each active/unsealed curio
+    // Curios are stateful: the currently unsealed Curio is a build selection,
+    // but sealing it later does not mean it was lost. Linked-run synchronization
+    // therefore adds an unsealed Curio and preserves its collection history when
+    // a later build save seals it.
     if (BUILD.curioSelections) {
       Object.entries(BUILD.curioSelections).forEach(([name, state]) => {
         if (state && (state.active || state === 'active')) {
@@ -4554,6 +5199,13 @@ function buildCollectionItems() {
         }
       });
     }
+    // Binding Runes remain part of the run's cumulative collection history
+    // even if a later build edit removes or changes the equipped inventory.
+    (BUILD.runeInventory || []).forEach(rune => {
+      if (rune?.name && Number(rune.copies || 0) > 0) {
+        items.push({ item_type: 'binding_rune', item_id: null, item_name: rune.name });
+      }
+    });
   }
   return items;
 }
@@ -4591,7 +5243,7 @@ function confirmStartRun() {
     timing_mode:  (window.innerWidth < 768) ? 'manual' : 'listener',
     spoiler_mode: _runSpoilerMode,
     is_hardcore:  _runHardcore ? 1 : 0,
-    build_id:     null,
+    build_id:     BUILD.id,
     items,
   };
   csrfFetch('/api/soulslike/session/create/', {

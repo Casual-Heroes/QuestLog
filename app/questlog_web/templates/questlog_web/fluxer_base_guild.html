@@ -24,7 +24,6 @@
           </button>
           <div x-show="open" @click.outside="open = false" x-cloak class="absolute left-0 top-full mt-1 w-40 bg-neutral-900 border border-neutral-700 rounded-xl shadow-xl py-1 z-50">
             <a href="/ffxiv/" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition"><img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover"> FFXIV</a>
-            <a href="/eso/" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-neutral-800 transition"><img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover"> ESO</a>
           </div>
         </div>
         <a href="{% url 'aboutus' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-neutral-800 transition text-xs font-medium"><i class="fas fa-info-circle text-xs"></i> About Us</a>

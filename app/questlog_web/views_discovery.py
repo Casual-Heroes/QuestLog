@@ -114,7 +114,7 @@ _SOCIAL_URL_DOMAINS = {
 
 # Valid in-game guild slugs - single source of truth
 VALID_GUILD_GAMES = frozenset({
-    'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor',
+    'ffxiv', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor',
     'division2', 'helldivers2', 'destiny2', 'warframe', 'dayz',
     'rust', 'ark', 'sevendays', 'palworld', 'valheim',
     'other',
@@ -376,7 +376,7 @@ _SOCIAL_URL_DOMAINS = {
 
 # Valid in-game guild slugs - single source of truth
 VALID_GUILD_GAMES = frozenset({
-    'ffxiv', 'eso', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor',
+    'ffxiv', 'wow', 'gw2', 'lost_ark', 'bdo', 'swtor',
     'division2', 'helldivers2', 'destiny2', 'warframe', 'dayz',
     'rust', 'ark', 'sevendays', 'palworld', 'valheim',
     'other',
@@ -1535,7 +1535,14 @@ def api_communities(request):
                 'invite_url': c.invite_url if c.allow_joins else None,
                 'tags': json.loads(c.tags or '[]'),
                 'owner_id': c.owner_id,
-                'guild_game': (json.loads(c.guild_game) if c.guild_game and c.guild_game.startswith('[') else ([c.guild_game] if c.guild_game else [])),
+                'guild_game': [
+                    game for game in (
+                        json.loads(c.guild_game)
+                        if c.guild_game and c.guild_game.startswith('[')
+                        else ([c.guild_game] if c.guild_game else [])
+                    )
+                    if str(game).lower() != 'eso'
+                ],
                 'guild_game_name': c.guild_game_name or None,
                 'games': json.loads(c.games or '[]'),
             })
@@ -1924,7 +1931,14 @@ def api_community_detail(request, community_id):
             'allow_discovery': community.allow_discovery,
             'allow_joins': community.allow_joins,
             'site_xp_to_guild': bool(community.site_xp_to_guild),
-            'guild_game': (json.loads(community.guild_game) if community.guild_game and community.guild_game.startswith('[') else ([community.guild_game] if community.guild_game else [])),
+            'guild_game': [
+                game for game in (
+                    json.loads(community.guild_game)
+                    if community.guild_game and community.guild_game.startswith('[')
+                    else ([community.guild_game] if community.guild_game else [])
+                )
+                if str(game).lower() != 'eso'
+            ],
             'guild_game_name': community.guild_game_name or None,
             'games': _enrich_community_games(db, json.loads(community.games or '[]')),
             'is_owner': is_owner,

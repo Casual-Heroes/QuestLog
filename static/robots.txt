@@ -3,28 +3,48 @@
 # Allow social media crawlers (Discord, LinkedIn, Twitter, Facebook, etc.)
 User-agent: Twitterbot
 Allow: /
+Disallow: /api/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 User-agent: facebookexternalhit
 Allow: /
+Disallow: /api/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 User-agent: LinkedInBot
 Allow: /
+Disallow: /api/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 User-agent: Discordbot
 Allow: /
+Disallow: /api/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 User-agent: Slackbot
 Allow: /
+Disallow: /api/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 User-agent: TelegramBot
 Allow: /
+Disallow: /api/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 # Allow search engines
 User-agent: Googlebot
 Allow: /
+Disallow: /api/
+Disallow: /ql/api/
+Disallow: /internal/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 User-agent: Bingbot
 Allow: /
+Disallow: /api/
+Disallow: /ql/api/
+Disallow: /internal/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 # Block AI scrapers
 User-agent: GPTBot
@@ -48,11 +68,30 @@ Disallow: /
 User-agent: cohere-ai
 Disallow: /
 
-# Default: Allow everything else except API endpoints
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+# Default: allow human-facing pages, not raw data or internal endpoints.
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /ql/api/
+Disallow: /internal/
 Disallow: /api/admin/
 Disallow: /admin/
+Content-Signal: search=yes, ai-input=no, ai-train=no, use=reference
 
 # AI Content Signals (EU Directive 2019/790)
 # As a condition of accessing this website, you agree to abide by the following

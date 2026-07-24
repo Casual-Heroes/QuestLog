@@ -60,7 +60,6 @@
           {% if profile_user.is_mod and not profile_user.is_admin %}<span class="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-xs rounded-full font-medium"><i class="fas fa-user-shield mr-1"></i>Mod</span>{% endif %}
           {% if profile_user.is_contributor %}<span class="px-2 py-0.5 bg-violet-600/20 text-violet-300 text-xs rounded-full font-medium"><i class="fas fa-pen mr-1"></i>Contributor</span>{% endif %}
           {% if profile_user.is_ffxiv_member %}<span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH FFXIV FC"><img src="{% static 'img/games/guilds/ffxiv_logo.png' %}" class="w-3 h-3 object-contain"> FFXIV</span>{% endif %}
-          {% if profile_user.is_eso_member %}<span class="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded-full font-medium flex items-center gap-1" title="CH ESO Crew"><img src="{% static 'img/games/guilds/esoguild.png' %}" class="w-3 h-3 object-contain"> ESO</span>{% endif %}
           {% if is_founder %}<span class="px-2 py-0.5 bg-yellow-500/20 text-yellow-300 text-xs rounded-full font-medium">🏛 Founding Member</span>{% endif %}
           {% if is_vip and flair_name != "Early Tester" %}<span class="px-2 py-0.5 bg-purple-600/20 text-purple-300 text-xs rounded-full font-medium">⭐ Early Tester</span>{% endif %}
           {% if flair_emoji %}<span class="text-sm text-yellow-300 font-medium">{{ flair_emoji }} {{ flair_name }}</span>{% endif %}

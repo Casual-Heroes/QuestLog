@@ -86,6 +86,7 @@ def admin_panel(request):
 # Single AMP account (AMP_USER/AMP_PASSWORD) - no per-instance credentials needed.
 
 _INSTANCE_NAME_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+_QC_AMP_SERVER_PASSWORD_NODE = 'Meta.GenericModule.ServerPassword'
 
 def _validate_instance_name(name: str) -> bool:
     """Return True only if instance_name is a safe alphanumeric slug."""
@@ -833,6 +834,158 @@ def _get_amp_instance(instance_name, user_env='AMP_USER', pass_env='AMP_PASSWORD
         return loop.run_until_complete(_fetch())
     finally:
         loop.close()
+
+
+def _qc_extract_amp_server_password(setting):
+    """Return a password from AMP's Server Password SettingSpec.
+
+    None means the response was not the expected setting (for example, a game
+    without a ServerPassword field). An empty string is a valid, authoritative
+    response and clears a password that was removed in AMP.
+    """
+    missing = object()
+    if isinstance(setting, dict):
+        node = setting.get('node', setting.get('Node'))
+        input_type = setting.get('input_type', setting.get('InputType'))
+        value = setting.get(
+            'current_value',
+            setting.get('CurrentValue', missing),
+        )
+    else:
+        node = getattr(setting, 'node', None)
+        input_type = getattr(setting, 'input_type', None)
+        value = getattr(setting, 'current_value', missing)
+
+    if node != _QC_AMP_SERVER_PASSWORD_NODE:
+        return None
+    if input_type and str(input_type).lower() != 'password':
+        return None
+    if value is missing:
+        return None
+    return '' if value is None else str(value)
+
+
+def _qc_fetch_amp_server_passwords(instance_names):
+    """Fetch authoritative server passwords from AMP without exposing them."""
+    import asyncio
+    from ampapi.dataclass import APIParams
+    from ampapi.bridge import Bridge
+    from ampapi.controller import AMPControllerInstance as _AMPController
+
+    names = {
+        str(name) for name in instance_names
+        if name and _validate_instance_name(str(name))
+    }
+    if not names:
+        return {}
+
+    amp_url = os.getenv('AMP_URL')
+    amp_user = os.getenv('AMP_USER')
+    amp_password = os.getenv('AMP_PASSWORD')
+    if not all((amp_url, amp_user, amp_password)):
+        logger.warning(
+            'Quest Control password sync skipped: AMP credentials are incomplete'
+        )
+        return {}
+
+    async def _fetch():
+        Bridge(api_params=APIParams(
+            url=amp_url,
+            user=amp_user,
+            password=amp_password,
+        ))
+        controller = _AMPController()
+        await controller.get_instances()
+        instances = {
+            instance.instance_name: instance
+            for instance in controller.instances
+            if instance.instance_name in names
+        }
+
+        fetched = {}
+        for name in names:
+            instance = instances.get(name)
+            if instance is None:
+                logger.warning(
+                    'Quest Control password sync: AMP instance %s was not found',
+                    name,
+                )
+                continue
+            try:
+                setting = await instance.get_config(
+                    _QC_AMP_SERVER_PASSWORD_NODE,
+                    format_data=False,
+                )
+                value = _qc_extract_amp_server_password(setting)
+                if value is not None:
+                    fetched[name] = value
+            except Exception as exc:
+                # Preserve the last known DB value when AMP is unavailable or
+                # this game does not expose the standard GenericModule field.
+                logger.warning(
+                    'Quest Control password sync failed for %s: %s',
+                    name,
+                    exc,
+                )
+        return fetched
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(asyncio.wait_for(_fetch(), timeout=5))
+    except Exception as exc:
+        logger.warning('Quest Control password sync failed: %s', exc)
+        return {}
+    finally:
+        loop.close()
+
+
+def _qc_sync_amp_server_passwords(engine, configs):
+    """Refresh AMP passwords in both the loaded rows and gamebot_configs."""
+    passwords = _qc_fetch_amp_server_passwords(
+        cfg.get('instance_name')
+        for cfg in configs
+        if cfg.get('configured')
+    )
+    if not passwords:
+        return 0
+
+    changed = []
+    for cfg in configs:
+        name = cfg.get('instance_name')
+        if name not in passwords:
+            continue
+        password = passwords[name]
+        if cfg.get('server_password') != password:
+            changed.append({'n': name, 'p': password})
+        cfg['server_password'] = password
+
+    if changed:
+        from sqlalchemy import text as sa_text2
+        try:
+            with engine.begin() as conn:
+                conn.execute(sa_text2(
+                    "UPDATE gamebot_configs "
+                    "SET server_password = :p WHERE instance_name = :n"
+                ), changed)
+            logger.info(
+                'Quest Control refreshed AMP server passwords for %d instance(s)',
+                len(changed),
+            )
+        except Exception as exc:
+            # The page can still show the fresh in-memory state. A later page
+            # load can retry persistence without replacing it with a blank.
+            logger.error(
+                'Quest Control could not persist AMP password sync: %s',
+                exc,
+            )
+    return len(changed)
+
+
+def _qc_client_config(config):
+    """Return browser-safe config data; the UI only needs password presence."""
+    public_config = dict(config)
+    public_config.pop('server_password', None)
+    return public_config
 
 
 @web_admin_or_instance_manager_required
@@ -3398,6 +3551,11 @@ def admin_quest_control(request):
     except Exception as e:
         logger.warning('admin_quest_control: gamebot_configs query failed: %s', e)
 
+    # The bot's historical startup sync can leave a stale blank in the DB.
+    # Refresh from AMP's authoritative GenericModule setting whenever Quest
+    # Control loads, while preserving the last known value on API failures.
+    _qc_sync_amp_server_passwords(engine, all_rows)
+
     # Cache channel/role lookups per guild id so an instance's own linked guild(s)
     # aren't refetched if another instance happens to link the same guild.
     _channels_cache = {}
@@ -3447,7 +3605,10 @@ def admin_quest_control(request):
             })
 
     for bot in bots:
-        bot['config_json']   = json.dumps(bot['config'], default=str)
+        bot['config_json']   = json.dumps(
+            _qc_client_config(bot['config']),
+            default=str,
+        )
         bot['channels_json'] = json.dumps(bot['channels'])
         bot['roles_json']    = json.dumps(bot['roles'])
         bot['discord_channels_json'] = json.dumps(bot['discord_channels'])

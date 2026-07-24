@@ -18,66 +18,26 @@
     </a>
   </div>
 
-  {% if runs %}
-  <div class="space-y-3 mb-8">
-    {% for run in runs %}
-    <a href="/soulslike/runs/{{ run.token }}/" class="block bg-neutral-900 border border-neutral-800 hover:border-neutral-600 rounded-xl p-4 transition group">
-      <div class="flex items-start justify-between">
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-1">
-            {% if run.is_active %}
-            <span class="flex items-center gap-1 text-[10px] text-green-400 font-bold">
-              <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>ACTIVE
-            </span>
-            {% else %}
-            <span class="text-[10px] text-gray-600 font-semibold">COMPLETED</span>
-            {% endif %}
-            <span class="text-[10px] text-gray-600">{% if run.game_mode == 'err' %}Elden Ring Reforged{% elif run.game == 'elden_ring' %}Elden Ring{% else %}{{ run.game|title }}{% endif %}</span>
-          </div>
-          <div class="text-white font-bold group-hover:text-amber-300 transition truncate">{{ run.build_name }}</div>
-          <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-            <span class="text-[11px] text-red-400 font-bold">
-              <i class="fas fa-skull mr-0.5 text-[9px]"></i>{{ run.deaths }} deaths
-            </span>
-            {% if run.bosses_killed %}
-            <span class="text-[11px] text-amber-600">
-              <i class="fas fa-dragon mr-0.5 text-[9px]"></i>{{ run.bosses_killed }} bosses
-            </span>
-            {% endif %}
-            {% if run.total %}
-            <span class="text-[11px] text-green-600">
-              <i class="fas fa-check-circle mr-0.5 text-[9px]"></i>{{ run.collected }}/{{ run.total }} items
-            </span>
-            {% endif %}
-          </div>
-          {% if run.total %}
-          <div class="mt-1.5 h-1 bg-neutral-800 rounded-full overflow-hidden w-48">
-            <div class="h-full bg-green-600 rounded-full" style="width:{% widthratio run.collected run.total 100 %}%"></div>
-          </div>
-          {% endif %}
-        </div>
-        <div class="text-right flex-shrink-0 ml-4 text-gray-600 text-[10px]">
-          {% if run.last_death %}
-          <div>Last: {{ run.last_death }}</div>
-          {% endif %}
-        </div>
-      </div>
-    </a>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="text-center py-10 text-gray-600 mb-8">
-    <i class="fas fa-scroll text-4xl mb-4 block"></i>
-    <p class="text-lg font-semibold mb-2">No runs yet</p>
-    <p class="text-sm mb-6">Start a run from one of your builds below, or plan a new one in the builder.</p>
-  </div>
+  {% if active_runs %}
+  <section class="mb-8">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+      <i class="fas fa-circle-play text-green-500 mr-1"></i>Active Runs
+      <span class="ml-1 text-green-700">{{ active_runs|length }}</span>
+    </h2>
+    <div class="space-y-3">
+      {% for run in active_runs %}
+        {% include "questlog_web/partials/sl_personal_run_card.html" with run=run %}
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 
-  <!-- Idle Builds - builds ready to run -->
+  <!-- Builds without an active journey -->
   {% if idle_builds %}
-  <div class="mb-2">
+  <section class="mb-8">
     <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
-      <i class="fas fa-shield-halved mr-1"></i>Your Builds - Ready to Run
+      <i class="fas fa-shield-halved text-amber-500 mr-1"></i>Ready to Run
+      <span class="ml-1 text-gray-700">{{ idle_builds|length }}</span>
     </h2>
     <div class="space-y-2">
       {% for b in idle_builds %}
@@ -103,11 +63,28 @@
       </div>
       {% endfor %}
     </div>
-  </div>
+  </section>
   {% endif %}
 
-  {% if not runs and not idle_builds %}
-  <div class="text-center py-6">
+  {% if completed_runs %}
+  <section class="mb-8">
+    <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+      <i class="fas fa-circle-check text-gray-500 mr-1"></i>Completed Runs
+      <span class="ml-1 text-gray-700">{{ completed_runs|length }}</span>
+    </h2>
+    <div class="space-y-3">
+      {% for run in completed_runs %}
+        {% include "questlog_web/partials/sl_personal_run_card.html" with run=run %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if not active_runs and not completed_runs and not idle_builds %}
+  <div class="text-center py-10 text-gray-600">
+    <i class="fas fa-scroll text-4xl mb-4 block"></i>
+    <p class="text-lg font-semibold mb-2">No runs yet</p>
+    <p class="text-sm mb-6">Plan a build, then start its first run.</p>
     <a href="/soulslike/builder/" class="px-6 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm font-bold rounded-lg transition">
       <i class="fas fa-shield-halved mr-1"></i>Open Build Planner
     </a>

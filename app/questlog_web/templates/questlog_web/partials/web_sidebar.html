@@ -411,27 +411,6 @@
             </a>
           </div>
         </div>
-        <div x-data="{ open: {% if active_page == 'eso' or active_page == 'eso_apply' or active_page == 'eso_builds' or active_page == 'lfg_browse' or active_page == 'lfg_create' or active_page == 'lfg_detail' %}true{% else %}false{% endif %} }">
-          <button @click="open = !open" class="nav-item w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group {% if active_page == 'eso' or active_page == 'eso_apply' or active_page == 'eso_builds' %}active{% endif %}">
-            <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover opacity-60 group-hover:opacity-100 flex-shrink-0">
-            <span class="flex-1 text-left">ESO</span>
-            <i class="fas fa-chevron-down text-[10px] text-gray-600 transition-transform duration-200" :class="open ? 'rotate-180' : ''"></i>
-          </button>
-          <div x-show="open" x-cloak class="ml-4 mt-0.5 space-y-0.5 border-l border-neutral-800 pl-3">
-            <a href="/eso/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'eso' %}text-white bg-neutral-800{% endif %}">
-              <i class="fas fa-users text-[10px] text-indigo-400 flex-shrink-0"></i> Guild Page
-            </a>
-            <a href="/eso/builds/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'eso_builds' %}text-white bg-neutral-800{% endif %}">
-              <i class="fas fa-scroll text-[10px] text-amber-400 flex-shrink-0"></i> Builds
-            </a>
-            <a href="/lfg/create/?game=eso" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'lfg_create' %}text-white bg-neutral-800{% endif %}">
-              <i class="fas fa-shield-alt text-[10px] text-emerald-400 flex-shrink-0"></i> Group Finder
-            </a>
-            <a href="/eso/apply/" class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-neutral-800 transition {% if active_page == 'eso_apply' %}text-white bg-neutral-800{% endif %}">
-              <i class="fas fa-scroll text-[10px] text-rose-400 flex-shrink-0"></i> Apply to Guild
-            </a>
-          </div>
-        </div>
         <a href="{% url 'questlog_web_gameservers' %}"
            class="nav-item {% if active_page == 'hosted_games' %}active{% endif %} flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group">
           <i class="fas fa-server text-gray-400 group-hover:text-indigo-400"></i>

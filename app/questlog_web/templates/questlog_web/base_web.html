@@ -122,9 +122,6 @@
       <a href="/ffxiv/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium pl-5">
         <img src="{% static 'img/games/guilds/ffxiv.png' %}" alt="FFXIV" class="w-4 h-4 rounded-sm object-cover"> FFXIV
       </a>
-      <a href="/eso/" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-200 hover:text-white hover:bg-neutral-800 active:bg-neutral-700 transition text-sm font-medium pl-5">
-        <img src="{% static 'img/games/guilds/esoguild.png' %}" alt="ESO" class="w-4 h-4 rounded-sm object-cover"> ESO
-      </a>
       {% if web_user %}
       <div class="border-t border-neutral-800 pt-2 mt-2 space-y-1">
         <a href="{% url 'questlog_web_lfg_create' %}" class="flex items-center gap-3 px-3 py-3 rounded-xl bg-emerald-600/20 border border-emerald-600/30 text-emerald-400 hover:bg-emerald-600/30 active:bg-emerald-600/40 transition text-sm font-semibold">
